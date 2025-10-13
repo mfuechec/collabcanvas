@@ -126,10 +126,10 @@ collabcanvas/
 
 **PR Checklist:**
 
-- [ ] Dev server runs successfully
-- [ ] Firebase initialized without errors
-- [ ] Tailwind classes work in test component
-- [ ] `.env` is in `.gitignore`
+- [x] Dev server runs successfully
+- [x] Firebase initialized without errors
+- [x] Tailwind classes work in test component
+- [x] `.env` is in `.gitignore`
 
 ---
 
@@ -208,58 +208,58 @@ collabcanvas/
 
 ### Tasks:
 
-- [ ] **3.1: Create Canvas Constants**
+- [x] **3.1: Create Canvas Constants**
 
   - Files to create: `src/utils/constants.js`
   - Define: `CANVAS_WIDTH = 5000`, `CANVAS_HEIGHT = 5000`, `VIEWPORT_WIDTH`, `VIEWPORT_HEIGHT`
 
-- [ ] **3.2: Create Canvas Context**
+- [x] **3.2: Create Canvas Context**
 
   - Files to create: `src/contexts/CanvasContext.jsx`
   - State: `shapes`, `selectedId`, `stageRef`
   - Provide methods to add/update/delete shapes
 
-- [ ] **3.3: Build Base Canvas Component**
+- [x] **3.3: Build Base Canvas Component**
 
   - Files to create: `src/components/Canvas/Canvas.jsx`
   - Set up Konva Stage and Layer
   - Container div with fixed dimensions
   - Background color/grid (optional)
 
-- [ ] **3.4: Implement Pan Functionality**
+- [x] **3.4: Implement Pan Functionality**
 
   - Files to update: `src/components/Canvas/Canvas.jsx`
   - Handle `onDragMove` on Stage
   - Constrain panning to canvas bounds (5000x5000px)
   - Strictly prevent objects from being placed/moved outside boundaries (no crossing)
 
-- [ ] **3.5: Implement Zoom Functionality**
+- [x] **3.5: Implement Zoom Functionality**
 
   - Files to update: `src/components/Canvas/Canvas.jsx`
   - Handle `onWheel` event
   - Zoom to cursor position
   - Min zoom: 0.1, Max zoom: 3
 
-- [ ] **3.6: Create Canvas Controls Component**
+- [x] **3.6: Create Canvas Controls Component**
 
   - Files to create: `src/components/Canvas/CanvasControls.jsx`
   - Buttons: "Zoom In", "Zoom Out", "Reset View", "Add Shape"
   - Position: Fixed/floating on canvas
 
-- [ ] **3.7: Add Canvas to App**
+- [x] **3.7: Add Canvas to App**
   - Files to update: `src/App.jsx`
   - Wrap Canvas in CanvasContext
   - Include Navbar and Canvas
 
 **PR Checklist:**
 
-- [ ] Canvas renders at correct size (5000x5000px)
-- [ ] Can pan by dragging canvas background
-- [ ] Can zoom with mousewheel
-- [ ] Zoom centers on cursor position
-- [ ] Reset view button works
-- [ ] Canvas boundaries are enforced (optional: visual indicators)
-- [ ] 60 FPS maintained during pan/zoom
+- [x] Canvas renders at correct size (5000x5000px)
+- [x] Can pan by dragging canvas background
+- [x] Can zoom with mousewheel
+- [x] Zoom centers on cursor position
+- [x] Reset view button works
+- [x] Canvas boundaries are enforced (optional: visual indicators)
+- [x] 60 FPS maintained during pan/zoom
 
 ---
 
