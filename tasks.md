@@ -444,7 +444,7 @@ collabcanvas/
 
 ### Tasks:
 
-- [ ] **6.1: Design Realtime Database Schema**
+- [x] **6.1: Design Realtime Database Schema**
 
   - Path: `/sessions/global-canvas-v1/{userId}`
   - Data structure:
@@ -458,14 +458,14 @@ collabcanvas/
     }
     ```
 
-- [ ] **6.2: Create Cursor Service**
+- [x] **6.2: Create Cursor Service**
 
   - Files to create: `src/services/cursors.js`
   - Function: `updateCursorPosition(canvasId, userId, x, y, name, color)`
   - Function: `subscribeToCursors(canvasId, callback)`
   - Function: `removeCursor(canvasId, userId)` (on disconnect)
 
-- [ ] **6.3: Create Cursors Hook**
+- [x] **6.3: Create Cursors Hook**
 
   - Files to create: `src/hooks/useCursors.js`
   - Track mouse position on canvas
@@ -473,46 +473,46 @@ collabcanvas/
   - Throttle updates to ~60Hz (16ms)
   - Return: `cursors` object (keyed by userId)
 
-- [ ] **6.4: Build Cursor Component**
+- [x] **6.4: Build Cursor Component**
 
   - Files to create: `src/components/Collaboration/Cursor.jsx`
   - SVG cursor icon with user color
   - Name label next to cursor
   - Smooth CSS transitions for movement
 
-- [ ] **6.5: Integrate Cursors into Canvas**
+- [x] **6.5: Integrate Cursors into Canvas**
 
   - Files to update: `src/components/Canvas/Canvas.jsx`
   - Add `onMouseMove` handler to Stage
   - Update cursor position in RTDB
   - Render Cursor components for all other users
 
-- [ ] **6.6: Assign User Colors**
+- [x] **6.6: Assign User Colors**
 
   - Files to create: `src/utils/helpers.js`
   - Function: `generateUserColor(userId)` - randomly assigned on join
   - Color palette: 8-10 distinct colors with sufficient contrast
   - Maintain color consistency per user throughout session
 
-- [ ] **6.7: Handle Cursor Cleanup**
+- [x] **6.7: Handle Cursor Cleanup**
 
   - Files to update: `src/hooks/useCursors.js`
   - Remove cursor on component unmount
   - Use `onDisconnect()` in RTDB to auto-cleanup
 
-- [ ] **6.8: Optimize Cursor Updates**
+- [x] **6.8: Optimize Cursor Updates**
   - Files to update: `src/hooks/useCursors.js`
   - Throttle mouse events to 20-30 FPS (not full 60Hz)
   - Only send if position changed significantly (>2px)
 
 **PR Checklist:**
 
-- [ ] Moving mouse shows cursor to other users
-- [ ] Cursor has correct user name and color
-- [ ] Cursors move smoothly without jitter
-- [ ] Cursor disappears when user leaves
-- [ ] Updates happen within 50ms
-- [ ] No performance impact with 5 concurrent cursors
+- [x] Moving mouse shows cursor to other users
+- [x] Cursor has correct user name and color
+- [x] Cursors move smoothly without jitter
+- [x] Cursor disappears when user leaves
+- [x] Updates happen within 50ms
+- [x] No performance impact with 5 concurrent cursors
 
 ---
 

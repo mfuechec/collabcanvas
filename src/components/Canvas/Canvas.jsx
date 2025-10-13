@@ -2,7 +2,9 @@
 import { useEffect, useCallback, useRef, useState } from 'react';
 import { Stage, Layer, Rect } from 'react-konva';
 import { useCanvas } from '../../hooks/useCanvas';
+import { useCursors } from '../../hooks/useCursors';
 import Shape from './Shape';
+import Cursor from '../Collaboration/Cursor';
 import { 
   CANVAS_BACKGROUND_COLOR, 
   CANVAS_BORDER_COLOR,
@@ -32,6 +34,9 @@ const Canvas = () => {
     deleteShape,
     retryConnection
   } = useCanvas();
+
+  // Multiplayer cursors
+  const { cursors } = useCursors(stageRef);
 
   const containerRef = useRef(null);
   const isDraggingCanvas = useRef(false);
@@ -329,6 +334,27 @@ const Canvas = () => {
           </Stage>
         )}
       </div>
+
+      {/* Multiplayer Cursors Overlay */}
+      {cursors.map((cursor) => {
+        // Convert canvas coordinates to screen coordinates
+        const stage = stageRef.current;
+        if (!stage) return null;
+        
+        const transform = stage.getAbsoluteTransform();
+        const screenCoords = transform.point({ x: cursor.x, y: cursor.y });
+        
+        return (
+          <Cursor
+            key={cursor.id}
+            x={screenCoords.x}
+            y={screenCoords.y}
+            displayName={cursor.displayName}
+            color={cursor.color}
+            userId={cursor.id}
+          />
+        );
+      })}
     </div>
   );
 };
