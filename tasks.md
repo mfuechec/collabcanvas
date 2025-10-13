@@ -270,26 +270,26 @@ collabcanvas/
 
 ### Tasks:
 
-- [ ] **4.1: Create Shape Component**
+- [x] **4.1: Create Shape Component**
 
   - Files to create: `src/components/Canvas/Shape.jsx`
   - Support: **Rectangles only for MVP**
   - Props: `id`, `x`, `y`, `width`, `height`, `fill`, `isSelected`, `isLocked`, `lockedBy`
 
-- [ ] **4.2: Add Shape Creation Logic**
+- [x] **4.2: Add Shape Creation Logic**
 
   - Files to update: `src/contexts/CanvasContext.jsx`
   - Function: `addShape(type, position)`
   - Generate unique ID for each shape
   - Default properties: 100x100px, fixed gray fill (#cccccc)
 
-- [ ] **4.3: Implement Shape Rendering**
+- [x] **4.3: Implement Shape Rendering**
 
   - Files to update: `src/components/Canvas/Canvas.jsx`
   - Map over `shapes` array
   - Render Shape component for each
 
-- [ ] **4.4: Add Shape Selection**
+- [x] **4.4: Add Shape Selection**
 
   - Files to update: `src/components/Canvas/Shape.jsx`
   - Handle `onClick` to set selected
@@ -297,7 +297,7 @@ collabcanvas/
   - Files to update: `src/contexts/CanvasContext.jsx`
   - State: `selectedId`
 
-- [ ] **4.5: Implement Shape Dragging**
+- [x] **4.5: Implement Shape Dragging**
 
   - Files to update: `src/components/Canvas/Shape.jsx`
   - Enable `draggable={true}`
@@ -306,17 +306,17 @@ collabcanvas/
   - Files to update: `src/contexts/CanvasContext.jsx`
   - Function: `updateShape(id, updates)`
 
-- [ ] **4.6: Add Click-to-Deselect**
+- [x] **4.6: Add Click-to-Deselect**
 
   - Files to update: `src/components/Canvas/Canvas.jsx`
   - Handle Stage `onClick` to deselect when clicking background
 
-- [ ] **4.7: Connect "Add Shape" Button**
+- [x] **4.7: Connect "Add Shape" Button**
 
   - Files to update: `src/components/Canvas/CanvasControls.jsx`
   - Button creates shape at center of current viewport
 
-- [ ] **4.8: Add Delete Functionality & Basic Unit Tests**
+- [x] **4.8: Add Delete Functionality & Basic Unit Tests**
   - Files to update: `src/contexts/CanvasContext.jsx`
   - Function: `deleteShape(id)`
   - Files to update: `src/components/Canvas/Canvas.jsx`
@@ -327,16 +327,16 @@ collabcanvas/
 
 **PR Checklist:**
 
-- [ ] Can create rectangles via button
-- [ ] Rectangles render at correct positions with gray fill
-- [ ] Can select rectangles by clicking
-- [ ] Can drag rectangles smoothly
-- [ ] Selection state shows visually
-- [ ] Can delete selected rectangle with Delete/Backspace key
-- [ ] Clicking another shape deselects the previous one
-- [ ] Clicking empty canvas deselects current selection
-- [ ] Objects cannot be moved outside canvas boundaries
-- [ ] No lag with 20+ shapes
+- [x] Can create rectangles via button
+- [x] Rectangles render at correct positions with gray fill
+- [x] Can select rectangles by clicking
+- [x] Can drag rectangles smoothly
+- [x] Selection state shows visually
+- [x] Can delete selected rectangle with Delete/Backspace key
+- [x] Clicking another shape deselects the previous one
+- [x] Clicking empty canvas deselects current selection
+- [x] Objects cannot be moved outside canvas boundaries
+- [x] No lag with 20+ shapes
 
 ---
 

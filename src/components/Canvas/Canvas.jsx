@@ -2,6 +2,7 @@
 import { useEffect, useCallback, useRef, useState } from 'react';
 import { Stage, Layer, Rect } from 'react-konva';
 import { useCanvas } from '../../hooks/useCanvas';
+import Shape from './Shape';
 import { 
   CANVAS_BACKGROUND_COLOR, 
   CANVAS_BORDER_COLOR,
@@ -154,8 +155,14 @@ const Canvas = () => {
 
   // Handle clicking on empty canvas (deselect)
   const handleStageClick = useCallback((e) => {
-    // Check if click was on stage background (not on a shape)
-    if (e.target === e.target.getStage()) {
+    // Check if click was on stage background or canvas background rect (not on a shape)
+    const stage = e.target.getStage();
+    const isStageClick = e.target === stage;
+    const isCanvasBackgroundClick = e.target.attrs && 
+                                   e.target.attrs.width === CANVAS_WIDTH && 
+                                   e.target.attrs.height === CANVAS_HEIGHT;
+    
+    if (isStageClick || isCanvasBackgroundClick) {
       deselectAll();
     }
   }, [deselectAll]);
@@ -259,19 +266,17 @@ const Canvas = () => {
 
               {/* Render Shapes */}
               {shapes.map((shape) => (
-                <Rect
+                <Shape
                   key={shape.id}
+                  id={shape.id}
                   x={shape.x}
                   y={shape.y}
                   width={shape.width}
                   height={shape.height}
                   fill={shape.fill}
-                  stroke={selectedShapeId === shape.id ? '#3b82f6' : 'transparent'}
-                  strokeWidth={selectedShapeId === shape.id ? 2 : 0}
-                  draggable={!shape.isLocked}
-                  opacity={shape.isLocked ? 0.6 : 1.0}
-                  onClick={() => handleShapeClick(shape.id)}
-                  onDragMove={(e) => handleShapeDragMove(e, shape.id)}
+                  isSelected={selectedShapeId === shape.id}
+                  isLocked={shape.isLocked}
+                  lockedBy={shape.lockedBy}
                 />
               ))}
             </Layer>
