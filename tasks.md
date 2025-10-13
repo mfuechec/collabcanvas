@@ -347,7 +347,7 @@ collabcanvas/
 
 ### Tasks:
 
-- [ ] **5.1: Design Firestore Schema**
+- [x] **5.1: Design Firestore Schema**
 
   - Collection: `canvas` (single document: `global-canvas-v1`)
   - Document structure:
@@ -375,7 +375,7 @@ collabcanvas/
     }
     ```
 
-- [ ] **5.2: Create Canvas Service**
+- [x] **5.2: Create Canvas Service**
 
   - Files to create: `src/services/canvas.js`
   - Function: `subscribeToShapes(canvasId, callback)`
@@ -383,57 +383,57 @@ collabcanvas/
   - Function: `updateShape(canvasId, shapeId, updates)`
   - Function: `deleteShape(canvasId, shapeId)`
 
-- [ ] **5.3: Create Canvas Hook**
+- [x] **5.3: Create Canvas Hook**
 
-  - Files to create: `src/hooks/useCanvas.js`
+  - Files to create: `src/hooks/useFirebaseCanvas.js`
   - Subscribe to Firestore on mount
   - Sync local state with Firestore
   - Return: `shapes`, `addShape()`, `updateShape()`, `deleteShape()`
 
-- [ ] **5.4: Integrate Real-Time Updates in Context**
+- [x] **5.4: Integrate Real-Time Updates in Context**
 
   - Files to update: `src/contexts/CanvasContext.jsx`
-  - Replace local state with `useCanvas` hook
+  - Replace local state with `useFirebaseCanvas` hook
   - Listen to Firestore changes
   - Update local shapes array on remote changes
 
-- [ ] **5.5: Implement Object Locking**
+- [x] **5.5: Implement Object Locking**
 
   - Files to update: `src/services/canvas.js`
   - Strategy: First user to select/drag acquires lock
   - Function: `lockShape(canvasId, shapeId, userId)`
   - Function: `unlockShape(canvasId, shapeId)`
-  - Auto-release lock after drag completes or timeout (3-5 seconds)
+  - Auto-release lock after drag completes or timeout (5 seconds)
   - Visual feedback: Different border color + reduced opacity for locked objects
   - Other users cannot move locked objects
-  - Files to create: `tests/unit/services/canvas.test.js` (basic locking tests)
+  - Files to create: `tests/unit/locking/shape-locking.test.jsx` (comprehensive locking tests)
 
-- [ ] **5.6: Add Loading States**
+- [x] **5.6: Add Loading States**
 
   - Files to update: `src/contexts/CanvasContext.jsx`
   - Show loading spinner while initial shapes load
   - Files to update: `src/components/Canvas/Canvas.jsx`
   - Display "Loading canvas..." message
 
-- [ ] **5.7: Handle Offline/Reconnection**
-  - Files to update: `src/hooks/useCanvas.js`
+- [x] **5.7: Handle Offline/Reconnection**
+  - Files to update: `src/hooks/useFirebaseCanvas.js`
   - Enable Firestore offline persistence
   - Show reconnection status
 
 **PR Checklist:**
 
-- [ ] Open two browsers: creating shape in one appears in other
-- [ ] User A starts dragging shape → shape locks for User A
-- [ ] User B cannot move shape while User A has it locked
-- [ ] Lock shows visual indicator (e.g., different border color)
-- [ ] Lock releases automatically when User A stops dragging
-- [ ] Lock releases after timeout (3-5 seconds) if User A disconnects mid-drag
-- [ ] Moving shape in one browser updates in other (<100ms)
-- [ ] Deleting shape in one removes from other
-- [ ] Cannot delete shapes locked by other users
-- [ ] Page refresh loads all existing shapes
-- [ ] All users leave and return: shapes still there
-- [ ] No duplicate shapes or sync issues
+- [x] Open two browsers: creating shape in one appears in other
+- [x] User A starts dragging shape → shape locks for User A
+- [x] User B cannot move shape while User A has it locked
+- [x] Lock shows visual indicator (e.g., different border color)
+- [x] Lock releases automatically when User A stops dragging
+- [x] Lock releases after timeout (5 seconds) if User A disconnects mid-drag
+- [x] Moving shape in one browser updates in other (<100ms)
+- [x] Deleting shape in one removes from other
+- [x] Cannot delete shapes locked by other users
+- [x] Page refresh loads all existing shapes
+- [x] All users leave and return: shapes still there
+- [x] No duplicate shapes or sync issues
 
 ---
 

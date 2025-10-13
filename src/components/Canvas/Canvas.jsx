@@ -20,13 +20,17 @@ const Canvas = () => {
     shapes,
     selectedShapeId,
     stageRef,
+    isLoading,
+    error,
+    isConnected,
     updateCanvasPosition,
     updateZoom,
     selectShape,
     deselectAll,
     constrainToBounds,
     updateShape,
-    deleteShape
+    deleteShape,
+    retryConnection
   } = useCanvas();
 
   const containerRef = useRef(null);
@@ -234,7 +238,49 @@ const Canvas = () => {
   }, [zoom, canvasPosition]);
 
   return (
-    <div className="w-full h-full bg-gray-100 overflow-hidden">
+    <div className="w-full h-full bg-gray-100 overflow-hidden relative">
+      {/* Loading Overlay */}
+      {isLoading && (
+        <div className="absolute inset-0 bg-white bg-opacity-75 flex items-center justify-center z-50">
+          <div className="text-center">
+            <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mx-auto mb-4"></div>
+            <p className="text-gray-700 font-medium">Loading canvas...</p>
+            <p className="text-gray-500 text-sm">Syncing with server</p>
+          </div>
+        </div>
+      )}
+
+      {/* Error Overlay */}
+      {error && !isLoading && (
+        <div className="absolute inset-0 bg-red-50 bg-opacity-90 flex items-center justify-center z-40">
+          <div className="text-center max-w-md mx-auto p-6">
+            <div className="text-red-600 mb-4">
+              <svg className="w-12 h-12 mx-auto" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-2.5L13.732 4c-.77-.833-1.964-.833-2.732 0L3.732 16.5c-.77.833.192 2.5 1.732 2.5z" />
+              </svg>
+            </div>
+            <h3 className="text-lg font-semibold text-red-800 mb-2">Connection Error</h3>
+            <p className="text-red-700 mb-4">{error}</p>
+            <button
+              onClick={retryConnection}
+              className="bg-red-600 text-white px-4 py-2 rounded-md hover:bg-red-700 transition-colors"
+            >
+              Retry Connection
+            </button>
+          </div>
+        </div>
+      )}
+
+      {/* Connection Status */}
+      {!isConnected && !error && !isLoading && (
+        <div className="absolute top-4 right-4 bg-yellow-100 border border-yellow-400 text-yellow-800 px-3 py-2 rounded-md text-sm z-30">
+          <div className="flex items-center">
+            <div className="w-2 h-2 bg-yellow-500 rounded-full animate-pulse mr-2"></div>
+            Reconnecting...
+          </div>
+        </div>
+      )}
+
       {/* Konva Stage Container - Fully responsive */}
       <div 
         ref={containerRef}

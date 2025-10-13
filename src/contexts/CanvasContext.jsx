@@ -1,12 +1,12 @@
-// Canvas Context - Global state management for canvas and shapes
+// Canvas Context - Global state management for canvas and shapes with Firebase sync
 import { createContext, useContext, useRef, useState, useCallback } from 'react';
+import { useFirebaseCanvas } from '../hooks/useFirebaseCanvas';
 import { 
   CANVAS_WIDTH, 
   CANVAS_HEIGHT, 
   DEFAULT_ZOOM, 
   DEFAULT_CANVAS_X, 
-  DEFAULT_CANVAS_Y,
-  MAX_SHAPES_LIMIT 
+  DEFAULT_CANVAS_Y
 } from '../utils/constants';
 
 // Create Canvas Context
@@ -14,20 +14,35 @@ const CanvasContext = createContext();
 
 // Canvas Provider Component
 export const CanvasProvider = ({ children }) => {
-  // Canvas viewport state
+  // Canvas viewport state (still local)
   const [canvasPosition, setCanvasPosition] = useState({
     x: DEFAULT_CANVAS_X,
     y: DEFAULT_CANVAS_Y
   });
   const [zoom, setZoom] = useState(DEFAULT_ZOOM);
 
-  // Shapes state (will be synced with Firestore later)
-  const [shapes, setShapes] = useState([]);
+  // Selection state (local)
   const [selectedShapeId, setSelectedShapeId] = useState(null);
-  const [isLoading, setIsLoading] = useState(false);
 
   // Stage ref for direct Konva access
   const stageRef = useRef(null);
+
+  // Firebase canvas hook for real-time shapes
+  const {
+    shapes,
+    isLoading,
+    error,
+    isConnected,
+    addShape: addShapeFirebase,
+    updateShape: updateShapeFirebase,
+    deleteShape: deleteShapeFirebase,
+    lockShape,
+    unlockShape,
+    isShapeLockedByCurrentUser,
+    isShapeLockedByOther,
+    getCurrentUserId,
+    retryConnection
+  } = useFirebaseCanvas();
 
   // Canvas manipulation methods
   const updateCanvasPosition = useCallback((newPosition) => {
@@ -45,49 +60,40 @@ export const CanvasProvider = ({ children }) => {
     setZoom(DEFAULT_ZOOM);
   }, []);
 
-  // Shape management methods (local state for now, will integrate Firebase later)
-  const addShape = useCallback((shapeData) => {
-    if (shapes.length >= MAX_SHAPES_LIMIT) {
-      console.warn(`Maximum shape limit (${MAX_SHAPES_LIMIT}) reached`);
-      return null;
+  // Shape management methods with Firebase integration
+  const addShape = useCallback(async (shapeData) => {
+    try {
+      const newShape = await addShapeFirebase(shapeData);
+      return newShape;
+    } catch (error) {
+      console.error('Failed to add shape:', error);
+      throw error;
     }
+  }, [addShapeFirebase]);
 
-    const newShape = {
-      id: `shape_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
-      type: 'rectangle', // Only rectangles for MVP
-      x: shapeData.x || 100,
-      y: shapeData.y || 100,
-      width: shapeData.width || 100,
-      height: shapeData.height || 100,
-      fill: shapeData.fill || '#cccccc',
-      createdAt: Date.now(),
-      isLocked: false,
-      lockedBy: null,
-      ...shapeData
-    };
-
-    setShapes(prevShapes => [...prevShapes, newShape]);
-    return newShape;
-  }, [shapes.length]);
-
-  const updateShape = useCallback((shapeId, updates) => {
-    setShapes(prevShapes => 
-      prevShapes.map(shape => 
-        shape.id === shapeId 
-          ? { ...shape, ...updates, lastModified: Date.now() }
-          : shape
-      )
-    );
-  }, []);
-
-  const deleteShape = useCallback((shapeId) => {
-    setShapes(prevShapes => prevShapes.filter(shape => shape.id !== shapeId));
-    
-    // Clear selection if deleted shape was selected
-    if (selectedShapeId === shapeId) {
-      setSelectedShapeId(null);
+  const updateShape = useCallback(async (shapeId, updates) => {
+    try {
+      const updatedShape = await updateShapeFirebase(shapeId, updates);
+      return updatedShape;
+    } catch (error) {
+      console.error('Failed to update shape:', error);
+      throw error;
     }
-  }, [selectedShapeId]);
+  }, [updateShapeFirebase]);
+
+  const deleteShape = useCallback(async (shapeId) => {
+    try {
+      await deleteShapeFirebase(shapeId);
+      // Clear selection if deleted shape was selected
+      if (selectedShapeId === shapeId) {
+        setSelectedShapeId(null);
+      }
+      return shapeId;
+    } catch (error) {
+      console.error('Failed to delete shape:', error);
+      throw error;
+    }
+  }, [deleteShapeFirebase, selectedShapeId]);
 
   const selectShape = useCallback((shapeId) => {
     setSelectedShapeId(shapeId);
@@ -142,6 +148,8 @@ export const CanvasProvider = ({ children }) => {
     zoom,
     stageRef,
     isLoading,
+    error,
+    isConnected,
 
     // Shapes state  
     shapes,
@@ -154,12 +162,20 @@ export const CanvasProvider = ({ children }) => {
     resetView,
     getVisibleArea,
 
-    // Shape methods
+    // Shape methods (now Firebase-connected)
     addShape,
     updateShape,
     deleteShape,
     selectShape,
     deselectAll,
+
+    // Firebase-specific methods
+    lockShape,
+    unlockShape,
+    isShapeLockedByCurrentUser,
+    isShapeLockedByOther,
+    getCurrentUserId,
+    retryConnection,
 
     // Utility methods
     isWithinBounds,

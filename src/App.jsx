@@ -10,6 +10,9 @@ import Sidebar from './components/Layout/Sidebar'
 import Canvas from './components/Canvas/Canvas'
 import ErrorBoundary from './components/Error/ErrorBoundary'
 
+// Import clear canvas utilities (makes them available in console)
+import './utils/clearCanvas'
+
 // Main app content (authenticated view)
 const AuthenticatedApp = () => {
   return (

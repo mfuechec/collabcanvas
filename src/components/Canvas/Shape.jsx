@@ -15,7 +15,12 @@ const Shape = ({
   const { 
     selectShape, 
     updateShape, 
-    constrainToBounds 
+    constrainToBounds,
+    lockShape,
+    unlockShape,
+    isShapeLockedByCurrentUser,
+    isShapeLockedByOther,
+    getCurrentUserId
   } = useCanvas();
 
   // Handle shape click for selection
@@ -24,7 +29,7 @@ const Shape = ({
     e.cancelBubble = true;
     
     // Don't select if locked by another user
-    if (isLocked && lockedBy !== 'current-user') {
+    if (isShapeLockedByOther({ id, isLocked, lockedBy })) {
       return;
     }
     
@@ -33,13 +38,13 @@ const Shape = ({
 
   // Handle shape drag start
   const handleDragStart = (e) => {
-    // Only allow dragging if not locked by another user
-    if (isLocked && lockedBy !== 'current-user') {
+    // Only check local state, no Firebase calls
+    if (isLocked && lockedBy && lockedBy !== getCurrentUserId()) {
       e.target.stopDrag();
       return;
     }
     
-    // Auto-select shape when starting to drag
+    // Only do selection - no Firebase operations at all
     selectShape(id);
   };
 
@@ -62,7 +67,7 @@ const Shape = ({
     }
   };
 
-  // Handle shape drag end - update position in context
+  // Handle shape drag end - ALL Firebase operations here
   const handleDragEnd = (e) => {
     const shape = e.target;
     const finalPos = shape.position();
@@ -75,19 +80,42 @@ const Shape = ({
       height
     );
     
-    // Update shape position in context
-    updateShape(id, {
-      x: constrainedPos.x,
-      y: constrainedPos.y
-    });
-    
-    // Ensure shape is positioned correctly
+    // Ensure shape is positioned correctly immediately
     shape.position(constrainedPos);
+    
+    // ALL Firebase operations happen here in one go (non-blocking)
+    Promise.resolve().then(async () => {
+      try {
+        // Lock first
+        await lockShape(id);
+        
+        // Then update position
+        await updateShape(id, {
+          x: constrainedPos.x,
+          y: constrainedPos.y
+        });
+        
+        // Finally unlock
+        await unlockShape(id);
+        
+        console.log('Shape updated and synced successfully:', id);
+      } catch (error) {
+        console.error('Firebase sync failed:', error);
+        // Try to unlock even if other operations failed
+        try {
+          await unlockShape(id);
+        } catch (unlockError) {
+          console.error('Failed to unlock shape after error:', unlockError);
+        }
+      }
+    });
   };
 
   // Visual styling based on state
   const getStroke = () => {
-    if (isLocked && lockedBy !== 'current-user') {
+    const shape = { id, isLocked, lockedBy };
+    
+    if (isShapeLockedByOther(shape)) {
       return '#ef4444'; // Red border for locked by others
     }
     if (isSelected) {
@@ -97,11 +125,18 @@ const Shape = ({
   };
 
   const getStrokeWidth = () => {
-    return (isSelected || (isLocked && lockedBy !== 'current-user')) ? 2 : 0;
+    const shape = { id, isLocked, lockedBy };
+    return (isSelected || isShapeLockedByOther(shape)) ? 2 : 0;
   };
 
   const getOpacity = () => {
-    return (isLocked && lockedBy !== 'current-user') ? 0.6 : 1.0;
+    const shape = { id, isLocked, lockedBy };
+    return isShapeLockedByOther(shape) ? 0.6 : 1.0;
+  };
+
+  const isDraggable = () => {
+    const shape = { id, isLocked, lockedBy };
+    return !isShapeLockedByOther(shape);
   };
 
   return (
@@ -114,7 +149,7 @@ const Shape = ({
       stroke={getStroke()}
       strokeWidth={getStrokeWidth()}
       opacity={getOpacity()}
-      draggable={!isLocked || lockedBy === 'current-user'}
+      draggable={isDraggable()}
       onClick={handleClick}
       onTap={handleClick} // For mobile
       onDragStart={handleDragStart}
@@ -123,8 +158,9 @@ const Shape = ({
       // Visual feedback on hover
       onMouseEnter={(e) => {
         const container = e.target.getStage().container();
+        const shape = { id, isLocked, lockedBy };
         container.style.cursor = 
-          (isLocked && lockedBy !== 'current-user') ? 'not-allowed' : 'pointer';
+          isShapeLockedByOther(shape) ? 'not-allowed' : 'pointer';
       }}
       onMouseLeave={(e) => {
         const container = e.target.getStage().container();

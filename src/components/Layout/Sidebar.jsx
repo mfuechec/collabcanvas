@@ -1,6 +1,7 @@
 // Sidebar Component - Left sidebar with tools and canvas info
 import { useCanvas } from '../../hooks/useCanvas';
 import { useAuth } from '../../hooks/useAuth';
+import { clearAllShapes } from '../../utils/clearCanvas';
 import { 
   ZOOM_STEP, 
   MIN_ZOOM, 
@@ -99,8 +100,30 @@ const Sidebar = () => {
     }
   };
 
+  // Handle clearing all shapes
+  const handleClearAllShapes = async () => {
+    if (shapes.length === 0) {
+      alert('No shapes to clear!');
+      return;
+    }
+    
+    const confirmed = window.confirm(
+      `Are you sure you want to delete all ${shapes.length} shapes? This cannot be undone.`
+    );
+    
+    if (!confirmed) return;
+    
+    try {
+      await clearAllShapes();
+      console.log('All shapes cleared successfully');
+    } catch (error) {
+      console.error('Failed to clear shapes:', error);
+      alert('Failed to clear shapes. Please try again.');
+    }
+  };
+
   // Handle adding a new shape at center of visible area
-  const handleAddShape = () => {
+  const handleAddShape = async () => {
     const visibleArea = getVisibleArea();
     
     let centerX, centerY;
@@ -119,16 +142,23 @@ const Sidebar = () => {
     centerX = Math.max(0, Math.min(centerX, canvasWidth - DEFAULT_SHAPE_WIDTH));
     centerY = Math.max(0, Math.min(centerY, canvasHeight - DEFAULT_SHAPE_HEIGHT));
 
-    addShape({
-      x: centerX,
-      y: centerY,
-      width: DEFAULT_SHAPE_WIDTH,
-      height: DEFAULT_SHAPE_HEIGHT
-    });
+    try {
+      await addShape({
+        x: centerX,
+        y: centerY,
+        width: DEFAULT_SHAPE_WIDTH,
+        height: DEFAULT_SHAPE_HEIGHT
+      });
+      console.log('Shape created successfully');
+    } catch (error) {
+      console.error('Failed to create shape:', error);
+      // You could add error toast notification here
+    }
   };
 
   const buttonClass = "w-full flex items-center justify-center py-3 px-4 bg-white border border-gray-200 rounded-md shadow-sm hover:bg-gray-50 hover:border-gray-300 transition-colors duration-200 text-gray-700 hover:text-gray-900 disabled:opacity-50 disabled:cursor-not-allowed text-sm";
   const primaryButtonClass = "w-full flex items-center justify-center py-3 px-4 bg-blue-600 border border-blue-600 rounded-md shadow-sm hover:bg-blue-700 hover:border-blue-700 transition-colors duration-200 text-white disabled:opacity-50 disabled:cursor-not-allowed text-sm font-medium";
+  const dangerButtonClass = "w-full flex items-center justify-center py-3 px-4 bg-red-600 border border-red-600 rounded-md shadow-sm hover:bg-red-700 hover:border-red-700 transition-colors duration-200 text-white disabled:opacity-50 disabled:cursor-not-allowed text-sm font-medium";
 
   return (
     <div className="w-72 h-full bg-gray-50 border-r border-gray-200 flex flex-col overflow-y-auto">
@@ -156,10 +186,10 @@ const Sidebar = () => {
             <span>Shapes:</span>
             <span className="font-mono">{shapes.length}</span>
           </div>
-          <div className="flex justify-between">
-            <span>Selected:</span>
-            <span className="font-mono">{selectedShapeId ? '1' : '0'}</span>
-          </div>
+              <div className="flex justify-between">
+                <span>Selected:</span>
+                <span className="font-mono">{selectedShapeId ? '1' : '0'}</span>
+              </div>
         </div>
       </div>
 
@@ -221,6 +251,22 @@ const Sidebar = () => {
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
             </svg>
             Reset View
+          </button>
+        </div>
+
+        {/* Danger Zone */}
+        <div className="space-y-3 mb-6">
+          <h4 className="text-xs font-medium text-red-600 uppercase tracking-wider">Danger Zone</h4>
+          <button
+            onClick={handleClearAllShapes}
+            disabled={shapes.length === 0}
+            className={dangerButtonClass}
+            title={shapes.length === 0 ? "No shapes to clear" : `Clear all ${shapes.length} shapes`}
+          >
+            <svg className="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+            </svg>
+            Clear All Shapes
           </button>
         </div>
 
