@@ -16,12 +16,46 @@ const firebaseConfig = {
   measurementId: import.meta.env.VITE_FIREBASE_MEASUREMENT_ID,
 };
 
-// Initialize Firebase
-const app = initializeApp(firebaseConfig);
+// Validate Firebase configuration
+const validateFirebaseConfig = () => {
+  const requiredKeys = ['apiKey', 'authDomain', 'projectId', 'appId'];
+  const missingKeys = requiredKeys.filter(key => !firebaseConfig[key]);
+  
+  if (missingKeys.length > 0) {
+    console.error('Missing Firebase configuration keys:', missingKeys);
+    throw new Error(`Firebase configuration incomplete. Missing: ${missingKeys.join(', ')}`);
+  }
+};
 
-// Initialize Firebase services
-export const auth = getAuth(app);
-export const db = getFirestore(app); // Firestore for persistent canvas state
-export const rtdb = getDatabase(app); // Realtime Database for cursors/presence
+// Initialize Firebase with error handling
+let app;
+let auth;
+let db;
+let rtdb;
 
+try {
+  validateFirebaseConfig();
+  
+  // Initialize Firebase
+  app = initializeApp(firebaseConfig);
+  
+  // Initialize Firebase services
+  auth = getAuth(app);
+  db = getFirestore(app); // Firestore for persistent canvas state
+  rtdb = getDatabase(app); // Realtime Database for cursors/presence
+  
+  console.log('Firebase initialized successfully');
+} catch (error) {
+  console.error('Firebase initialization failed:', error);
+  
+  // In development, show more detailed error
+  if (import.meta.env.DEV) {
+    console.error('Firebase config:', firebaseConfig);
+  }
+  
+  // Throw error to prevent app from continuing with invalid Firebase setup
+  throw new Error('Failed to initialize Firebase. Please check your configuration.');
+}
+
+export { auth, db, rtdb };
 export default app;

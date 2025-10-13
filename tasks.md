@@ -140,30 +140,30 @@ collabcanvas/
 
 ### Tasks:
 
-- [ ] **2.1: Create Auth Context**
+- [x] **2.1: Create Auth Context**
 
   - Files to create: `src/contexts/AuthContext.jsx`
   - Provide: `currentUser`, `loading`, `login()`, `signup()`, `logout()`
 
-- [ ] **2.2: Create Auth Service**
+- [x] **2.2: Create Auth Service**
 
   - Files to create: `src/services/auth.js`
   - Functions: `signUp(email, password, displayName)`, `signIn(email, password)`, `signInWithGoogle()`, `signOut()`, `updateUserProfile(displayName)`
   - Display name logic: Extract from Google profile or use email prefix
 
-- [ ] **2.3: Create Auth Hook**
+- [x] **2.3: Create Auth Hook**
 
   - Files to create: `src/hooks/useAuth.js`
   - Return auth context values
 
-- [ ] **2.4: Build Signup Component**
+- [x] **2.4: Build Signup Component**
 
   - Files to create: `src/components/Auth/Signup.jsx`
   - Form fields: email, password, display name
   - Handle signup errors
   - Redirect to canvas on success
 
-- [ ] **2.5: Build Login Component**
+- [x] **2.5: Build Login Component**
 
   - Files to create: `src/components/Auth/Login.jsx`
   - Form fields: email, password
@@ -171,33 +171,33 @@ collabcanvas/
   - Handle login errors
   - Link to signup page
 
-- [ ] **2.6: Create Auth Provider Wrapper**
+- [x] **2.6: Create Auth Provider Wrapper**
 
   - Files to create: `src/components/Auth/AuthProvider.jsx`
   - Wrap entire app with AuthContext
   - Show loading state during auth check
 
-- [ ] **2.7: Update App.jsx with Protected Routes**
+- [x] **2.7: Update App.jsx with Protected Routes**
 
   - Files to update: `src/App.jsx`
   - Show Login/Signup if not authenticated
   - Show Canvas if authenticated
   - Basic routing logic
 
-- [ ] **2.8: Create Navbar Component**
+- [x] **2.8: Create Navbar Component**
   - Files to create: `src/components/Layout/Navbar.jsx`
   - Display current user name
   - Logout button
 
 **PR Checklist:**
 
-- [ ] Can create new account with email/password
-- [ ] Can login with existing account
-- [ ] Can sign in with Google
-- [ ] Display name appears correctly (Google name or email prefix)
-- [ ] Display name truncates at 20 chars if too long
-- [ ] Logout works and redirects to login
-- [ ] Auth state persists on page refresh
+- [x] Can create new account with email/password
+- [x] Can login with existing account
+- [x] Can sign in with Google
+- [x] Display name appears correctly (Google name or email prefix)
+- [x] Display name truncates at 20 chars if too long
+- [x] Logout works and redirects to login
+- [x] Auth state persists on page refresh
 
 ---
 

@@ -1,56 +1,89 @@
-import { useState, useEffect } from 'react'
+import { useState } from 'react'
 import './App.css'
-import { auth, db, rtdb } from './services/firebase'
+import { AuthProvider } from './contexts/AuthContext'
+import { useAuth } from './hooks/useAuth'
+import Login from './components/Auth/Login'
+import Signup from './components/Auth/Signup'
+import Navbar from './components/Layout/Navbar'
+import ErrorBoundary from './components/Error/ErrorBoundary'
 
-function App() {
-  const [count, setCount] = useState(0)
-  const [firebaseStatus, setFirebaseStatus] = useState('connecting...')
+// Main app content (authenticated view)
+const AuthenticatedApp = () => {
+  return (
+    <div className="min-h-screen bg-gray-50">
+      <Navbar />
+      <div className="max-w-7xl mx-auto py-6 sm:px-6 lg:px-8">
+        <div className="px-4 py-6 sm:px-0">
+          <div className="text-center">
+            <h1 className="text-4xl font-bold text-gray-900 mb-4">
+              Welcome to CollabCanvas!
+            </h1>
+            <p className="text-lg text-gray-600 mb-8">
+              Your collaborative design workspace is ready.
+            </p>
+            <div className="bg-white overflow-hidden shadow rounded-lg p-6">
+              <h2 className="text-lg font-medium text-gray-900 mb-4">
+                Authentication Complete ✅
+              </h2>
+              <p className="text-gray-600">
+                Canvas features will be implemented in the next phase.
+                <br />
+                You are successfully signed in and ready to collaborate!
+              </p>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  )
+}
 
-  useEffect(() => {
-    // Test Firebase connection
-    try {
-      // Check if Firebase services are initialized
-      if (auth && db && rtdb) {
-        setFirebaseStatus('✅ Firebase services initialized successfully!')
-        console.log('Firebase Auth:', auth)
-        console.log('Firestore DB:', db)
-        console.log('Realtime DB:', rtdb)
-      } else {
-        setFirebaseStatus('❌ Firebase initialization failed')
-      }
-    } catch (error) {
-      setFirebaseStatus(`❌ Firebase error: ${error.message}`)
-      console.error('Firebase initialization error:', error)
-    }
-  }, [])
+// Unauthenticated app content (login/signup views)
+const UnauthenticatedApp = () => {
+  const [isLogin, setIsLogin] = useState(true)
 
   return (
-    <>
-      <div>
-        <h1 className="text-4xl font-bold text-blue-600 mb-4">CollabCanvas</h1>
-        
-        {/* Firebase Status Display */}
-        <div className="mb-6 p-4 border rounded-lg bg-gray-50">
-          <h2 className="text-lg font-semibold mb-2">Firebase Connection Status:</h2>
-          <p className="font-mono text-sm">{firebaseStatus}</p>
-        </div>
+    <div>
+      {isLogin ? (
+        <Login onSwitchToSignup={() => setIsLogin(false)} />
+      ) : (
+        <Signup onSwitchToLogin={() => setIsLogin(true)} />
+      )}
+    </div>
+  )
+}
 
-        <div className="card">
-          <button 
-            className="bg-blue-500 hover:bg-blue-700 text-white font-bold py-2 px-4 rounded"
-            onClick={() => setCount((count) => count + 1)}
-          >
-            count is {count}
-          </button>
-          <p className="mt-4">
-            Edit <code>src/App.jsx</code> and save to test HMR
-          </p>
-        </div>
-        <p className="read-the-docs">
-          Ready to build real-time collaborative canvas!
-        </p>
+// Loading component
+const LoadingScreen = () => {
+  return (
+    <div className="min-h-screen flex items-center justify-center bg-gray-50">
+      <div className="text-center">
+        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mx-auto"></div>
+        <p className="mt-4 text-gray-600">Loading CollabCanvas...</p>
       </div>
-    </>
+    </div>
+  )
+}
+
+// App router component (inside AuthProvider)
+const AppRouter = () => {
+  const { currentUser, loading } = useAuth()
+
+  if (loading) {
+    return <LoadingScreen />
+  }
+
+  return currentUser ? <AuthenticatedApp /> : <UnauthenticatedApp />
+}
+
+// Main App component
+function App() {
+  return (
+    <ErrorBoundary>
+      <AuthProvider>
+        <AppRouter />
+      </AuthProvider>
+    </ErrorBoundary>
   )
 }
 
