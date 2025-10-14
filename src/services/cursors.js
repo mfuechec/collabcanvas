@@ -44,7 +44,8 @@ export const updateCursorPosition = async (x, y, displayName, cursorColor) => {
       cursorColor: cursorColor || '#3B82F6',
       cursorX: Math.round(x),
       cursorY: Math.round(y),
-      lastSeen: serverTimestamp()
+      lastSeen: serverTimestamp(),
+      isOnline: true  // ✅ Always set user as online when updating cursor
     };
     
     await set(userCursorRef, cursorData);
@@ -67,11 +68,14 @@ export const subscribeToCursors = (callback) => {
     const handleCursorUpdates = (snapshot) => {
       const allCursors = snapshot.val() || {};
       
-      // Filter out current user's cursor
+      // Filter out current user's cursor and null/undefined entries
       const otherUsersCursors = {};
       Object.keys(allCursors).forEach(userId => {
-        if (userId !== currentUserId) {
-          otherUsersCursors[userId] = allCursors[userId];
+        const cursorData = allCursors[userId];
+        // Only include valid cursor data that's not the current user and has visible position
+        if (userId !== currentUserId && cursorData && cursorData.displayName && 
+            cursorData.cursorX >= 0 && cursorData.cursorY >= 0) {
+          otherUsersCursors[userId] = cursorData;
         }
       });
       
@@ -105,13 +109,14 @@ export const setupCursorCleanup = async (displayName, cursorColor) => {
     // Set up automatic removal on disconnect
     await onDisconnect(userCursorRef).remove();
     
-    // Set initial presence
+    // Set initial cursor and presence data
     const cursorData = {
       displayName: displayName || 'Anonymous',
       cursorColor: cursorColor || '#3B82F6',
       cursorX: 0,
       cursorY: 0,
-      lastSeen: serverTimestamp()
+      lastSeen: serverTimestamp(),
+      isOnline: true  // Set presence when cursor is active
     };
     
     await set(userCursorRef, cursorData);
@@ -124,17 +129,22 @@ export const setupCursorCleanup = async (displayName, cursorColor) => {
 
 /**
  * Manually remove cursor (e.g., on component unmount)
+ * @param {string} userId - Optional user ID to remove (if not provided, uses getCurrentUserId)
  * @returns {Promise<void>}
  */
-export const removeCursor = async () => {
+export const removeCursor = async (userId = null) => {
   try {
-    const userId = getCurrentUserId();
-    const userCursorRef = ref(rtdb, `${SESSIONS_PATH}/${CANVAS_SESSION_ID}/${userId}`);
+    const targetUserId = userId || getCurrentUserId();
+    const userCursorRef = ref(rtdb, `${SESSIONS_PATH}/${CANVAS_SESSION_ID}/${targetUserId}`);
+    
+    console.log('🗑️ Attempting to remove cursor for user:', targetUserId);
+    console.log('🗑️ Removing from path:', `${SESSIONS_PATH}/${CANVAS_SESSION_ID}/${targetUserId}`);
     
     await set(userCursorRef, null);
-    console.log('Cursor removed for user:', userId);
+    
+    console.log('✅ Cursor removed successfully for user:', targetUserId);
   } catch (error) {
-    console.error('Error removing cursor:', error);
+    console.error('❌ Error removing cursor:', error);
   }
 };
 

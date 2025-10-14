@@ -523,7 +523,7 @@ collabcanvas/
 
 ### Tasks:
 
-- [ ] **7.1: Design Presence Schema**
+- [x] **7.1: Design Presence Schema**
 
   - Path: `/sessions/global-canvas-v1/{userId}` (same as cursors)
   - Data structure (combined with cursor data):
@@ -533,58 +533,66 @@ collabcanvas/
       cursorColor: string,
       cursorX: number,
       cursorY: number,
-      lastSeen: timestamp
+      lastSeen: timestamp,
+      isOnline: boolean
     }
     ```
   - Note: Presence and cursor data share same RTDB location
 
-- [ ] **7.2: Create Presence Service**
+- [x] **7.2: Create Presence Service**
 
   - Files to create: `src/services/presence.js`
-  - Function: `setUserOnline(canvasId, userId, name, color)`
-  - Function: `setUserOffline(canvasId, userId)`
-  - Function: `subscribeToPresence(canvasId, callback)`
+  - Function: `setUserOnline(displayName, cursorColor)`
+  - Function: `setUserOffline()`
+  - Function: `subscribeToPresence(callback)`
+  - Function: `removeUserPresence()` (on logout)
   - Use `onDisconnect()` to auto-set offline
 
-- [ ] **7.3: Create Presence Hook**
+- [x] **7.3: Create Presence Hook**
 
   - Files to create: `src/hooks/usePresence.js`
   - Set user online on mount
   - Subscribe to presence changes
-  - Return: `onlineUsers` array
+  - Return: `onlineUsers` array, `totalUsers`, `isOnline`
+  - Heartbeat every 30 seconds
+  - Handle page visibility changes
 
-- [ ] **7.4: Build Presence List Component**
+- [x] **7.4: Build Presence List Component**
 
   - Files to create: `src/components/Collaboration/PresenceList.jsx`
   - Display list of online users
   - Show user color dot + name
   - Show count: "3 users online"
+  - Limit visible users with overflow indicator
 
-- [ ] **7.5: Build User Presence Badge**
+- [x] **7.5: Build User Presence Badge**
 
   - Files to create: `src/components/Collaboration/UserPresence.jsx`
   - Avatar/initial with user color
   - Tooltip with full name
+  - Online indicator dot
+  - Current user indicator
 
-- [ ] **7.6: Add Presence to Navbar**
+- [x] **7.6: Add Presence to Navbar**
 
   - Files to update: `src/components/Layout/Navbar.jsx`
   - Include PresenceList component
-  - Position in top-right corner
+  - Position in center of navbar
+  - Show when users are online
 
-- [ ] **7.7: Integrate Presence System**
-  - Files to update: `src/App.jsx`
-  - Initialize presence when canvas loads
-  - Clean up on unmount
+- [x] **7.7: Integrate Presence System**
+  - Files to update: `src/components/Layout/Navbar.jsx`
+  - Initialize presence when user is authenticated
+  - Automatic cleanup on logout/disconnect
 
 **PR Checklist:**
 
-- [ ] Current user appears in presence list
-- [ ] Other users appear when they join
-- [ ] Users disappear when they leave
-- [ ] User count is accurate
-- [ ] Colors match cursor colors
-- [ ] Updates happen in real-time
+- [x] Current user appears in presence list
+- [x] Other users appear when they join
+- [x] Users disappear when they leave
+- [x] User count is accurate
+- [x] Colors match cursor colors
+- [x] Updates happen in real-time
 
 ---
 

@@ -1,14 +1,28 @@
-// Navbar Component - Navigation with user info and logout
+// Navbar Component - Navigation with user info, presence, and logout
 import { useAuth } from '../../hooks/useAuth';
+import { usePresence } from '../../hooks/usePresence';
+import { removeCursor } from '../../services/cursors'; // For debugging
+import PresenceList from '../Collaboration/PresenceList';
 
 const Navbar = () => {
   const { currentUser, getDisplayName, logout } = useAuth();
+  const { onlineUsers, totalUsers } = usePresence();
 
   const handleLogout = async () => {
     try {
+      console.log('🚪 Logout button clicked for user:', currentUser?.uid);
       await logout();
+      console.log('🚪 Logout completed');
     } catch (error) {
-      console.error('Logout error:', error);
+      console.error('❌ Logout error:', error);
+    }
+  };
+
+  // Debug function to manually test cursor removal
+  const handleDebugCleanup = async () => {
+    if (currentUser?.uid) {
+      console.log('🧪 Debug: Manually removing cursor for current user:', currentUser.uid);
+      await removeCursor(currentUser.uid);
     }
   };
 
@@ -23,10 +37,31 @@ const Navbar = () => {
             </h1>
           </div>
 
+          {/* Center - Presence List */}
+          {currentUser && totalUsers > 0 && (
+            <div className="flex items-center">
+              <PresenceList 
+                onlineUsers={onlineUsers} 
+                totalUsers={totalUsers}
+                showCurrentUser={true}
+                maxVisible={5}
+              />
+            </div>
+          )}
+
           {/* User info and actions */}
           <div className="flex items-center space-x-4">
             {currentUser && (
               <>
+                {/* Debug button - remove in production */}
+                <button
+                  onClick={handleDebugCleanup}
+                  className="px-2 py-1 text-xs bg-yellow-100 text-yellow-800 rounded hover:bg-yellow-200"
+                  title="Debug: Test cursor removal"
+                >
+                  🧪 Test Cleanup
+                </button>
+
                 {/* User display name */}
                 <div className="text-sm text-gray-700">
                   Welcome, <span className="font-medium">{getDisplayName()}</span>

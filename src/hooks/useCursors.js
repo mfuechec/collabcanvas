@@ -85,12 +85,17 @@ export const useCursors = (stageRef) => {
     }
   }, [stageRef, isActive, throttledUpdateCursor]);
   
-  // Handle mouse leave (remove cursor when mouse leaves canvas)
+  // Handle mouse leave (hide cursor position but keep presence)
   const handleMouseLeave = useCallback(() => {
     if (isActive) {
-      removeCursor();
+      // Only hide cursor position, don't remove entire user presence
+      const displayName = getUserDisplayName();
+      const color = getUserColor();
+      
+      // Update with null cursor position to hide cursor, but keep presence data
+      updateCursorPosition(-1, -1, displayName, color); // Use -1,-1 to indicate "hidden"
     }
-  }, [isActive]);
+  }, [isActive, getUserDisplayName, getUserColor]);
   
   // Subscribe to other users' cursors
   useEffect(() => {
@@ -111,8 +116,15 @@ export const useCursors = (stageRef) => {
   useEffect(() => {
     const prevUser = prevUserRef.current;
     
+    console.log('🎣 useCursors useEffect triggered:', {
+      currentUser: currentUser ? { uid: currentUser.uid, email: currentUser.email } : null,
+      prevUser: prevUser ? { uid: prevUser.uid, email: prevUser.email } : null,
+      hasUserChanged: prevUser !== currentUser
+    });
+    
     if (currentUser) {
       // User is logged in
+      console.log('✅ User is logged in, setting up cursor');
       const displayName = getUserDisplayName();
       const color = getUserColor();
       
@@ -120,21 +132,34 @@ export const useCursors = (stageRef) => {
       setIsActive(true);
     } else {
       // User logged out - remove cursor immediately if previously had a user
-      if (prevUser && isActive) {
-        console.log('User logged out, removing cursor');
-        removeCursor();
+      console.log('❌ User is null, checking for logout...');
+      if (prevUser) {
+        const userIdToRemove = prevUser.uid; // Use the previous user's ID
+        console.log('🚪 LOGOUT DETECTED! Removing cursor for user:', userIdToRemove);
+        removeCursor(userIdToRemove);
+      } else {
+        console.log('⚠️ No previous user found, skipping cleanup');
       }
       setIsActive(false);
     }
     
     // Update the previous user ref
     prevUserRef.current = currentUser;
+    console.log('📝 Updated prevUserRef to:', currentUser ? currentUser.uid : null);
     
-    // Cleanup on unmount
+  }, [currentUser]); // ✅ SIMPLIFIED: Only depend on currentUser
+  
+  // Separate cleanup effect for unmounting
+  useEffect(() => {
     return () => {
-      removeCursor();
+      console.log('🧹 useCursors component unmounting, cleaning up');
+      // Always clean up on unmount since we have onDisconnect as backup
+      if (prevUserRef.current) {
+        console.log('🧹 Removing cursor for unmounting user:', prevUserRef.current.uid);
+        removeCursor(prevUserRef.current.uid);
+      }
     };
-  }, [currentUser, getUserDisplayName, getUserColor]);
+  }, []); // Only run on mount/unmount
   
   // Add/remove mouse event listeners
   useEffect(() => {

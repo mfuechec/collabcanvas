@@ -25,13 +25,18 @@ export const AuthProvider = ({ children }) => {
   // Auth state listener
   useEffect(() => {
     const unsubscribe = onAuthStateChanged(auth, (user) => {
+      console.log('🔐 Firebase Auth state changed:', {
+        from: currentUser ? { uid: currentUser.uid, email: currentUser.email } : null,
+        to: user ? { uid: user.uid, email: user.email } : null,
+        timestamp: new Date().toISOString()
+      });
       setCurrentUser(user);
       setLoading(false);
     });
 
     // Cleanup subscription on unmount
     return unsubscribe;
-  }, []);
+  }, [currentUser]); // Add currentUser to see previous state
 
   // Login function
   const login = async (email, password) => {
@@ -82,7 +87,14 @@ export const AuthProvider = ({ children }) => {
   const logout = async () => {
     try {
       setError(null);
+      
+      // Get current user info before signout for cleanup
+      const currentUserId = currentUser?.uid;
+      console.log('Logging out user:', currentUserId);
+      
       await signOutUser();
+      
+      console.log('User signed out successfully');
     } catch (error) {
       setError(getErrorMessage(error));
       throw error;
