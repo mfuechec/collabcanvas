@@ -39,28 +39,68 @@ const ErrorToast = ({ error, onClose, duration = 5000 }) => {
     switch (type) {
       case 'auth':
         return (
-          <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <svg 
+            fill="none" 
+            stroke="currentColor" 
+            viewBox="0 0 24 24" 
+            xmlns="http://www.w3.org/2000/svg" 
+            role="img" 
+            aria-hidden="true" 
+            width="20" 
+            height="20"
+            style={{ width: '20px', height: '20px' }}
+          >
             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" 
               d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" />
           </svg>
         );
       case 'network':
         return (
-          <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <svg 
+            fill="none" 
+            stroke="currentColor" 
+            viewBox="0 0 24 24" 
+            xmlns="http://www.w3.org/2000/svg" 
+            role="img" 
+            aria-hidden="true" 
+            width="20" 
+            height="20"
+            style={{ width: '20px', height: '20px' }}
+          >
             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" 
               d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-2.5L13.732 4c-.77-.833-1.964-.833-2.732 0L3.732 16.5c-.77.833.192 2.5 1.732 2.5z" />
           </svg>
         );
       case 'warning':
         return (
-          <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <svg 
+            fill="none" 
+            stroke="currentColor" 
+            viewBox="0 0 24 24" 
+            xmlns="http://www.w3.org/2000/svg" 
+            role="img" 
+            aria-hidden="true" 
+            width="20" 
+            height="20"
+            style={{ width: '20px', height: '20px' }}
+          >
             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" 
               d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-2.5L13.732 4c-.77-.833-1.964-.833-2.732 0L3.732 16.5c-.77.833.192 2.5 1.732 2.5z" />
           </svg>
         );
       default:
         return (
-          <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <svg 
+            fill="none" 
+            stroke="currentColor" 
+            viewBox="0 0 24 24" 
+            xmlns="http://www.w3.org/2000/svg" 
+            role="img" 
+            aria-hidden="true" 
+            width="20" 
+            height="20"
+            style={{ width: '20px', height: '20px' }}
+          >
             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" 
               d="M6 18L18 6M6 6l12 12" />
           </svg>
@@ -122,7 +162,17 @@ const ErrorToast = ({ error, onClose, duration = 5000 }) => {
               focusRingColor: 'var(--accent-primary)'
             }}
           >
-            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <svg 
+              fill="none" 
+              stroke="currentColor" 
+              viewBox="0 0 24 24" 
+              xmlns="http://www.w3.org/2000/svg" 
+              role="img" 
+              aria-hidden="true" 
+              width="16" 
+              height="16"
+              style={{ width: '16px', height: '16px' }}
+            >
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M6 18L18 6M6 6l12 12" />
             </svg>
           </button>

@@ -1,6 +1,6 @@
 // Canvas Component - Modern canvas with drawing functionality and theme support
 import { useEffect, useCallback, useRef, useState, useMemo } from 'react';
-import { Stage, Layer, Rect } from 'react-konva';
+import { Stage, Layer, Rect, Line } from 'react-konva';
 import { useCanvas } from '../../hooks/useCanvas';
 import { useCursors } from '../../hooks/useCursors';
 import { useCanvasMode } from '../../contexts/CanvasModeContext';
@@ -550,6 +550,62 @@ const Canvas = () => {
                 shadowForStrokeEnabled={false} // Disable expensive shadow for stroke
                 hitStrokeWidth={0} // Disable hit detection on stroke for better performance
               />
+
+              {/* Grid Lines for Visual Structure */}
+              {(() => {
+                const gridSize = 50; // Grid spacing in pixels
+                const majorGridSize = gridSize * 4; // Major grid lines every 200px
+                const lines = [];
+                
+                // Only render grid lines that are visible in the viewport for performance
+                const stage = stageRef.current;
+                let startX = 0, endX = CANVAS_WIDTH, startY = 0, endY = CANVAS_HEIGHT;
+                
+                if (stage && zoom < 0.5) {
+                  // When zoomed out, calculate visible area to limit grid rendering
+                  const stagePos = stage.position();
+                  const scale = stage.scaleX();
+                  
+                  startX = Math.max(0, Math.floor((-stagePos.x / scale) / gridSize) * gridSize);
+                  endX = Math.min(CANVAS_WIDTH, Math.ceil(((-stagePos.x + stageSize.width) / scale) / gridSize) * gridSize);
+                  startY = Math.max(0, Math.floor((-stagePos.y / scale) / gridSize) * gridSize);
+                  endY = Math.min(CANVAS_HEIGHT, Math.ceil(((-stagePos.y + stageSize.height) / scale) / gridSize) * gridSize);
+                }
+                
+                // Vertical lines
+                for (let x = startX; x <= endX; x += gridSize) {
+                  const isMajor = x % majorGridSize === 0;
+                  lines.push(
+                    <Line
+                      key={`v-${x}`}
+                      points={[x, Math.max(0, startY), x, Math.min(CANVAS_HEIGHT, endY)]}
+                      stroke={canvasBorderColor}
+                      strokeWidth={isMajor ? 1 : 0.5}
+                      opacity={isMajor ? 0.3 : 0.15}
+                      listening={false}
+                      perfectDrawEnabled={false}
+                    />
+                  );
+                }
+                
+                // Horizontal lines  
+                for (let y = startY; y <= endY; y += gridSize) {
+                  const isMajor = y % majorGridSize === 0;
+                  lines.push(
+                    <Line
+                      key={`h-${y}`}
+                      points={[Math.max(0, startX), y, Math.min(CANVAS_WIDTH, endX), y]}
+                      stroke={canvasBorderColor}
+                      strokeWidth={isMajor ? 1 : 0.5}
+                      opacity={isMajor ? 0.3 : 0.15}
+                      listening={false}
+                      perfectDrawEnabled={false}
+                    />
+                  );
+                }
+                
+                return lines;
+              })()}
 
               {/* Render Shapes - Smart viewport culling active */}
               {visibleShapes.map((shape) => (

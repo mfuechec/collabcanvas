@@ -49,6 +49,20 @@
   --danger: #f87171;
 }
 
+/* Safari SVG Fix - Force proper rendering */
+svg {
+  display: block !important;
+  -webkit-transform: translateZ(0);
+  transform: translateZ(0);
+}
+
+/* Safari specific SVG stroke fix */
+@supports (-webkit-appearance: none) {
+  svg path {
+    vector-effect: non-scaling-stroke;
+  }
+}
+
 /* Base styles */
 * {
   box-sizing: border-box;

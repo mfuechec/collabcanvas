@@ -2,19 +2,80 @@
 import { getCurrentCursorUserId } from '../services/cursors';
 
 /**
- * Color palette for user cursors - high contrast colors that work on light backgrounds
+ * Expanded color palette for user cursors and avatars - high contrast colors that work on both light and dark backgrounds
+ * Carefully selected for maximum distinction and accessibility
  */
 const CURSOR_COLORS = [
+  // Reds & Pinks
   '#EF4444', // Red
-  '#F97316', // Orange  
-  '#EAB308', // Yellow
-  '#22C55E', // Green
-  '#06B6D4', // Cyan
-  '#3B82F6', // Blue
-  '#8B5CF6', // Purple
+  '#DC2626', // Dark Red
+  '#F87171', // Light Red
   '#EC4899', // Pink
+  '#BE185D', // Dark Pink
+  '#F472B6', // Light Pink
+  '#E11D48', // Rose
+  
+  // Oranges & Yellows
+  '#F97316', // Orange
+  '#EA580C', // Dark Orange
+  '#FB923C', // Light Orange
+  '#EAB308', // Yellow
+  '#CA8A04', // Dark Yellow
+  '#FDE047', // Bright Yellow
   '#F59E0B', // Amber
-  '#10B981'  // Emerald
+  '#D97706', // Dark Amber
+  
+  // Greens
+  '#22C55E', // Green
+  '#16A34A', // Dark Green
+  '#4ADE80', // Light Green
+  '#10B981', // Emerald
+  '#059669', // Dark Emerald
+  '#34D399', // Light Emerald
+  '#65A30D', // Lime
+  '#84CC16', // Bright Lime
+  
+  // Blues & Cyans
+  '#3B82F6', // Blue
+  '#2563EB', // Dark Blue
+  '#60A5FA', // Light Blue
+  '#06B6D4', // Cyan
+  '#0891B2', // Dark Cyan
+  '#22D3EE', // Light Cyan
+  '#0EA5E9', // Sky Blue
+  '#0284C7', // Dark Sky
+  
+  // Purples & Violets
+  '#8B5CF6', // Purple
+  '#7C3AED', // Dark Purple
+  '#A78BFA', // Light Purple
+  '#A855F7', // Violet
+  '#9333EA', // Dark Violet
+  '#C084FC', // Light Violet
+  '#6366F1', // Indigo
+  '#4F46E5', // Dark Indigo
+  
+  // Additional Distinct Colors
+  '#14B8A6', // Teal
+  '#0D9488', // Dark Teal
+  '#2DD4BF', // Light Teal
+  '#F43F5E', // Red Rose
+  '#E879F9', // Fuchsia
+  '#C026D3', // Magenta
+  '#8E4EC6', // Purple Medium
+  '#7E22CE', // Purple Dark
+  '#6B21A8', // Purple Deep
+  '#581C87', // Purple Darker
+  
+  // Earth Tones (with good contrast)
+  '#92400E', // Brown
+  '#B45309', // Orange Brown
+  '#A16207', // Yellow Brown
+  '#166534', // Forest Green
+  '#1E40AF', // Navy Blue
+  '#7C2D12', // Dark Brown
+  '#991B1B', // Dark Red
+  '#1E3A8A', // Deep Blue
 ];
 
 /**
@@ -25,7 +86,7 @@ const CURSOR_COLORS = [
 export const generateUserColor = (userId) => {
   if (!userId) return CURSOR_COLORS[0];
   
-  // Create a simple hash of the userId
+  // Create a more sophisticated hash of the userId for better distribution
   let hash = 0;
   for (let i = 0; i < userId.length; i++) {
     const char = userId.charCodeAt(i);
@@ -33,8 +94,16 @@ export const generateUserColor = (userId) => {
     hash = hash & hash; // Convert to 32-bit integer
   }
   
-  // Use absolute value and modulo to get a color index
-  const colorIndex = Math.abs(hash) % CURSOR_COLORS.length;
+  // Add a secondary hash to improve distribution
+  let secondaryHash = 0;
+  for (let i = userId.length - 1; i >= 0; i--) {
+    secondaryHash += userId.charCodeAt(i) * (i + 1);
+  }
+  
+  // Combine both hashes for better color distribution
+  const combinedHash = Math.abs(hash + secondaryHash);
+  const colorIndex = combinedHash % CURSOR_COLORS.length;
+  
   return CURSOR_COLORS[colorIndex];
 };
 

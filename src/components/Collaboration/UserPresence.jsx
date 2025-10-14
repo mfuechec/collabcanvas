@@ -86,9 +86,14 @@ const UserPresence = ({
           title="You"
         >
           <svg 
-            className="w-2.5 h-2.5 text-white" 
             fill="currentColor" 
             viewBox="0 0 20 20"
+            xmlns="http://www.w3.org/2000/svg"
+            role="img" 
+            aria-hidden="true"
+            width="10"
+            height="10"
+            style={{ width: '10px', height: '10px', color: 'white' }}
           >
             <path 
               fillRule="evenodd" 

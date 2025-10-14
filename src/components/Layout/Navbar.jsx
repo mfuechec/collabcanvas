@@ -27,34 +27,28 @@ const Navbar = () => {
         padding: '16px 24px'
       }}
     >
-      {/* Left side - App title with spacing */}
-      <div className="flex items-center" style={{ flex: '1', paddingLeft: '8px' }}>
+      {/* Left side - App title with welcome message */}
+      <div className="flex flex-col" style={{ flex: '1', paddingLeft: '8px' }}>
         <h1 
           className="text-xl font-semibold tracking-tight"
           style={{ color: 'var(--text-primary)' }}
         >
           CollabCanvas
         </h1>
-      </div>
-
-      {/* Center - Welcome message (absolutely centered) */}
-      <div 
-        className="flex items-center justify-center"
-        style={{ 
-          position: 'absolute',
-          left: '50%',
-          transform: 'translateX(-50%)'
-        }}
-      >
+        
+        {/* Welcome message under title */}
         {currentUser && (
           <div 
-            className="text-sm font-medium"
+            className="text-sm font-medium mt-1"
             style={{ color: 'var(--text-secondary)' }}
           >
             Welcome, <span style={{ color: 'var(--text-primary)' }}>{getDisplayName()}</span>
           </div>
         )}
       </div>
+
+      {/* Center - Empty space (no longer needed) */}
+      <div className="flex-1"></div>
 
       {/* Right side - Presence, Theme toggle, and Logout */}
       <div className="flex items-center" style={{ gap: '24px' }}>
@@ -77,14 +71,34 @@ const Navbar = () => {
         >
           {isDark ? (
             // Sun icon for light mode
-            <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} 
+            <svg 
+              fill="none" 
+              stroke="currentColor" 
+              viewBox="0 0 24 24" 
+              xmlns="http://www.w3.org/2000/svg" 
+              role="img" 
+              aria-hidden="true" 
+              width="20" 
+              height="20"
+              style={{ width: '20px', height: '20px' }}
+            >
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" 
                 d="M12 3v1m0 16v1m9-9h-1M4 12H3m15.364 6.364l-.707-.707M6.343 6.343l-.707-.707m12.728 0l-.707.707M6.343 17.657l-.707.707M16 12a4 4 0 11-8 0 4 4 0 018 0z" />
             </svg>
           ) : (
             // Moon icon for dark mode
-            <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} 
+            <svg 
+              fill="none" 
+              stroke="currentColor" 
+              viewBox="0 0 24 24" 
+              xmlns="http://www.w3.org/2000/svg" 
+              role="img" 
+              aria-hidden="true" 
+              width="20" 
+              height="20"
+              style={{ width: '20px', height: '20px' }}
+            >
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" 
                 d="M20.354 15.354A9 9 0 018.646 3.646 9.003 9.003 0 0012 21a9.003 9.003 0 008.354-5.646z" />
             </svg>
           )}
