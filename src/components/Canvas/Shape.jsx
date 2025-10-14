@@ -1,6 +1,7 @@
 import { Rect } from 'react-konva';
 import { useCanvas } from '../../hooks/useCanvas';
 import { useCanvasMode } from '../../contexts/CanvasModeContext';
+import { useDragPreviews } from '../../hooks/useDragPreviews';
 
 const Shape = ({ 
   id, 
@@ -25,6 +26,7 @@ const Shape = ({
   } = useCanvas();
 
   const { currentMode, CANVAS_MODES } = useCanvasMode();
+  const { updatePreview, clearPreview, isActive: isDragPreviewActive } = useDragPreviews();
 
   // Handle shape click for selection
   const handleClick = (e) => {
@@ -79,6 +81,17 @@ const Shape = ({
     if (constrainedPos.x !== newPos.x || constrainedPos.y !== newPos.y) {
       shape.position(constrainedPos);
     }
+    
+    // Update collaborative drag preview for other users to see
+    if (isDragPreviewActive) {
+      updatePreview(id, {
+        x: constrainedPos.x,
+        y: constrainedPos.y,
+        width,
+        height,
+        fill
+      });
+    }
   };
 
   // Handle shape drag end - ALL Firebase operations here
@@ -96,6 +109,9 @@ const Shape = ({
     
     // Ensure shape is positioned correctly immediately
     shape.position(constrainedPos);
+    
+    // Clear collaborative drag preview when drag ends
+    clearPreview();
     
     // ALL Firebase operations happen here in one go (non-blocking)
     Promise.resolve().then(async () => {

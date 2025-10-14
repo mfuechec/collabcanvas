@@ -5,6 +5,7 @@ import { useCanvas } from '../../hooks/useCanvas';
 import { useCursors } from '../../hooks/useCursors';
 import { useCanvasMode } from '../../contexts/CanvasModeContext';
 import { useTheme } from '../../contexts/ThemeContext';
+import { useDragPreviews } from '../../hooks/useDragPreviews';
 import Shape from './Shape';
 import Cursor from '../Collaboration/Cursor';
 import { 
@@ -51,10 +52,14 @@ const Canvas = () => {
     updateDrawing, 
     finishDrawing, 
     cancelDrawing,
-    resetCreationFlag
+    resetCreationFlag,
+    // Collaborative drawing previews
+    otherUsersPreviews,
+    isPreviewActive
   } = useCanvasMode();
 
   const { cursors } = useCursors(stageRef, isDrawing);
+  const { otherUsersDragPreviews } = useDragPreviews();
 
   const containerRef = useRef(null);
   const isDraggingCanvas = useRef(false);
@@ -469,6 +474,63 @@ const Canvas = () => {
                   dash={[5, 5]}
                 />
               )}
+
+              {/* Other Users' Drawing Previews */}
+              {Object.entries(otherUsersPreviews).map(([userId, preview]) => {
+                // Calculate preview rectangle dimensions
+                const x = Math.min(preview.startX, preview.currentX);
+                const y = Math.min(preview.startY, preview.currentY);
+                const width = Math.abs(preview.currentX - preview.startX);
+                const height = Math.abs(preview.currentY - preview.startY);
+                
+                // Only render if the preview has meaningful dimensions
+                if (width < 1 || height < 1) return null;
+                
+                // Use user's color with transparency
+                const userColor = preview.userColor || '#ef4444'; // Default to red if no color
+                const fillColor = `${userColor}33`; // Add transparency (20%)
+                
+                return (
+                  <Rect
+                    key={`preview-${userId}`}
+                    x={x}
+                    y={y}
+                    width={width}
+                    height={height}
+                    fill={fillColor}
+                    stroke={userColor}
+                    strokeWidth={2}
+                    dash={[3, 3]} // Different dash pattern to distinguish from current user
+                    opacity={0.8}
+                  />
+                );
+              })}
+
+              {/* Other Users' Drag Previews */}
+              {Object.entries(otherUsersDragPreviews).map(([userId, dragPreview]) => {
+                // Use user's color with enhanced visual feedback for dragging
+                const userColor = dragPreview.userColor || '#ef4444'; // Default to red if no color
+                const fillColor = `${userColor}44`; // Add transparency (27%)
+                
+                return (
+                  <Rect
+                    key={`drag-preview-${userId}-${dragPreview.shapeId}`}
+                    x={dragPreview.x}
+                    y={dragPreview.y}
+                    width={dragPreview.width}
+                    height={dragPreview.height}
+                    fill={fillColor}
+                    stroke={userColor}
+                    strokeWidth={3} // Thicker stroke to indicate active dragging
+                    dash={[8, 4]} // Different dash pattern for drag previews
+                    opacity={0.9}
+                    // Add subtle glow effect for dragging
+                    shadowColor={userColor}
+                    shadowBlur={8}
+                    shadowOpacity={0.3}
+                  />
+                );
+              })}
             </Layer>
           </Stage>
         )}
@@ -503,6 +565,89 @@ const Canvas = () => {
               />
             );
           })}
+
+      {/* Collaborative Drawing Preview Labels */}
+      {Object.entries(otherUsersPreviews).map(([userId, preview]) => {
+        const stage = stageRef.current;
+        if (!stage) return null;
+        
+        // Calculate preview rectangle dimensions
+        const x = Math.min(preview.startX, preview.currentX);
+        const y = Math.min(preview.startY, preview.currentY);
+        const width = Math.abs(preview.currentX - preview.startX);
+        const height = Math.abs(preview.currentY - preview.startY);
+        
+        // Only render label if the preview has meaningful dimensions
+        if (width < 5 || height < 5) return null;
+        
+        // Convert canvas coordinates to screen coordinates for the label
+        const transform = stage.getAbsoluteTransform();
+        const screenCoords = transform.point({ x: x, y: y - 10 }); // Position above the preview
+        
+        const userColor = preview.userColor || '#ef4444';
+        const displayName = preview.displayName || 'Anonymous';
+        
+        return (
+          <div
+            key={`preview-label-${userId}`}
+            className="absolute pointer-events-none z-40"
+            style={{
+              left: `${screenCoords.x}px`,
+              top: `${screenCoords.y}px`,
+              transform: 'translateY(-100%)'
+            }}
+          >
+            <div
+              className="px-2 py-1 text-xs font-medium text-white rounded shadow-lg whitespace-nowrap"
+              style={{
+                backgroundColor: userColor,
+                maxWidth: '120px'
+              }}
+            >
+              {displayName} is drawing...
+            </div>
+          </div>
+        );
+      })}
+
+      {/* Collaborative Drag Preview Labels */}
+      {Object.entries(otherUsersDragPreviews).map(([userId, dragPreview]) => {
+        const stage = stageRef.current;
+        if (!stage) return null;
+        
+        // Convert canvas coordinates to screen coordinates for the label
+        const transform = stage.getAbsoluteTransform();
+        const screenCoords = transform.point({ 
+          x: dragPreview.x + dragPreview.width / 2, // Center of shape
+          y: dragPreview.y - 10 // Position above the shape
+        });
+        
+        const userColor = dragPreview.userColor || '#ef4444';
+        const displayName = dragPreview.displayName || 'Anonymous';
+        
+        return (
+          <div
+            key={`drag-label-${userId}-${dragPreview.shapeId}`}
+            className="absolute pointer-events-none z-50"
+            style={{
+              left: `${screenCoords.x}px`,
+              top: `${screenCoords.y}px`,
+              transform: 'translate(-50%, -100%)' // Center horizontally, position above
+            }}
+          >
+            <div
+              className="px-2 py-1 text-xs font-medium text-white rounded shadow-lg whitespace-nowrap animate-pulse"
+              style={{
+                backgroundColor: userColor,
+                maxWidth: '120px',
+                boxShadow: `0 4px 12px ${userColor}33` // Subtle glow matching user color
+              }}
+            >
+              {displayName} is moving...
+            </div>
+          </div>
+        );
+      })}
     </div>
   );
 };

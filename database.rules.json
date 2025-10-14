@@ -7,6 +7,22 @@
           ".write": "auth != null && auth.uid == $userId"
         }
       }
+    },
+    "drawing-previews": {
+      "$canvasId": {
+        ".read": "auth != null",
+        "$userId": {
+          ".write": "auth != null && auth.uid == $userId"
+        }
+      }
+    },
+    "drag-previews": {
+      "$canvasId": {
+        ".read": "auth != null",
+        "$userId": {
+          ".write": "auth != null && auth.uid == $userId"
+        }
+      }
     }
   }
 }

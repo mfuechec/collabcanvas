@@ -1,5 +1,6 @@
 // Canvas Mode Context - Drawing and interaction mode management
 import { createContext, useContext, useState, useCallback } from 'react';
+import { useDrawingPreviews } from '../hooks/useDrawingPreviews';
 
 const CanvasModeContext = createContext();
 
@@ -21,6 +22,14 @@ export const CanvasModeProvider = ({ children }) => {
   const [isDrawing, setIsDrawing] = useState(false);
   const [drawPreview, setDrawPreview] = useState(null);
   const [isCreatingShape, setIsCreatingShape] = useState(false); // 🔧 NEW: Flag to prevent race condition
+  
+  // Collaborative drawing previews
+  const { 
+    otherUsersPreviews, 
+    isActive: isPreviewActive, 
+    updatePreview, 
+    clearPreview 
+  } = useDrawingPreviews();
 
   const setMode = useCallback((mode) => {
     setCurrentMode(mode);
@@ -29,8 +38,10 @@ export const CanvasModeProvider = ({ children }) => {
       setIsDrawing(false);
       setDrawPreview(null);
       setIsCreatingShape(false);
+      // Clear collaborative preview when switching modes
+      clearPreview();
     }
-  }, []);
+  }, [clearPreview]);
 
   const startDrawing = useCallback((startPoint) => {
     if (currentMode === CANVAS_MODES.DRAW && !isCreatingShape) {
@@ -46,13 +57,20 @@ export const CanvasModeProvider = ({ children }) => {
 
   const updateDrawing = useCallback((currentPoint) => {
     if (isDrawing && drawPreview && !isCreatingShape) {
-      setDrawPreview(prev => ({
-        ...prev,
+      const updatedPreview = {
+        ...drawPreview,
         currentX: currentPoint.x,
         currentY: currentPoint.y
-      }));
+      };
+      
+      setDrawPreview(updatedPreview);
+      
+      // Update collaborative preview for other users to see
+      if (isPreviewActive) {
+        updatePreview(updatedPreview);
+      }
     }
-  }, [isDrawing, drawPreview, isCreatingShape]);
+  }, [isDrawing, drawPreview, isCreatingShape, isPreviewActive, updatePreview]);
 
   const finishDrawing = useCallback(() => {
     if (isDrawing && drawPreview && !isCreatingShape) {
@@ -70,16 +88,21 @@ export const CanvasModeProvider = ({ children }) => {
       setIsDrawing(false);
       setDrawPreview(null);
       
+      // Clear collaborative preview when finishing drawing
+      clearPreview();
+      
       return result;
     }
     return null;
-  }, [isDrawing, drawPreview, isCreatingShape]);
+  }, [isDrawing, drawPreview, isCreatingShape, clearPreview]);
 
   const cancelDrawing = useCallback(() => {
     setIsDrawing(false);
     setDrawPreview(null);
     setIsCreatingShape(false);
-  }, []);
+    // Clear collaborative preview when cancelling drawing
+    clearPreview();
+  }, [clearPreview]);
 
   // 🔧 NEW: Function to reset creation flag after shape is successfully created
   const resetCreationFlag = useCallback(() => {
@@ -98,7 +121,10 @@ export const CanvasModeProvider = ({ children }) => {
       finishDrawing,
       cancelDrawing,
       resetCreationFlag,
-      CANVAS_MODES
+      CANVAS_MODES,
+      // Collaborative drawing previews
+      otherUsersPreviews,
+      isPreviewActive
     }}>
       {children}
     </CanvasModeContext.Provider>

@@ -671,44 +671,44 @@ collabcanvas/
 
 ### Tasks:
 
-- [ ] **9.1: Configure Firebase Hosting**
+- [x] **9.1: Configure Firebase Hosting**
 
   - Files to create: `firebase.json`, `.firebaserc`
   - Run: `firebase init hosting`
   - Set public directory to `dist`
 
-- [ ] **9.2: Update Environment Variables**
+- [x] **9.2: Update Environment Variables**
 
   - Create production Firebase project (or use same)
-  - Files to update: `.env.example`
+  - Files to update: `.env.example` → Created `ENV_SETUP.md`
   - Document all required env vars
 
-- [ ] **9.3: Build Production Bundle**
+- [x] **9.3: Build Production Bundle**
 
   - Run: `npm run build`
   - Test production build locally
   - Check bundle size
 
-- [ ] **9.4: Deploy to Firebase Hosting**
+- [x] **9.4: Deploy to Firebase Hosting**
 
   - Run: `firebase deploy --only hosting`
-  - Test deployed URL
+  - Test deployed URL: https://collabcanvas-5b9fb.web.app
   - Verify all features work in production
 
-- [ ] **9.5: Set Up Firestore Security Rules**
+- [x] **9.5: Set Up Firestore Security Rules**
 
   - Files to create: `firestore.rules`
   - Allow authenticated users to read/write
   - Validate shape schema
   - Deploy rules: `firebase deploy --only firestore:rules`
 
-- [ ] **9.6: Set Up Realtime Database Rules**
+- [x] **9.6: Set Up Realtime Database Rules**
 
   - Files to create: `database.rules.json`
   - Allow authenticated users read/write
   - Deploy rules: `firebase deploy --only database`
 
-- [ ] **9.7: Update README with Deployment Info**
+- [x] **9.7: Update README with Deployment Info**
 
   - Files to update: `README.md`
   - Add live demo link
@@ -723,8 +723,8 @@ collabcanvas/
   - Verify cursors work
   - Verify presence works
 
-- [ ] **9.9: Create Demo Video Script**
-  - Outline key features to demonstrate
+- [x] **9.9: Create Demo Video Script**
+  - Outline key features to demonstrate: `DEMO_SCRIPT.md`
   - Prepare 2-3 browser windows for demo
 
 **PR Checklist:**
@@ -742,15 +742,15 @@ collabcanvas/
 
 ### Required Features:
 
-- [ ] Basic canvas with pan/zoom (5000x5000px with boundaries)
-- [ ] Rectangle shapes with gray fill (#cccccc)
-- [ ] Ability to create, move, and delete objects
-- [ ] Object locking (first user to drag locks the object)
-- [ ] Real-time sync between 2+ users (<100ms)
-- [ ] Multiplayer cursors with name labels and unique colors
-- [ ] Presence awareness (who's online)
-- [ ] User authentication (email/password AND Google login)
-- [ ] Deployed and publicly accessible
+- [x] Basic canvas with pan/zoom (5000x5000px with boundaries)
+- [x] Rectangle shapes with gray fill (#cccccc)
+- [x] Ability to create, move, and delete objects
+- [x] Object locking (first user to drag locks the object)
+- [x] Real-time sync between 2+ users (<100ms)
+- [x] Multiplayer cursors with name labels and unique colors
+- [x] Presence awareness (who's online)
+- [x] User authentication (email/password AND Google login)
+- [x] Deployed and publicly accessible
 
 ### Performance Targets:
 
