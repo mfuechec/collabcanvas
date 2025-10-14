@@ -111,6 +111,28 @@ export const AuthProvider = ({ children }) => {
       const currentUserId = currentUser?.uid;
       console.log('Logging out user:', currentUserId);
       
+      // CRITICAL: Clean up presence BEFORE auth state changes
+      if (currentUserId) {
+        try {
+          console.log('🚪 [AUTH] Manually cleaning up presence during logout:', currentUserId);
+          
+          // Import dynamically to avoid circular dependencies
+          const presenceModule = await import('../services/presence');
+          const cursorsModule = await import('../services/cursors');
+          
+          // Set offline and remove cursor while still authenticated
+          await Promise.allSettled([
+            presenceModule.setUserOffline(currentUserId),
+            cursorsModule.removeCursor(currentUserId)
+          ]);
+          
+          console.log('✅ [AUTH] Presence cleanup completed during logout');
+        } catch (cleanupError) {
+          console.error('❌ [AUTH] Error during logout cleanup:', cleanupError);
+          // Continue with logout even if cleanup fails
+        }
+      }
+      
       await signOutUser();
       
       console.log('User signed out successfully');

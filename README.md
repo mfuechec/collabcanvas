@@ -185,30 +185,63 @@ src/
 **Problem**: Presence indicators show stale data
 - **Status**: ✅ Fixed - Implemented heartbeat system with activity tracking
 
+## 🚀 Live Demo
+
+**🌐 [Try CollabCanvas Live](https://collabcanvas-5b9fb.web.app)**
+
+Experience real-time collaborative editing with multiple users:
+- Open the link in multiple browser tabs/windows
+- Sign in with different accounts (or use Google sign-in)
+- Create and move shapes to see real-time synchronization
+- Watch cursors and presence indicators update live
+
 ## 🚀 Deployment
 
-### Firebase Hosting Setup
+### Production Setup
+The app is deployed on Firebase Hosting with the following architecture:
+- **Frontend**: React SPA hosted on Firebase Hosting
+- **Authentication**: Firebase Auth (Email/Password + Google OAuth)
+- **Database**: 
+  - Firestore for persistent canvas state (shapes, metadata)
+  - Realtime Database for live updates (cursors, presence)
+- **Security**: Production-ready Firestore and Database security rules
+
+### Deploy Your Own Instance
+
 1. **Install Firebase CLI**
    ```bash
    npm install -g firebase-tools
    ```
 
-2. **Login and initialize**
+2. **Login and configure**
    ```bash
    firebase login
-   firebase init hosting
+   firebase use --add  # Select or create Firebase project
    ```
 
-3. **Build and deploy**
+3. **Set up environment variables**
+   - Copy `ENV_SETUP.md` instructions
+   - Create `.env` with your Firebase config
+   - Update `.firebaserc` with your project ID
+
+4. **Deploy security rules**
+   ```bash
+   firebase deploy --only firestore:rules,database
+   ```
+
+5. **Build and deploy app**
    ```bash
    npm run build
    firebase deploy --only hosting
    ```
 
 ### Environment Variables for Production
-- Create production Firebase project or use development project
-- Update `.env` with production Firebase config
-- Ensure all required environment variables are set
+- Create production Firebase project at [Firebase Console](https://console.firebase.google.com)
+- Enable Authentication (Email/Password + Google OAuth)
+- Create Firestore Database (production mode)
+- Create Realtime Database (production mode)
+- Update `.env` with production Firebase config (see `ENV_SETUP.md`)
+- Deploy security rules before first deployment
 
 ## 🧪 Testing
 

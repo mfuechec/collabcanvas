@@ -13,7 +13,13 @@ const CANVAS_SESSION_ID = 'global-canvas-v1';
 const getCurrentUserId = () => {
   // Try to get from Firebase Auth first
   const auth = getAuth();
-  if (auth.currentUser) {
+  console.log('🆔 [PRESENCE-SERVICE] Getting user ID:', {
+    authCurrentUser: auth.currentUser,
+    uid: auth.currentUser?.uid
+  });
+  
+  if (auth.currentUser?.uid) {
+    console.log('✅ [PRESENCE-SERVICE] Using Firebase Auth ID:', auth.currentUser.uid);
     return auth.currentUser.uid;
   }
   
@@ -22,6 +28,9 @@ const getCurrentUserId = () => {
   if (!userId) {
     userId = `user_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
     sessionStorage.setItem('cursor_user_id', userId);
+    console.log('⚠️ [PRESENCE-SERVICE] Created session ID (no auth):', userId);
+  } else {
+    console.log('⚠️ [PRESENCE-SERVICE] Using existing session ID (no auth):', userId);
   }
   return userId;
 };
@@ -36,6 +45,8 @@ const getCurrentUserId = () => {
 export const setUserOnline = async (displayName, cursorColor, isActive = true) => {
   try {
     const userId = getCurrentUserId();
+    console.log('🌐 [PRESENCE-SERVICE] Setting user online:', { userId, displayName, cursorColor, isActive });
+    
     const userPresenceRef = ref(rtdb, `${SESSIONS_PATH}/${CANVAS_SESSION_ID}/${userId}`);
     
     const presenceData = {
@@ -57,20 +68,23 @@ export const setUserOnline = async (displayName, cursorColor, isActive = true) =
       lastSeen: serverTimestamp()
     });
     
-    console.log('User set online:', userId, displayName, { isActive });
+    console.log('✅ [PRESENCE-SERVICE] User set online successfully:', userId, displayName, { isActive });
   } catch (error) {
-    console.error('Error setting user online:', error);
+    console.error('❌ [PRESENCE-SERVICE] Error setting user online:', error);
     throw new Error('Failed to set user online status');
   }
 };
 
 /**
  * Set user as offline
+ * @param {string} specificUserId - Optional: specific user ID to set offline (for logout cleanup)
  * @returns {Promise<void>}
  */
-export const setUserOffline = async () => {
+export const setUserOffline = async (specificUserId = null) => {
   try {
-    const userId = getCurrentUserId();
+    const userId = specificUserId || getCurrentUserId();
+    console.log('🌐 [PRESENCE-SERVICE] Setting user offline:', { userId, specificUserId });
+    
     const userPresenceRef = ref(rtdb, `${SESSIONS_PATH}/${CANVAS_SESSION_ID}/${userId}`);
     
     await set(userPresenceRef, {
@@ -78,9 +92,9 @@ export const setUserOffline = async () => {
       lastSeen: serverTimestamp()
     });
     
-    console.log('User set offline:', userId);
+    console.log('✅ [PRESENCE-SERVICE] User set offline successfully:', userId);
   } catch (error) {
-    console.error('Error setting user offline:', error);
+    console.error('❌ [PRESENCE-SERVICE] Error setting user offline:', error);
     // Don't throw - offline status should be non-blocking
   }
 };
@@ -150,14 +164,21 @@ export const subscribeToPresence = (callback) => {
     const currentUserId = getCurrentUserId();
     const sessionRef = ref(rtdb, `${SESSIONS_PATH}/${CANVAS_SESSION_ID}`);
     
+    console.log('🔗 [PRESENCE-SERVICE] Setting up subscription:', {
+      currentUserId,
+      path: `${SESSIONS_PATH}/${CANVAS_SESSION_ID}`,
+      fullPath: sessionRef.toString()
+    });
+    
     const handlePresenceUpdates = (snapshot) => {
       const allUsers = snapshot.val() || {};
       
-      // Reduced logging - only log when there are significant changes
+      
       const userCount = Object.keys(allUsers).length;
       if (userCount !== handlePresenceUpdates.lastUserCount) {
-        console.log('🔄 Presence update received:', {
-          totalEntries: userCount,
+        console.log('🔄 [PRESENCE-SERVICE] User count changed:', {
+          from: handlePresenceUpdates.lastUserCount,
+          to: userCount,
           timestamp: new Date().toISOString()
         });
         handlePresenceUpdates.lastUserCount = userCount;
@@ -173,7 +194,17 @@ export const subscribeToPresence = (callback) => {
         const userData = allUsers[userId];
         const shouldInclude = userData && 
                              userData.displayName && 
-                             userData.isOnline === true; // ✅ Stricter: must be explicitly true
+                             userData.isOnline === true; // ✅ Only include users explicitly marked online
+        
+        console.log('🔍 [PRESENCE-SERVICE] Processing user:', {
+          userId: userId.substring(0, 8),
+          userData: userData ? {
+            displayName: userData.displayName,
+            isOnline: userData.isOnline,
+            hasDisplayName: !!userData.displayName
+          } : 'null',
+          shouldInclude
+        });
         
         if (shouldInclude) {
           // Determine activity status based on lastActivity timestamp
@@ -193,18 +224,23 @@ export const subscribeToPresence = (callback) => {
         }
       });
       
+      
       callback(onlineUsers);
     };
     
     // Listen for presence updates
-    onValue(sessionRef, handlePresenceUpdates);
+    console.log('👂 [PRESENCE-SERVICE] Starting onValue listener...');
+    onValue(sessionRef, handlePresenceUpdates, (error) => {
+      console.error('❌ [PRESENCE-SERVICE] Firebase subscription error:', error);
+    });
     
     // Return unsubscribe function
     return () => {
+      console.log('🔌 [PRESENCE-SERVICE] Unsubscribing from presence updates');
       off(sessionRef, 'value', handlePresenceUpdates);
     };
   } catch (error) {
-    console.error('Error subscribing to presence:', error);
+    console.error('❌ [PRESENCE-SERVICE] Error setting up subscription:', error);
     return () => {}; // Return empty unsubscribe function
   }
 };

@@ -475,24 +475,34 @@ const Canvas = () => {
       </div>
 
       {/* Multiplayer Cursors Overlay */}
-      {cursors.map((cursor) => {
-        const stage = stageRef.current;
-        if (!stage) return null;
-        
-        const transform = stage.getAbsoluteTransform();
-        const screenCoords = transform.point({ x: cursor.x, y: cursor.y });
-        
-        return (
-          <Cursor
-            key={cursor.id}
-            x={screenCoords.x}
-            y={screenCoords.y}
-            displayName={cursor.displayName}
-            color={cursor.color}
-            userId={cursor.id}
-          />
-        );
-      })}
+          {Object.entries(cursors).map(([userId, cursor]) => {
+            const stage = stageRef.current;
+            
+            // Skip if no stage or cursor positions are invalid/hidden
+            if (!stage) return null;
+            
+            // Check if cursor has valid position data
+            const hasValidPosition = typeof cursor.cursorX === 'number' && 
+                                   typeof cursor.cursorY === 'number' && 
+                                   cursor.cursorX >= 0 && 
+                                   cursor.cursorY >= 0;
+            
+            if (!hasValidPosition) return null;
+            
+            const transform = stage.getAbsoluteTransform();
+            const screenCoords = transform.point({ x: cursor.cursorX, y: cursor.cursorY });
+            
+            return (
+              <Cursor
+                key={userId}
+                x={screenCoords.x}
+                y={screenCoords.y}
+                displayName={cursor.displayName || 'Anonymous'}
+                color={cursor.cursorColor || '#3B82F6'}
+                userId={userId}
+              />
+            );
+          })}
     </div>
   );
 };

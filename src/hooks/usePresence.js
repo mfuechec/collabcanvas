@@ -112,22 +112,22 @@ export const usePresence = () => {
     };
   }, []);
   
-  // Set up presence and heartbeat when user is authenticated
+  // Handle user login/logout and presence setup
   useEffect(() => {
     const prevUser = prevUserRef.current;
+    
     
     if (currentUser) {
       // User is logged in - set them online
       const displayName = getUserDisplayName();
       const color = getUserColor();
-      
+
       setUserOnline(displayName, color)
         .then(() => {
           setIsOnline(true);
-          console.log('User presence set online:', displayName);
         })
         .catch((error) => {
-          console.error('Failed to set user online:', error);
+          console.error('❌ [PRESENCE] Failed to set user online:', error);
         });
       
       // Set up independent heartbeat to maintain online status every 30 seconds
@@ -140,14 +140,9 @@ export const usePresence = () => {
       }, 30000);
       
     } else {
-      // User logged out - cursor system will handle RTDB cleanup
-      // Just update local state here
-      if (prevUser && isOnline) {
-        console.log('User logged out, presence will be cleaned up by cursor system');
-      }
+      // User logged out - rely on Firebase onDisconnect for cleanup
       setIsOnline(false);
       
-      // Clear heartbeat
       if (heartbeatIntervalRef.current) {
         clearInterval(heartbeatIntervalRef.current);
         heartbeatIntervalRef.current = null;
@@ -162,9 +157,7 @@ export const usePresence = () => {
       if (heartbeatIntervalRef.current) {
         clearInterval(heartbeatIntervalRef.current);
       }
-      if (currentUser) {
-        setUserOffline();
-      }
+      // Don't manually set offline on unmount - Firebase onDisconnect will handle it
     };
   }, [currentUser, getUserDisplayName, getUserColor, isOnline]);
   

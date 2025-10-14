@@ -60,11 +60,10 @@ export const useCursors = (stageRef, isDrawing = false) => {
   
   // Handle mouse move events
   const handleMouseMove = useCallback((event) => {
-    // 🔧 RACE CONDITION FIX: Don't update cursor position while drawing
+    // Don't update cursor position while drawing
     if (!stageRef?.current || !isActive || isDrawing) return;
     
     try {
-      // Get mouse position relative to the stage
       const stage = stageRef.current;
       const pointerPosition = stage.getPointerPosition();
       
@@ -83,9 +82,9 @@ export const useCursors = (stageRef, isDrawing = false) => {
         throttledUpdateCursor(canvasCoords.x, canvasCoords.y);
       }
     } catch (error) {
-      console.error('Error handling mouse move:', error);
+      console.error('❌ [CURSORS-HOOK] Error handling mouse move:', error);
     }
-  }, [stageRef, isActive, isDrawing, throttledUpdateCursor]);
+  }, [stageRef, isActive, isDrawing, throttledUpdateCursor, getUserDisplayName, getUserColor]);
   
   // Handle drawing state changes
   useEffect(() => {
@@ -129,50 +128,33 @@ export const useCursors = (stageRef, isDrawing = false) => {
   useEffect(() => {
     const prevUser = prevUserRef.current;
     
-    console.log('🎣 useCursors useEffect triggered:', {
-      currentUser: currentUser ? { uid: currentUser.uid, email: currentUser.email } : null,
-      prevUser: prevUser ? { uid: prevUser.uid, email: prevUser.email } : null,
-      hasUserChanged: prevUser !== currentUser
-    });
-    
     if (currentUser) {
-      // User is logged in
-      console.log('✅ User is logged in, setting up cursor');
       const displayName = getUserDisplayName();
       const color = getUserColor();
       
-      setupCursorCleanup(displayName, color);
-      setIsActive(true);
+      setupCursorCleanup(displayName, color)
+        .then(() => {
+          setIsActive(true);
+        })
+        .catch((error) => {
+          console.error('❌ [CURSORS-HOOK] Failed to setup cursor:', error);
+        });
     } else {
-      // User logged out - remove cursor immediately if previously had a user
-      console.log('❌ User is null, checking for logout...');
-      if (prevUser) {
-        const userIdToRemove = prevUser.uid; // Use the previous user's ID
-        console.log('🚪 LOGOUT DETECTED! Removing cursor for user:', userIdToRemove);
-        removeCursor(userIdToRemove);
-      } else {
-        console.log('⚠️ No previous user found, skipping cleanup');
+      if (prevUser && isActive) {
+        removeCursor(prevUser.uid);
       }
       setIsActive(false);
     }
     
-    // Update the previous user ref
     prevUserRef.current = currentUser;
-    console.log('📝 Updated prevUserRef to:', currentUser ? currentUser.uid : null);
-    
-  }, [currentUser]); // ✅ SIMPLIFIED: Only depend on currentUser
+  }, [currentUser, getUserDisplayName, getUserColor, isActive]);
   
-  // Separate cleanup effect for unmounting
+  // Cleanup effect for unmounting
   useEffect(() => {
     return () => {
-      console.log('🧹 useCursors component unmounting, cleaning up');
-      // Always clean up on unmount since we have onDisconnect as backup
-      if (prevUserRef.current) {
-        console.log('🧹 Removing cursor for unmounting user:', prevUserRef.current.uid);
-        removeCursor(prevUserRef.current.uid);
-      }
+      // Firebase onDisconnect will handle cleanup
     };
-  }, []); // Only run on mount/unmount
+  }, []);
   
   // Add/remove mouse event listeners
   useEffect(() => {
@@ -206,7 +188,7 @@ export const useCursors = (stageRef, isDrawing = false) => {
   });
   
   return {
-    cursors: processedCursors,
+    cursors,  // Return raw cursors object for Canvas.jsx (Object.entries)
     isActive,
     currentUserColor: getUserColor(),
     currentUserDisplayName: getUserDisplayName()
