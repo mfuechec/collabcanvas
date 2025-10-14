@@ -32,6 +32,7 @@ export const CanvasProvider = ({ children }) => {
   // Firebase canvas hook for real-time shapes
   const {
     shapes,
+    shapesMap, // 🚀 PERFORMANCE: Get optimized shapes map
     isLoading,
     error,
     isConnected,
@@ -202,6 +203,7 @@ export const CanvasProvider = ({ children }) => {
 
     // Shapes state  
     shapes,
+    shapesMap, // 🚀 PERFORMANCE: Expose shapes map for O(1) lookups
     selectedShapeId,
     selectedShape,
 

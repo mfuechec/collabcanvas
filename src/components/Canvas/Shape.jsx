@@ -2,7 +2,6 @@ import { Rect } from 'react-konva';
 import { useRef, useEffect, useMemo } from 'react';
 import { useCanvas } from '../../hooks/useCanvas';
 import { useCanvasMode } from '../../contexts/CanvasModeContext';
-import { useDragPreviews } from '../../hooks/useDragPreviews';
 
 const Shape = ({ 
   id, 
@@ -13,7 +12,16 @@ const Shape = ({
   fill, 
   isSelected, 
   isLocked, 
-  lockedBy 
+  lockedBy,
+  // 🚀 PERFORMANCE: Viewport culling optimization hints
+  _isViewportCulled,
+  _totalShapes,
+  // 🚀 PERFORMANCE: Event delegation functions
+  registerShapeHandlers,
+  unregisterShapeHandlers,
+  // 🚀 COLLABORATIVE: Firebase-based drag preview functions
+  updateDragPreview,
+  clearDragPreview
 }) => {
   const { 
     selectShape, 
@@ -27,11 +35,12 @@ const Shape = ({
     isShapeLockedByCurrentUser,
     isShapeLockedByOther,
     getCurrentUserId,
-    shapes // Get live shapes array to check current state
+    shapes, // Get live shapes array to check current state
+    shapesMap // 🚀 PERFORMANCE: Get optimized shapes map for O(1) lookup
   } = useCanvas();
 
   const { currentMode, CANVAS_MODES } = useCanvasMode();
-  const { updatePreview, clearPreview, isActive: isDragPreviewActive } = useDragPreviews();
+  // 🚀 PERFORMANCE: Removed useDragPreviews - no more real-time drag updates
 
   // Track if we've already locked this shape during current drag session
   const lockAttemptedRef = useRef(false);
@@ -47,26 +56,9 @@ const Shape = ({
   
   // Store original position for potential revert on page unload
   const originalPositionRef = useRef({ x, y });
-
-  // Cleanup effect for component unmount during drag
-  useEffect(() => {
-    return () => {
-      // If component unmounts during drag, unlock the shape
-      if (isDraggingRef.current && isLocked && lockedBy === getCurrentUserId()) {
-        console.log('🔄 [LOCKING] Component unmount during drag, unlocking:', id);
-        unlockShape(id).catch(error => {
-          console.error('Failed to unlock on unmount:', error);
-        });
-      }
-    };
-  }, [id, isLocked, lockedBy, getCurrentUserId, unlockShape]);
-
-  // Update original position when shape position changes (not during drag)
-  useEffect(() => {
-    if (!isDraggingRef.current) {
-      originalPositionRef.current = { x, y };
-    }
-  }, [x, y]);
+  
+  // 🚀 PERFORMANCE: Throttle drag preview updates
+  const lastPreviewUpdate = useRef(0);
 
   // Handle shape click for selection
   const handleClick = (e) => {
@@ -78,8 +70,8 @@ const Shape = ({
     // Stop event from bubbling to stage
     e.cancelBubble = true;
     
-    // Don't select if locked by another user (use live state)
-    if (isShapeLockedByOther(liveShape)) {
+    // Don't select if locked by another user (use pre-computed value)
+    if (shapeStateFlags.isLockedByOther) {
       return;
     }
     
@@ -94,14 +86,20 @@ const Shape = ({
 
   // Handle shape drag start
   const handleDragStart = (e) => {
+    // 🚀 CRITICAL: Prevent event bubbling to avoid canvas panning conflicts
+    e.cancelBubble = true;
+    if (e.evt) {
+      e.evt.stopPropagation();
+    }
+    
     // Only allow dragging in move mode
     if (currentMode !== CANVAS_MODES.MOVE) {
       e.target.stopDrag();
       return;
     }
     
-    // Check if shape is already locked by another user (use live state)
-    if (liveShape.isLocked && liveShape.lockedBy && liveShape.lockedBy !== getCurrentUserId()) {
+    // Check if shape is already locked by another user (use pre-computed value)
+    if (shapeStateFlags.isLockedByOther) {
       e.target.stopDrag();
       return;
     }
@@ -127,6 +125,22 @@ const Shape = ({
     // Clear any existing timeouts (from click or previous operations) to prevent conflicts
     clearLockTimeout(id);
     
+    // 🚀 COLLABORATIVE: Start broadcasting drag preview to other users
+    if (updateDragPreview && getCurrentUserId()) {
+      console.log('📡 [COLLAB] Starting drag preview broadcast for shape:', id);
+      
+      // Send initial drag start position to other users
+      updateDragPreview(id, {
+        userId: getCurrentUserId(),
+        x: shape.x(),
+        y: shape.y(),
+        width,
+        height,
+        fill,
+        isDragging: true
+      });
+    }
+    
   };
 
   // Handle shape drag move with boundary constraints
@@ -136,7 +150,7 @@ const Shape = ({
     
     // Lock the shape on first move (after drag is confirmed to be working)
     // Only lock if: 1) shape is unlocked, 2) we haven't attempted to lock yet, 3) not already locked by current user, 4) not pending unlock
-    if (!liveShape.isLocked && !lockAttemptedRef.current && !isShapeLockedByCurrentUser(liveShape) && !pendingUnlockRef.current) {
+    if (!liveShape.isLocked && !lockAttemptedRef.current && !shapeStateFlags.isLockedByCurrentUser && !pendingUnlockRef.current) {
       lockAttemptedRef.current = true; // Prevent multiple lock attempts
       
       // Create cancellation token for this lock operation
@@ -173,15 +187,29 @@ const Shape = ({
       shape.position(constrainedPos);
     }
     
-    // Update collaborative drag preview for other users to see
-    if (isDragPreviewActive) {
-      updatePreview(id, {
-        x: constrainedPos.x,
-        y: constrainedPos.y,
-        width,
-        height,
-        fill
-      });
+    // 🚀 PERFORMANCE: ZERO RE-RENDERS during drag
+    // Store final position in ref for drag end sync - NO React state updates
+    originalPositionRef.current = { x: constrainedPos.x, y: constrainedPos.y };
+    
+    // 🚀 COLLABORATIVE: Broadcast drag updates to other users (throttled)
+    // Throttle to ~20fps for collaborative previews
+    const now = Date.now();
+    if (!lastPreviewUpdate.current || now - lastPreviewUpdate.current > 50) {
+      if (updateDragPreview && getCurrentUserId()) {
+        console.log('📡 [COLLAB] Broadcasting drag position:', constrainedPos.x, constrainedPos.y);
+        
+        // Send position update to other users via Firebase
+        updateDragPreview(id, {
+          userId: getCurrentUserId(),
+          x: constrainedPos.x,
+          y: constrainedPos.y,
+          width,
+          height,
+          fill,
+          isDragging: true
+        });
+      }
+      lastPreviewUpdate.current = now;
     }
   };
 
@@ -190,7 +218,17 @@ const Shape = ({
     const shape = e.target;
     const finalPos = shape.position();
     
-    // Mark drag as completed to prevent timeout from re-locking
+    console.log('🔄 [DRAG] Drag ending for shape:', id, 'at position:', finalPos);
+    
+    // 🚀 CRITICAL: Prevent event bubbling to avoid canvas panning conflicts
+    e.cancelBubble = true;
+    if (e.evt) {
+      e.evt.stopPropagation();
+      e.evt.preventDefault();
+    }
+    
+    // 🚀 CRITICAL: Clear dragging state FIRST
+    isDraggingRef.current = false;
     dragCompletedRef.current = true;
     
     // Set pending unlock state to prevent race conditions
@@ -200,9 +238,6 @@ const Shape = ({
     if (lockCancelTokenRef.current) {
       lockCancelTokenRef.current.cancelled = true;
     }
-    
-    // Clear dragging state
-    isDraggingRef.current = false;
     
     // Ensure final position is within bounds
     const constrainedPos = constrainToBounds(
@@ -215,8 +250,15 @@ const Shape = ({
     // Ensure shape is positioned correctly immediately
     shape.position(constrainedPos);
     
-    // Clear collaborative drag preview when drag ends
-    clearPreview();
+    // 🚀 COLLABORATIVE: End drag preview broadcast to other users
+    if (clearDragPreview && getCurrentUserId()) {
+      console.log('📡 [COLLAB] Clearing drag preview for shape:', id);
+      
+      // Clear drag preview for other users
+      clearDragPreview(id);
+    }
+    
+    // 🚀 PERFORMANCE: No more clearPreview() call - we removed drag previews
     
     // Update position and unlock shape (drag is complete)
     Promise.resolve().then(async () => {
@@ -270,65 +312,112 @@ const Shape = ({
     });
   };
 
-  // Get live shape state from Firebase (reactive to shapes array changes)
+  // 🚀 PERFORMANCE: Get live shape state using O(1) Map lookup instead of O(n) array.find
   const liveShape = useMemo(() => {
-    const foundShape = shapes.find(s => s.id === id);
-    return foundShape || { id, isLocked, lockedBy }; // Fallback to props if not found
-  }, [shapes, id, isLocked, lockedBy]);
+    return shapesMap.get(id) || { id, isLocked, lockedBy }; // Fallback to props if not found
+  }, [shapesMap, id, isLocked, lockedBy]);
 
-  // Visual styling based on live state with immediate feedback for pending operations (reactive)
-  const stroke = useMemo(() => {
-    // Use pending unlock state for immediate visual feedback
-    if (pendingUnlockRef.current) {
-      return isSelected ? '#3b82f6' : 'transparent'; // Show as unlocked immediately
-    }
+  // 🚀 PERFORMANCE: Pre-compute expensive values with stable references
+  const shapeStateFlags = useMemo(() => {
+    const isLockedByCurrentUser = isShapeLockedByCurrentUser(liveShape);
+    const isLockedByOther = isShapeLockedByOther(liveShape);
     
-    const isVisuallyLocked = isShapeLockedByOther(liveShape);
-    
-    if (isVisuallyLocked) {
-      return '#ef4444'; // Red border for locked by others
-    }
-    if (isSelected) {
-      return '#3b82f6'; // Blue border for selected
-    }
-    return 'transparent';
-  }, [liveShape, pendingUnlockRef.current, isSelected, isShapeLockedByOther]);
+    return {
+      isLockedByCurrentUser,
+      isLockedByOther,
+      shouldShowStroke: isSelected || isLockedByOther,
+      shouldShowOpacity: isLockedByOther,
+      canDrag: currentMode === CANVAS_MODES.MOVE && !isLockedByOther,
+      cursorType: isLockedByOther ? 'not-allowed' : 'pointer'
+    };
+  }, [liveShape, isSelected, currentMode, CANVAS_MODES.MOVE, isShapeLockedByCurrentUser, isShapeLockedByOther]);
 
-  const strokeWidth = useMemo(() => {
-    // Use pending unlock state for immediate visual feedback
-    if (pendingUnlockRef.current) {
-      return isSelected ? 2 : 0; // Show as unlocked immediately
-    }
+  // 🚀 PERFORMANCE: Stable visual styling with minimal dependencies  
+  const visualStyles = useMemo(() => {
+    const isPendingUnlock = pendingUnlockRef.current;
     
-    return (isSelected || isShapeLockedByOther(liveShape)) ? 2 : 0;
-  }, [liveShape, pendingUnlockRef.current, isSelected, isShapeLockedByOther]);
+    return {
+      stroke: isPendingUnlock 
+        ? (isSelected ? '#3b82f6' : 'transparent')
+        : shapeStateFlags.isLockedByOther 
+          ? '#ef4444' 
+          : isSelected ? '#3b82f6' : 'transparent',
+      
+      strokeWidth: isPendingUnlock 
+        ? (isSelected ? 2 : 0)
+        : (shapeStateFlags.shouldShowStroke ? 2 : 0),
+      
+      opacity: isPendingUnlock 
+        ? 1.0 
+        : (shapeStateFlags.shouldShowOpacity ? 0.6 : 1.0),
+      
+      draggable: isPendingUnlock 
+        ? (currentMode === CANVAS_MODES.MOVE)
+        : shapeStateFlags.canDrag,
+      
+      cursorStyle: isPendingUnlock 
+        ? 'pointer' 
+        : shapeStateFlags.cursorType
+    };
+  }, [shapeStateFlags, isSelected, currentMode, CANVAS_MODES.MOVE]);
 
-  const opacity = useMemo(() => {
-    // Use local pending unlock state to provide immediate visual feedback
-    if (pendingUnlockRef.current) {
-      return 1.0; // Show as unlocked immediately when unlock is pending
-    }
+  // 🚀 PERFORMANCE: Konva optimizations based on context
+  const konvaOptimizations = useMemo(() => {
+    const manyShapes = _totalShapes > 100;
+    const isViewportCulled = _isViewportCulled;
     
-    return isShapeLockedByOther(liveShape) ? 0.6 : 1.0;
-  }, [liveShape, pendingUnlockRef.current, isShapeLockedByOther]);
+    return {
+      // Disable expensive features when there are many shapes
+      perfectDrawEnabled: false,
+      shadowEnabled: !manyShapes, // Disable shadows when many shapes for performance
+      shadowForStrokeEnabled: false, // Always disable expensive shadow for stroke
+      
+      // Optimize hit detection
+      hitStrokeWidth: isSelected ? undefined : 0, // Only enable hit on stroke for selected shapes
+      
+      // Optimize listening based on interaction state  
+      listening: !isViewportCulled || isSelected || visualStyles.draggable, // Reduce listeners when culled
+      
+      // Optimize transforms
+      transformsEnabled: 'all' // Keep all transforms enabled for dragging
+    };
+  }, [_totalShapes, _isViewportCulled, isSelected, visualStyles.draggable]);
 
-  const draggable = useMemo(() => {
-    // Use local pending unlock state to allow immediate dragging
-    if (pendingUnlockRef.current) {
-      return currentMode === CANVAS_MODES.MOVE; // Allow dragging immediately when unlock is pending
+  // 🚀 PERFORMANCE: Optimized cleanup effect - minimal dependencies
+  useEffect(() => {
+    // Update original position when not dragging (avoid during drag operations)
+    if (!isDraggingRef.current) {
+      originalPositionRef.current = { x, y };
     }
     
-    return currentMode === CANVAS_MODES.MOVE && !isShapeLockedByOther(liveShape);
-  }, [liveShape, pendingUnlockRef.current, currentMode, CANVAS_MODES.MOVE, isShapeLockedByOther]);
-
-  const cursorStyle = useMemo(() => {
-    // Use live state and pending unlock for cursor feedback
-    if (pendingUnlockRef.current) {
-      return 'pointer'; // Show as draggable immediately
+    // 🚀 PERFORMANCE: Register click handlers only - drag handlers stay on Rect
+    if (registerShapeHandlers) {
+      const handlers = {
+        onMouseDown: handleClick
+        // onDragStart, onDragMove, onDragEnd removed - handled directly by Rect
+      };
+      registerShapeHandlers(id, handlers);
     }
     
-    return isShapeLockedByOther(liveShape) ? 'not-allowed' : 'pointer';
-  }, [liveShape, pendingUnlockRef.current, isShapeLockedByOther]);
+    // Cleanup function for component unmount during drag
+    return () => {
+      // 🚀 PERFORMANCE: Unregister event handlers
+      if (unregisterShapeHandlers) {
+        unregisterShapeHandlers(id);
+      }
+      
+      // If component unmounts during drag, unlock the shape
+      if (isDraggingRef.current && isLocked && lockedBy) {
+        const currentUserId = getCurrentUserId();
+        if (lockedBy === currentUserId) {
+          console.log('🔄 [LOCKING] Component unmount during drag, unlocking:', id);
+          unlockShape(id).catch(error => {
+            console.error('Failed to unlock on unmount:', error);
+          });
+        }
+      }
+    };
+  }, [id, x, y, isLocked, lockedBy, registerShapeHandlers, unregisterShapeHandlers, handleClick]);
 
   return (
     <Rect
@@ -337,26 +426,21 @@ const Shape = ({
       width={width}
       height={height}
       fill={fill}
-      stroke={stroke}
-      strokeWidth={strokeWidth}
-      opacity={opacity}
-      draggable={draggable}
-      onClick={handleClick}
-      onTap={handleClick} // For mobile
+      stroke={visualStyles.stroke}
+      strokeWidth={visualStyles.strokeWidth}
+      opacity={visualStyles.opacity}
+      draggable={visualStyles.draggable}
+      // 🚀 PERFORMANCE: Add shape ID for event delegation
+      shapeId={id}
+      // 🚀 PERFORMANCE: Keep drag handlers on Rect - Konva needs them for proper drag lifecycle
       onDragStart={handleDragStart}
       onDragMove={handleDragMove}
       onDragEnd={handleDragEnd}
-      // Visual feedback on hover
-      onMouseEnter={(e) => {
-        const container = e.target.getStage().container();
-        if (currentMode === CANVAS_MODES.MOVE) {
-          container.style.cursor = cursorStyle;
-        }
-      }}
-      onMouseLeave={(e) => {
-        const container = e.target.getStage().container();
-        container.style.cursor = 'default';
-      }}
+      // 🚀 PERFORMANCE: Use event delegation for click events only
+      onClick={registerShapeHandlers ? undefined : handleClick}
+      onTap={registerShapeHandlers ? undefined : handleClick}
+      // 🚀 PERFORMANCE: Apply Konva optimizations
+      {...konvaOptimizations}
     />
   );
 };

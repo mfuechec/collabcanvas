@@ -1,5 +1,5 @@
 // Firebase Canvas Hook - Real-time canvas operations with Firestore
-import { useState, useEffect, useCallback, useRef } from 'react';
+import { useState, useEffect, useCallback, useRef, useMemo } from 'react';
 import { useAuth } from './useAuth';
 import {
   subscribeToShapes,
@@ -25,6 +25,31 @@ export const useFirebaseCanvas = (canvasId = 'global-canvas-v1') => {
   
   const unsubscribeRef = useRef(null);
   const lockTimeoutsRef = useRef(new Map()); // Track lock timeouts
+
+  // 🚀 PERFORMANCE: Create memoized shape lookup map for O(1) access
+  const shapesMap = useMemo(() => {
+    const map = new Map();
+    shapes.forEach(shape => map.set(shape.id, shape));
+    return map;
+  }, [shapes]);
+
+  // 🚀 PERFORMANCE: Memoized current user ID to avoid repeated calls
+  const currentUserId = useMemo(() => {
+    return currentUser?.uid || getUserId();
+  }, [currentUser]);
+
+  // 🚀 PERFORMANCE: Optimized shape update function using Map lookup
+  const updateShapeOptimistically = useCallback((shapeId, updates) => {
+    setShapes(prevShapes => {
+      // Use findIndex for better performance than map when updating single item
+      const index = prevShapes.findIndex(shape => shape.id === shapeId);
+      if (index === -1) return prevShapes;
+      
+      const newShapes = [...prevShapes];
+      newShapes[index] = { ...newShapes[index], ...updates };
+      return newShapes;
+    });
+  }, []);
 
   // Subscribe to real-time shape updates
   useEffect(() => {
@@ -136,22 +161,14 @@ export const useFirebaseCanvas = (canvasId = 'global-canvas-v1') => {
       }
       
       // OPTIMISTIC UPDATE: Immediately update local state for instant visual feedback
-      const currentUserId = currentUser?.uid || getUserId();
-      setShapes(prevShapes => 
-        prevShapes.map(shape => 
-          shape.id === shapeId 
-            ? {
-                ...shape,
-                isLocked: true,
-                lockedBy: currentUserId,
-                lockedAt: Date.now(),
-                unlockedAt: undefined,
-                lastModifiedAt: Date.now(),
-                lastModifiedBy: currentUserId
-              }
-            : shape
-        )
-      );
+      updateShapeOptimistically(shapeId, {
+        isLocked: true,
+        lockedBy: currentUserId,
+        lockedAt: Date.now(),
+        unlockedAt: undefined,
+        lastModifiedAt: Date.now(),
+        lastModifiedBy: currentUserId
+      });
       
       console.log('→ LOCK signal sent to Firebase:', shapeId);
       await lockShapeService(shapeId, canvasId);
@@ -217,7 +234,7 @@ export const useFirebaseCanvas = (canvasId = 'global-canvas-v1') => {
       
       throw err;
     }
-  }, [canvasId, currentUser]);
+  }, [canvasId, currentUserId, updateShapeOptimistically]);
 
   // Emergency unlock for page unload scenarios
   const emergencyUnlock = useCallback(async (shapeId, originalPosition = null) => {
@@ -272,21 +289,14 @@ export const useFirebaseCanvas = (canvasId = 'global-canvas-v1') => {
   const unlockShape = useCallback(async (shapeId) => {
     try {
       // OPTIMISTIC UPDATE: Immediately update local state for instant visual feedback
-      setShapes(prevShapes => 
-        prevShapes.map(shape => 
-          shape.id === shapeId 
-            ? {
-                ...shape,
-                isLocked: false,
-                lockedBy: undefined,
-                lockedAt: undefined,
-                unlockedAt: Date.now(),
-                lastModifiedAt: Date.now(),
-                lastModifiedBy: currentUser?.uid || getUserId()
-              }
-            : shape
-        )
-      );
+      updateShapeOptimistically(shapeId, {
+        isLocked: false,
+        lockedBy: undefined,
+        lockedAt: undefined,
+        unlockedAt: Date.now(),
+        lastModifiedAt: Date.now(),
+        lastModifiedBy: currentUserId
+      });
       
       // Clear any existing timeout
       const timeoutId = lockTimeoutsRef.current.get(shapeId);
@@ -307,43 +317,34 @@ export const useFirebaseCanvas = (canvasId = 'global-canvas-v1') => {
     } catch (err) {
       
       // ROLLBACK: If Firebase fails, revert the optimistic update
-      setShapes(prevShapes => 
-        prevShapes.map(shape => 
-          shape.id === shapeId 
-            ? {
-                ...shape,
-                isLocked: true, // Revert to locked
-                lockedBy: currentUser?.uid || getUserId(), // Assume current user had it locked
-                unlockedAt: undefined
-              }
-            : shape
-        )
-      );
+      updateShapeOptimistically(shapeId, {
+        isLocked: true, // Revert to locked
+        lockedBy: currentUserId, // Use memoized user ID
+        unlockedAt: undefined
+      });
       
       throw err;
     }
-  }, [canvasId, currentUser]);
+  }, [canvasId, currentUserId, updateShapeOptimistically]);
 
-  // Get current user ID
+  // Get current user ID - now returns memoized value
   const getCurrentUserId = useCallback(() => {
-    return currentUser?.uid || getUserId();
-  }, [currentUser]);
+    return currentUserId;
+  }, [currentUserId]);
 
-  // Check if a shape is locked by current user
+  // 🚀 PERFORMANCE: Optimized shape checking functions using Map lookup
   const isShapeLockedByCurrentUser = useCallback((shape) => {
-    const userId = getCurrentUserId();
-    return shape.isLocked === true && shape.lockedBy === userId;
-  }, [getCurrentUserId]);
+    return shape.isLocked === true && shape.lockedBy === currentUserId;
+  }, [currentUserId]);
 
-  // Check if a shape is locked by another user
+  // 🚀 PERFORMANCE: Optimized shape checking functions using Map lookup
   const isShapeLockedByOther = useCallback((shape) => {
-    const userId = getCurrentUserId();
     // A shape is locked by another user if:
     // 1. It's marked as locked (isLocked === true)
     // 2. It has a valid lockedBy value (not null/undefined)  
     // 3. The lockedBy value is different from current user
-    return shape.isLocked === true && shape.lockedBy && shape.lockedBy !== userId;
-  }, [getCurrentUserId]);
+    return shape.isLocked === true && shape.lockedBy && shape.lockedBy !== currentUserId;
+  }, [currentUserId]);
 
   // Retry connection
   const retryConnection = useCallback(() => {
@@ -361,6 +362,7 @@ export const useFirebaseCanvas = (canvasId = 'global-canvas-v1') => {
   return {
     // State
     shapes,
+    shapesMap, // 🚀 PERFORMANCE: Expose shapes map for O(1) lookups
     isLoading,
     error,
     isConnected,

@@ -1,5 +1,5 @@
 // Canvas Component - Modern canvas with drawing functionality and theme support
-import { useEffect, useCallback, useRef, useState } from 'react';
+import { useEffect, useCallback, useRef, useState, useMemo } from 'react';
 import { Stage, Layer, Rect } from 'react-konva';
 import { useCanvas } from '../../hooks/useCanvas';
 import { useCursors } from '../../hooks/useCursors';
@@ -61,7 +61,20 @@ const Canvas = () => {
   } = useCanvasMode();
 
   const { cursors } = useCursors(stageRef, isDrawing);
-  const { otherUsersDragPreviews } = useDragPreviews();
+  const { otherUsersDragPreviews, updatePreview, clearPreview } = useDragPreviews();
+
+  // 🚀 PERFORMANCE: Centralized shape event handling to eliminate individual listeners
+  const shapeEventHandlers = useRef(new Map()); // Store shape event handlers by ID
+  
+  // Register a shape's event handlers
+  const registerShapeHandlers = useCallback((shapeId, handlers) => {
+    shapeEventHandlers.current.set(shapeId, handlers);
+  }, []);
+  
+  // Unregister a shape's event handlers
+  const unregisterShapeHandlers = useCallback((shapeId) => {
+    shapeEventHandlers.current.delete(shapeId);
+  }, []);
 
   const containerRef = useRef(null);
   const isDraggingCanvas = useRef(false);
@@ -72,6 +85,74 @@ const Canvas = () => {
   const canvasBackgroundColor = isDark ? '#ffffff' : '#ffffff'; // Canvas is always white
   const canvasBorderColor = isDark ? '#60a5fa' : '#3b82f6'; // Blue border for visibility
   const canvasShadow = isDark ? 'rgba(96, 165, 250, 0.3)' : 'rgba(59, 130, 246, 0.2)'; // Subtle glow
+
+  // 🚀 PERFORMANCE: Smart viewport culling system
+  const { visibleShapes, cullingStats } = useMemo(() => {
+    const stage = stageRef.current;
+    
+    // If no stage or no shapes, return all shapes
+    if (!stage || shapes.length === 0 || stageSize.width === 0 || stageSize.height === 0) {
+      return { 
+        visibleShapes: shapes, 
+        cullingStats: { total: shapes.length, visible: shapes.length, culled: 0, mode: 'no-stage' }
+      };
+    }
+    
+    // 🚀 PERFORMANCE: Get live stage position to avoid stale React state during panning
+    const stagePos = stage.position();
+    const scale = stage.scaleX();
+    
+    // Calculate what portion of the canvas is currently visible
+    const viewportWidth = stageSize.width / scale;
+    const viewportHeight = stageSize.height / scale;
+    const canvasVisibleRatio = Math.min(
+      viewportWidth / CANVAS_WIDTH,
+      viewportHeight / CANVAS_HEIGHT
+    );
+    
+    // If viewing most of the canvas (>70% visible), show all shapes
+    // This ensures 500 shapes are visible when zoomed out to see full canvas
+    if (canvasVisibleRatio > 0.7) {
+      console.log('🔍 Full canvas view - showing all shapes (canvas visible ratio:', canvasVisibleRatio.toFixed(2), ')');
+      return { 
+        visibleShapes: shapes, 
+        cullingStats: { total: shapes.length, visible: shapes.length, culled: 0, mode: 'full-canvas' }
+      };
+    }
+    
+    // Calculate viewport bounds with padding for smooth scrolling
+    const padding = Math.max(100, Math.min(500, 1000 / scale)); // Adaptive padding based on zoom
+    const viewportBounds = {
+      left: (-stagePos.x / scale) - padding,
+      top: (-stagePos.y / scale) - padding,
+      right: ((-stagePos.x + stageSize.width) / scale) + padding,
+      bottom: ((-stagePos.y + stageSize.height) / scale) + padding
+    };
+    
+    // Filter shapes to only those intersecting with viewport
+    const visible = shapes.filter(shape => {
+      // Quick bounding box intersection test
+      return !(
+        shape.x + shape.width < viewportBounds.left ||
+        shape.x > viewportBounds.right ||
+        shape.y + shape.height < viewportBounds.top ||
+        shape.y > viewportBounds.bottom
+      );
+    });
+    
+    const stats = { 
+      total: shapes.length, 
+      visible: visible.length, 
+      culled: shapes.length - visible.length,
+      mode: 'culling',
+      viewportRatio: canvasVisibleRatio.toFixed(2),
+      zoom: scale.toFixed(2)
+    };
+    
+    console.log('🚀 Viewport culling active:', stats);
+    
+    return { visibleShapes: visible, cullingStats: stats };
+  }, [shapes, stageSize, zoom]); // 🚀 PERFORMANCE: Removed canvasPosition dependency to reduce recalculations
 
   // Shared function to constrain stage position
   const constrainPosition = useCallback((position, scale, stageWidth, stageHeight) => {
@@ -137,6 +218,21 @@ const Canvas = () => {
     const stage = stageRef.current;
     if (!stage) return;
 
+    // 🚀 PERFORMANCE: Check for shape interactions first using event delegation
+    const target = e.target;
+    if (target !== stage && target.attrs?.id !== 'canvas-background') {
+      // This is a shape interaction - find the shape ID and delegate
+      const shapeId = target.attrs?.shapeId || target.attrs?.id;
+      if (shapeId && shapeEventHandlers.current.has(shapeId)) {
+        const handlers = shapeEventHandlers.current.get(shapeId);
+        if (handlers.onMouseDown) {
+          handlers.onMouseDown(e);
+          return; // Shape handled the event
+        }
+      }
+    }
+
+    // Handle canvas-level interactions
     if (currentMode === CANVAS_MODES.DRAW && !isDrawing) {
       const screenPos = e.target.getStage().getPointerPosition();
       const canvasPos = screenToCanvasCoords(screenPos);
@@ -168,7 +264,7 @@ const Canvas = () => {
       console.log('🎯 Mouse move - Screen pos:', screenPos, 'Canvas pos:', pos);
       updateDrawing(pos);
     } else if (currentMode === CANVAS_MODES.MOVE && isDraggingCanvas.current) {
-      // Manual canvas panning
+      // 🚀 PERFORMANCE: Optimized canvas panning - keep in Konva, avoid React updates
       const currentPos = stage.getPointerPosition();
       const lastPos = lastPointerPosition.current;
       
@@ -184,13 +280,16 @@ const Canvas = () => {
         
         const constrainedPos = constrainPosition(newPos, stage.scaleX(), stageSize.width, stageSize.height);
         
+        // CRITICAL: Update Konva stage position directly, DON'T trigger React re-render
         stage.position(constrainedPos);
-        updateCanvasPosition(constrainedPos);
+        
+        // DON'T call updateCanvasPosition here - it triggers expensive React updates
+        // We'll sync the React state only on mouse up
       }
       
       lastPointerPosition.current = currentPos;
     }
-  }, [currentMode, CANVAS_MODES.DRAW, isDrawing, updateDrawing, screenToCanvasCoords, constrainPosition, stageSize, updateCanvasPosition]);
+  }, [currentMode, CANVAS_MODES.DRAW, isDrawing, updateDrawing, screenToCanvasCoords, constrainPosition, stageSize]);
 
   // Handle mouse up to finish drawing or canvas panning
   const handleStageMouseUp = useCallback(async () => {
@@ -223,6 +322,13 @@ const Canvas = () => {
         cancelDrawing();
       }
     } else if (currentMode === CANVAS_MODES.MOVE && isDraggingCanvas.current) {
+      // 🚀 PERFORMANCE: Sync React state only when canvas panning ends
+      const stage = stageRef.current;
+      if (stage) {
+        const finalPosition = stage.position();
+        updateCanvasPosition(finalPosition); // Single React update after panning complete
+      }
+      
       // End canvas panning
       isDraggingCanvas.current = false;
       lastPointerPosition.current = null;
@@ -415,8 +521,16 @@ const Canvas = () => {
             onMouseDown={handleStageMouseDown}
             onMouseMove={handleStageMouseMove}
             onMouseUp={handleStageMouseUp}
+            // 🚀 PERFORMANCE: Optimize stage for many objects
+            perfectDrawEnabled={false} // Disable pixel-perfect drawing for better performance
+            listening={true} // Keep listening for interactions
           >
-            <Layer>
+            <Layer
+              // 🚀 PERFORMANCE: Optimize layer for many objects
+              listening={true} // Keep listening for interactions
+              perfectDrawEnabled={false} // Disable pixel-perfect drawing for better performance
+              hitGraphEnabled={true} // Enable hit detection optimization
+            >
               {/* Canvas Background - 5000x5000px as specified in PRD */}
               <Rect
                 id="canvas-background"
@@ -431,10 +545,14 @@ const Canvas = () => {
                 shadowBlur={8}
                 shadowOffset={{ x: 2, y: 2 }}
                 shadowOpacity={0.3}
+                // 🚀 PERFORMANCE: Optimize background rect
+                perfectDrawEnabled={false}
+                shadowForStrokeEnabled={false} // Disable expensive shadow for stroke
+                hitStrokeWidth={0} // Disable hit detection on stroke for better performance
               />
 
-              {/* Render Shapes */}
-              {shapes.map((shape) => (
+              {/* Render Shapes - Smart viewport culling active */}
+              {visibleShapes.map((shape) => (
                 <Shape
                   key={shape.id}
                   id={shape.id}
@@ -446,6 +564,15 @@ const Canvas = () => {
                   isSelected={selectedShapeId === shape.id}
                   isLocked={shape.isLocked}
                   lockedBy={shape.lockedBy}
+                  // 🚀 PERFORMANCE: Pass viewport culling optimization hints
+                  _isViewportCulled={visibleShapes.length < shapes.length}
+                  _totalShapes={shapes.length}
+                  // 🚀 PERFORMANCE: Pass event delegation functions
+                  registerShapeHandlers={registerShapeHandlers}
+                  unregisterShapeHandlers={unregisterShapeHandlers}
+                  // 🚀 COLLABORATIVE: Pass Firebase-based drag preview functions
+                  updateDragPreview={updatePreview}
+                  clearDragPreview={clearPreview}
                 />
               ))}
 
@@ -460,6 +587,10 @@ const Canvas = () => {
                   stroke="#3b82f6"
                   strokeWidth={2}
                   dash={[5, 5]}
+                  // 🚀 PERFORMANCE: Optimize preview rect
+                  perfectDrawEnabled={false}
+                  shadowEnabled={false}
+                  listening={false} // Preview doesn't need events
                 />
               )}
 
@@ -490,6 +621,11 @@ const Canvas = () => {
                     strokeWidth={2}
                     dash={[3, 3]} // Different dash pattern to distinguish from current user
                     opacity={0.8}
+                    // 🚀 PERFORMANCE: Optimize collaborative preview rects
+                    perfectDrawEnabled={false}
+                    shadowEnabled={false}
+                    listening={false} // Previews don't need events
+                    hitStrokeWidth={0} // Disable hit detection
                   />
                 );
               })}
@@ -516,6 +652,11 @@ const Canvas = () => {
                     shadowColor={userColor}
                     shadowBlur={8}
                     shadowOpacity={0.3}
+                    // 🚀 PERFORMANCE: Optimize drag preview rects
+                    perfectDrawEnabled={false}
+                    listening={false} // Drag previews don't need events
+                    hitStrokeWidth={0} // Disable hit detection
+                    shadowForStrokeEnabled={false} // Optimize shadow rendering
                   />
                 );
               })}
@@ -525,34 +666,51 @@ const Canvas = () => {
       </div>
 
       {/* Multiplayer Cursors Overlay */}
-          {Object.entries(cursors).map(([userId, cursor]) => {
-            const stage = stageRef.current;
-            
-            // Skip if no stage or cursor positions are invalid/hidden
-            if (!stage) return null;
-            
-            // Check if cursor has valid position data
-            const hasValidPosition = typeof cursor.cursorX === 'number' && 
-                                   typeof cursor.cursorY === 'number' && 
-                                   cursor.cursorX >= 0 && 
-                                   cursor.cursorY >= 0;
-            
-            if (!hasValidPosition) return null;
-            
-            const transform = stage.getAbsoluteTransform();
-            const screenCoords = transform.point({ x: cursor.cursorX, y: cursor.cursorY });
-            
-            return (
-              <Cursor
-                key={userId}
-                x={screenCoords.x}
-                y={screenCoords.y}
-                displayName={cursor.displayName || 'Anonymous'}
-                color={cursor.cursorColor || '#3B82F6'}
-                userId={userId}
-              />
-            );
-          })}
+      {Object.entries(cursors).map(([userId, cursor]) => {
+        const stage = stageRef.current;
+        
+        // Skip if no stage or cursor positions are invalid/hidden
+        if (!stage) return null;
+        
+        // Check if cursor has valid position data
+        const hasValidPosition = typeof cursor.cursorX === 'number' && 
+                               typeof cursor.cursorY === 'number' && 
+                               cursor.cursorX >= 0 && 
+                               cursor.cursorY >= 0;
+        
+        if (!hasValidPosition) return null;
+        
+        const transform = stage.getAbsoluteTransform();
+        const screenCoords = transform.point({ x: cursor.cursorX, y: cursor.cursorY });
+        
+        return (
+          <Cursor
+            key={userId}
+            x={screenCoords.x}
+            y={screenCoords.y}
+            displayName={cursor.displayName || 'Anonymous'}
+            color={cursor.cursorColor || '#3B82F6'}
+            userId={userId}
+          />
+        );
+      })}
+
+      {/* 🚀 PERFORMANCE: Viewport culling stats overlay (dev mode) */}
+      {process.env.NODE_ENV === 'development' && cullingStats && (
+        <div 
+          className="absolute bottom-4 right-4 px-3 py-2 rounded-md text-xs font-mono z-40 border"
+          style={{ 
+            backgroundColor: 'var(--bg-primary)', 
+            borderColor: 'var(--border-primary)',
+            color: 'var(--text-secondary)'
+          }}
+        >
+          <div>Shapes: {cullingStats.visible}/{cullingStats.total}</div>
+          <div>Mode: {cullingStats.mode}</div>
+          {cullingStats.zoom && <div>Zoom: {cullingStats.zoom}</div>}
+          {cullingStats.viewportRatio && <div>Viewport: {cullingStats.viewportRatio}</div>}
+        </div>
+      )}
 
       {/* Collaborative Drawing Preview Labels */}
       {Object.entries(otherUsersPreviews).map(([userId, preview]) => {
