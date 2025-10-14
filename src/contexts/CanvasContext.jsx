@@ -8,7 +8,8 @@ import {
   DEFAULT_CANVAS_X, 
   DEFAULT_CANVAS_Y,
   MIN_ZOOM,
-  MAX_ZOOM
+  MAX_ZOOM,
+  calculateInitialCanvasPosition
 } from '../utils/constants';
 
 // Create Canvas Context
@@ -17,11 +18,10 @@ const CanvasContext = createContext();
 // Canvas Provider Component
 export const CanvasProvider = ({ children }) => {
   // Canvas viewport state (still local)
-  const [canvasPosition, setCanvasPosition] = useState({
-    x: DEFAULT_CANVAS_X,
-    y: DEFAULT_CANVAS_Y
-  });
+  // Start with null and set proper position once stage is ready
+  const [canvasPosition, setCanvasPosition] = useState({ x: 0, y: 0 });
   const [zoom, setZoom] = useState(DEFAULT_ZOOM);
+  const [isInitialized, setIsInitialized] = useState(false);
 
   // Selection state (local)
   const [selectedShapeId, setSelectedShapeId] = useState(null);
@@ -40,6 +40,7 @@ export const CanvasProvider = ({ children }) => {
     deleteShape: deleteShapeFirebase,
     lockShape,
     unlockShape,
+    clearLockTimeout,
     isShapeLockedByCurrentUser,
     isShapeLockedByOther,
     getCurrentUserId,
@@ -57,25 +58,38 @@ export const CanvasProvider = ({ children }) => {
     setZoom(clampedZoom);
   }, []);
 
+  // Initialize canvas position (called once when stage is ready)
+  const initializeCanvasPosition = useCallback(() => {
+    const stage = stageRef.current;
+    if (stage && !isInitialized) {
+      const stageWidth = stage.width();
+      const stageHeight = stage.height();
+      
+      const initialPosition = calculateInitialCanvasPosition(stageWidth, stageHeight);
+      
+      setCanvasPosition(initialPosition);
+      setZoom(DEFAULT_ZOOM);
+      setIsInitialized(true);
+      
+      console.log('🎯 [CANVAS-INIT] Initial position set:', initialPosition);
+    }
+  }, [isInitialized]);
+
   const resetView = useCallback(() => {
-    // Calculate position to center the entire 5000x5000 canvas in viewport
+    // Use the shared calculation function to ensure consistency
     const stage = stageRef.current;
     if (stage) {
       const stageWidth = stage.width();
       const stageHeight = stage.height();
       
-      // At DEFAULT_ZOOM (0.2), the 5000x5000 canvas becomes 1000x1000
-      const scaledCanvasWidth = CANVAS_WIDTH * DEFAULT_ZOOM;
-      const scaledCanvasHeight = CANVAS_HEIGHT * DEFAULT_ZOOM;
+      const resetPosition = calculateInitialCanvasPosition(stageWidth, stageHeight);
       
-      // Center the scaled canvas in the viewport
-      const centerX = (stageWidth - scaledCanvasWidth) / 2;
-      const centerY = (stageHeight - scaledCanvasHeight) / 2;
-      
-      setCanvasPosition({ x: centerX, y: centerY });
+      setCanvasPosition(resetPosition);
       setZoom(DEFAULT_ZOOM);
+      
+      console.log('🔄 [CANVAS-RESET] Position reset to:', resetPosition);
     } else {
-      // Fallback if stage not available
+      // Fallback if stage not available - use constants
       setCanvasPosition({ x: DEFAULT_CANVAS_X, y: DEFAULT_CANVAS_Y });
       setZoom(DEFAULT_ZOOM);
     }
@@ -195,6 +209,7 @@ export const CanvasProvider = ({ children }) => {
     updateCanvasPosition,
     updateZoom,
     resetView,
+    initializeCanvasPosition,
     getVisibleArea,
 
     // Shape methods (now Firebase-connected)
@@ -207,6 +222,7 @@ export const CanvasProvider = ({ children }) => {
     // Firebase-specific methods
     lockShape,
     unlockShape,
+    clearLockTimeout,
     isShapeLockedByCurrentUser,
     isShapeLockedByOther,
     getCurrentUserId,

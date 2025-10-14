@@ -8,8 +8,13 @@ import {
   deleteShape as deleteShapeService,
   lockShape as lockShapeService,
   unlockShape as unlockShapeService,
+  setupDisconnectCleanup,
+  clearDisconnectCleanup,
+  monitorDisconnectCleanup,
+  processDisconnectCleanup,
   getUserId
 } from '../services/canvas';
+import { clearDragPreviewsByShape } from '../services/dragPreviews';
 
 export const useFirebaseCanvas = (canvasId = 'global-canvas-v1') => {
   const { currentUser } = useAuth();
@@ -24,7 +29,6 @@ export const useFirebaseCanvas = (canvasId = 'global-canvas-v1') => {
   // Subscribe to real-time shape updates
   useEffect(() => {
     // Always set up subscription, don't require currentUser for MVP
-    console.log('Setting up Firebase canvas subscription');
     setIsLoading(true);
     setError(null);
 
@@ -55,6 +59,19 @@ export const useFirebaseCanvas = (canvasId = 'global-canvas-v1') => {
     }
   }, [canvasId]); // Remove currentUser dependency
 
+  // Monitor disconnect cleanup events
+  useEffect(() => {
+    if (!currentUser) return;
+
+    const unsubscribeCleanup = monitorDisconnectCleanup(processDisconnectCleanup);
+
+    return () => {
+      if (unsubscribeCleanup) {
+        unsubscribeCleanup();
+      }
+    };
+  }, [currentUser]);
+
   // Cleanup on unmount
   useEffect(() => {
     return () => {
@@ -75,7 +92,6 @@ export const useFirebaseCanvas = (canvasId = 'global-canvas-v1') => {
       setError(null);
       const newShape = await createShapeService(shapeData, canvasId);
       
-      console.log('Shape created successfully:', newShape.id);
       return newShape;
     } catch (err) {
       console.error('Failed to create shape:', err);
@@ -90,7 +106,6 @@ export const useFirebaseCanvas = (canvasId = 'global-canvas-v1') => {
       setError(null);
       const updatedShape = await updateShapeService(shapeId, updates, canvasId);
       
-      console.log('Shape updated successfully:', shapeId);
       return updatedShape;
     } catch (err) {
       console.error('Failed to update shape:', err);
@@ -104,7 +119,6 @@ export const useFirebaseCanvas = (canvasId = 'global-canvas-v1') => {
     try {
       setError(null);
       await deleteShapeService(shapeId, canvasId);
-      console.log('Shape deleted successfully:', shapeId);
       return shapeId;
     } catch (err) {
       console.error('Failed to delete shape:', err);
@@ -113,35 +127,167 @@ export const useFirebaseCanvas = (canvasId = 'global-canvas-v1') => {
     }
   }, [canvasId]);
 
-  // Lock a shape with automatic timeout
-  const lockShape = useCallback(async (shapeId, timeoutMs = 5000) => {
+  // Lock a shape with automatic timeout, drag state checking, disconnect cleanup, and cancellation support
+  const lockShape = useCallback(async (shapeId, timeoutMs = 2000, isDraggingCallback = null, originalPosition = null, cancelToken = null) => {
     try {
-      await lockShapeService(shapeId, canvasId);
+      // Check if operation was cancelled before starting
+      if (cancelToken && cancelToken.cancelled) {
+        return false;
+      }
       
-      // Set up automatic unlock timeout
+      // OPTIMISTIC UPDATE: Immediately update local state for instant visual feedback
+      const currentUserId = currentUser?.uid || getUserId();
+      setShapes(prevShapes => 
+        prevShapes.map(shape => 
+          shape.id === shapeId 
+            ? {
+                ...shape,
+                isLocked: true,
+                lockedBy: currentUserId,
+                lockedAt: Date.now(),
+                unlockedAt: undefined,
+                lastModifiedAt: Date.now(),
+                lastModifiedBy: currentUserId
+              }
+            : shape
+        )
+      );
+      
+      console.log('→ LOCK signal sent to Firebase:', shapeId);
+      await lockShapeService(shapeId, canvasId);
+      console.log('← LOCK received from Firebase:', shapeId);
+      
+      // Check if operation was cancelled after Firebase lock but before setup
+      if (cancelToken && cancelToken.cancelled) {
+        console.log('→ UNLOCK signal sent to Firebase (cancelled lock):', shapeId);
+        await unlockShapeService(shapeId, canvasId);
+        console.log('← UNLOCK received from Firebase (cancelled lock):', shapeId);
+        return false;
+      }
+      
+      // Set up disconnect cleanup if original position provided (for drag operations)
+      if (originalPosition) {
+        await setupDisconnectCleanup(shapeId, originalPosition, canvasId);
+      }
+      
+      // Set up automatic unlock timeout with drag state checking and cancellation support
       const timeoutId = setTimeout(async () => {
         try {
+          // Check if operation was cancelled
+          if (cancelToken && cancelToken.cancelled) {
+            return;
+          }
+          
+          // Check if shape is still being dragged before auto-unlocking
+          if (isDraggingCallback && isDraggingCallback()) {
+            // Extend timeout by another period if still dragging
+            lockTimeoutsRef.current.delete(shapeId);
+            lockShape(shapeId, timeoutMs, isDraggingCallback, originalPosition, cancelToken);
+            return;
+          }
+          
+          console.log('→ UNLOCK signal sent to Firebase (timeout):', shapeId);
           await unlockShapeService(shapeId, canvasId);
-          console.log('Shape auto-unlocked after timeout:', shapeId);
+          console.log('← UNLOCK received from Firebase (timeout):', shapeId);
         } catch (err) {
-          console.error('Failed to auto-unlock shape:', err);
+          // Silent timeout errors
         }
         lockTimeoutsRef.current.delete(shapeId);
       }, timeoutMs);
       
       lockTimeoutsRef.current.set(shapeId, timeoutId);
-      console.log('Shape locked with timeout:', shapeId, timeoutMs + 'ms');
       
       return true;
     } catch (err) {
-      console.error('Failed to lock shape:', err);
+      
+      // ROLLBACK: If Firebase fails, revert the optimistic update
+      setShapes(prevShapes => 
+        prevShapes.map(shape => 
+          shape.id === shapeId 
+            ? {
+                ...shape,
+                isLocked: false, // Revert to unlocked
+                lockedBy: undefined,
+                lockedAt: undefined,
+                unlockedAt: Date.now()
+              }
+            : shape
+        )
+      );
+      
+      throw err;
+    }
+  }, [canvasId, currentUser]);
+
+  // Emergency unlock for page unload scenarios
+  const emergencyUnlock = useCallback(async (shapeId, originalPosition = null) => {
+    try {
+      // Clear any existing timeout first
+      clearLockTimeout(shapeId);
+      
+      // If original position provided, revert first
+      if (originalPosition) {
+        await updateShapeService(shapeId, {
+          x: originalPosition.x,
+          y: originalPosition.y
+        }, canvasId);
+      }
+      
+      // Then unlock
+      await unlockShapeService(shapeId, canvasId);
+      return true;
+    } catch (err) {
       throw err;
     }
   }, [canvasId]);
 
+  // Clear timeout for a shape (to prevent auto-unlock during active operations)
+  const clearLockTimeout = useCallback((shapeId) => {
+    const timeoutId = lockTimeoutsRef.current.get(shapeId);
+    if (timeoutId) {
+      clearTimeout(timeoutId);
+      lockTimeoutsRef.current.delete(shapeId);
+    }
+  }, []);
+
+  // Reset timeout for a shape (useful during drag operations to extend the lock)
+  const resetLockTimeout = useCallback(async (shapeId, timeoutMs = 5000) => {
+    // Clear existing timeout
+    clearLockTimeout(shapeId);
+    
+    // Set new timeout
+    const timeoutId = setTimeout(async () => {
+      try {
+        await unlockShapeService(shapeId, canvasId);
+      } catch (err) {
+        // Silent reset timeout errors
+      }
+      lockTimeoutsRef.current.delete(shapeId);
+    }, timeoutMs);
+    
+    lockTimeoutsRef.current.set(shapeId, timeoutId);
+  }, [canvasId, clearLockTimeout]);
+
   // Unlock a shape
   const unlockShape = useCallback(async (shapeId) => {
     try {
+      // OPTIMISTIC UPDATE: Immediately update local state for instant visual feedback
+      setShapes(prevShapes => 
+        prevShapes.map(shape => 
+          shape.id === shapeId 
+            ? {
+                ...shape,
+                isLocked: false,
+                lockedBy: undefined,
+                lockedAt: undefined,
+                unlockedAt: Date.now(),
+                lastModifiedAt: Date.now(),
+                lastModifiedBy: currentUser?.uid || getUserId()
+              }
+            : shape
+        )
+      );
+      
       // Clear any existing timeout
       const timeoutId = lockTimeoutsRef.current.get(shapeId);
       if (timeoutId) {
@@ -149,14 +295,34 @@ export const useFirebaseCanvas = (canvasId = 'global-canvas-v1') => {
         lockTimeoutsRef.current.delete(shapeId);
       }
       
+      // Then perform Firebase unlock (real-time subscription will confirm the change)
+      console.log('→ UNLOCK signal sent to Firebase:', shapeId);
       await unlockShapeService(shapeId, canvasId);
-      console.log('Shape unlocked manually:', shapeId);
+      console.log('← UNLOCK received from Firebase:', shapeId);
+      
+      // NEW: Clear any drag previews for this shape across all users
+      await clearDragPreviewsByShape(shapeId);
+      
       return true;
     } catch (err) {
-      console.error('Failed to unlock shape:', err);
+      
+      // ROLLBACK: If Firebase fails, revert the optimistic update
+      setShapes(prevShapes => 
+        prevShapes.map(shape => 
+          shape.id === shapeId 
+            ? {
+                ...shape,
+                isLocked: true, // Revert to locked
+                lockedBy: currentUser?.uid || getUserId(), // Assume current user had it locked
+                unlockedAt: undefined
+              }
+            : shape
+        )
+      );
+      
       throw err;
     }
-  }, [canvasId]);
+  }, [canvasId, currentUser]);
 
   // Get current user ID
   const getCurrentUserId = useCallback(() => {
@@ -207,6 +373,9 @@ export const useFirebaseCanvas = (canvasId = 'global-canvas-v1') => {
     // Locking operations
     lockShape,
     unlockShape,
+    emergencyUnlock,
+    clearLockTimeout,
+    resetLockTimeout,
     isShapeLockedByCurrentUser,
     isShapeLockedByOther,
     

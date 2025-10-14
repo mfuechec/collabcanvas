@@ -14,7 +14,8 @@ import {
   ZOOM_STEP,
   CANVAS_WIDTH,
   CANVAS_HEIGHT,
-  DEFAULT_ZOOM
+  DEFAULT_ZOOM,
+  calculateInitialCanvasPosition
 } from '../../utils/constants';
 import { screenToCanvasCoordinates } from '../../utils/helpers';
 
@@ -37,6 +38,7 @@ const Canvas = () => {
     updateShape,
     deleteShape,
     resetView,
+    initializeCanvasPosition,
     retryConnection
   } = useCanvas();
 
@@ -319,25 +321,11 @@ const Canvas = () => {
   // Initialize to show entire canvas on first load
   useEffect(() => {
     const stage = stageRef.current;
-    if (stage && stageSize.width > 0 && stageSize.height > 0 && zoom === 1.0) {
-      // Only run this once when the app first loads (zoom is still 1.0)
-      // Calculate position to center the entire 5000x5000 canvas in viewport
-      const scaledCanvasWidth = CANVAS_WIDTH * DEFAULT_ZOOM;
-      const scaledCanvasHeight = CANVAS_HEIGHT * DEFAULT_ZOOM;
-      
-      // Center the scaled canvas in the viewport
-      const centerX = (stageSize.width - scaledCanvasWidth) / 2;
-      const centerY = (stageSize.height - scaledCanvasHeight) / 2;
-      
-      const initialPosition = { x: centerX, y: centerY };
-      
-      stage.position(initialPosition);
-      stage.scale({ x: DEFAULT_ZOOM, y: DEFAULT_ZOOM });
-      
-      updateCanvasPosition(initialPosition);
-      updateZoom(DEFAULT_ZOOM);
+    if (stage && stageSize.width > 0 && stageSize.height > 0) {
+      // Use the context's initialize function to ensure consistency
+      initializeCanvasPosition();
     }
-  }, [stageSize.width, stageSize.height, zoom, updateCanvasPosition, updateZoom]);
+  }, [stageSize.width, stageSize.height, initializeCanvasPosition]);
 
   // Set cursor style based on mode and state
   const getCursorClass = () => {

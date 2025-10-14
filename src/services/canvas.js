@@ -11,8 +11,15 @@ import {
   enableNetwork,
   disableNetwork
 } from 'firebase/firestore';
+import { 
+  ref, 
+  set, 
+  onValue, 
+  off, 
+  onDisconnect 
+} from 'firebase/database';
 import { getAuth } from 'firebase/auth';
-import { db } from './firebase';
+import { db, rtdb } from './firebase';
 
 // Enhanced error handling wrapper for canvas operations
 const handleCanvasError = (error, operation, context = {}) => {
@@ -99,6 +106,8 @@ const withRetry = async (operation, maxRetries = 3, delay = 1000) => {
 // Canvas document ID for MVP (single global canvas)
 const CANVAS_DOC_ID = 'global-canvas-v1';
 const CANVAS_COLLECTION = 'canvas';
+const DISCONNECT_CLEANUP_PATH = 'disconnect-cleanup';
+const CANVAS_SESSION_ID = 'global-canvas-v1';
 
 // Get current user ID from Firebase Auth or generate session ID
 const getCurrentUserId = () => {
@@ -153,6 +162,22 @@ const subscribeToShapes = (canvasId = CANVAS_DOC_ID, callback) => {
       if (docSnapshot.exists()) {
         const data = docSnapshot.data();
         console.log('Canvas data updated:', data);
+        
+        // Debug: Log lock state of all shapes
+        if (data.shapes && data.shapes.length > 0) {
+          data.shapes.forEach(shape => {
+            if (shape.isLocked) {
+              console.log('🔍 [FIREBASE-UPDATE] Shape lock state:', {
+                id: shape.id,
+                isLocked: shape.isLocked,
+                lockedBy: shape.lockedBy,
+                lockedAt: shape.lockedAt,
+                unlockedAt: shape.unlockedAt
+              });
+            }
+          });
+        }
+        
         callback({
           shapes: data.shapes || [],
           lastUpdated: data.lastUpdated,
@@ -347,10 +372,109 @@ const lockShape = async (shapeId, canvasId = CANVAS_DOC_ID) => {
   }
 };
 
+// Set up disconnect cleanup for a shape being dragged
+const setupDisconnectCleanup = async (shapeId, originalPosition, canvasId = CANVAS_DOC_ID) => {
+  try {
+    const userId = getCurrentUserId();
+    const cleanupRef = ref(rtdb, `${DISCONNECT_CLEANUP_PATH}/${CANVAS_SESSION_ID}/${userId}/${shapeId}`);
+    
+    // Set up automatic cleanup on disconnect
+    await onDisconnect(cleanupRef).set({
+      action: 'unlock_and_revert',
+      shapeId,
+      originalPosition,
+      canvasId,
+      userId,
+      timestamp: Date.now()
+    });
+    
+    // Set active drag marker
+    await set(cleanupRef, {
+      action: 'dragging',
+      shapeId,
+      originalPosition,
+      canvasId,
+      userId,
+      timestamp: Date.now()
+    });
+    
+    console.log('✅ [DISCONNECT-CLEANUP] Setup for shape:', shapeId);
+  } catch (error) {
+    console.error('❌ [DISCONNECT-CLEANUP] Setup failed:', error);
+  }
+};
+
+// Clear disconnect cleanup for a shape
+const clearDisconnectCleanup = async (shapeId) => {
+  try {
+    const userId = getCurrentUserId();
+    const cleanupRef = ref(rtdb, `${DISCONNECT_CLEANUP_PATH}/${CANVAS_SESSION_ID}/${userId}/${shapeId}`);
+    
+    // Cancel the onDisconnect and remove current data
+    await onDisconnect(cleanupRef).cancel();
+    await set(cleanupRef, null);
+    
+    console.log('✅ [DISCONNECT-CLEANUP] Cleared for shape:', shapeId);
+  } catch (error) {
+    console.error('❌ [DISCONNECT-CLEANUP] Clear failed:', error);
+  }
+};
+
+// Monitor disconnect cleanup events and process them
+const monitorDisconnectCleanup = (callback) => {
+  try {
+    const cleanupRef = ref(rtdb, `${DISCONNECT_CLEANUP_PATH}/${CANVAS_SESSION_ID}`);
+    
+    const handleCleanupEvents = (snapshot) => {
+      const allCleanups = snapshot.val() || {};
+      
+      Object.keys(allCleanups).forEach(userId => {
+        const userCleanups = allCleanups[userId] || {};
+        
+        Object.keys(userCleanups).forEach(shapeId => {
+          const cleanup = userCleanups[shapeId];
+          
+          if (cleanup && cleanup.action === 'unlock_and_revert') {
+            console.log('🔄 [DISCONNECT-CLEANUP] Processing cleanup for shape:', shapeId);
+            
+            // Process the cleanup
+            callback({
+              shapeId: cleanup.shapeId,
+              originalPosition: cleanup.originalPosition,
+              canvasId: cleanup.canvasId,
+              userId: cleanup.userId
+            });
+            
+            // Remove the cleanup event after processing
+            const eventRef = ref(rtdb, `${DISCONNECT_CLEANUP_PATH}/${CANVAS_SESSION_ID}/${userId}/${shapeId}`);
+            set(eventRef, null).catch(error => {
+              console.error('Failed to clear cleanup event:', error);
+            });
+          }
+        });
+      });
+    };
+    
+    onValue(cleanupRef, handleCleanupEvents, (error) => {
+      console.error('❌ [DISCONNECT-CLEANUP] Monitor error:', error);
+    });
+    
+    return () => {
+      off(cleanupRef, 'value', handleCleanupEvents);
+    };
+  } catch (error) {
+    console.error('❌ [DISCONNECT-CLEANUP] Monitor setup failed:', error);
+    return () => {};
+  }
+};
+
 // Unlock a shape
 const unlockShape = async (shapeId, canvasId = CANVAS_DOC_ID) => {
   try {
     const userId = getCurrentUserId();
+    
+    // Clear disconnect cleanup first
+    await clearDisconnectCleanup(shapeId);
     
     // Get the current shape and remove lock properties entirely
     const canvasRef = doc(db, CANVAS_COLLECTION, canvasId);
@@ -415,6 +539,26 @@ const disableOfflinePersistence = async () => {
   }
 };
 
+// Process a disconnect cleanup event
+const processDisconnectCleanup = async ({ shapeId, originalPosition, canvasId, userId }) => {
+  try {
+    console.log('🔄 [DISCONNECT-CLEANUP] Processing cleanup for shape:', shapeId, 'from user:', userId);
+    
+    // First revert position
+    await updateShape(shapeId, {
+      x: originalPosition.x,
+      y: originalPosition.y
+    }, canvasId);
+    
+    // Then unlock
+    await unlockShape(shapeId, canvasId);
+    
+    console.log('✅ [DISCONNECT-CLEANUP] Completed cleanup for shape:', shapeId);
+  } catch (error) {
+    console.error('❌ [DISCONNECT-CLEANUP] Processing failed:', error);
+  }
+};
+
 // Get current user ID for external use
 const getUserId = getCurrentUserId;
 
@@ -425,6 +569,10 @@ export {
   deleteShape,
   lockShape,
   unlockShape,
+  setupDisconnectCleanup,
+  clearDisconnectCleanup,
+  monitorDisconnectCleanup,
+  processDisconnectCleanup,
   initializeCanvasDocument,
   enableOfflinePersistence,
   disableOfflinePersistence,

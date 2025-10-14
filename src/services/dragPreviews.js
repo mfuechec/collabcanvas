@@ -72,6 +72,36 @@ export const removeDragPreview = async (userId = null) => {
 };
 
 /**
+ * Clear drag previews for a specific shape across all users (cleanup coordination with lock state)
+ * @param {string} shapeId - ID of the shape to clear previews for
+ * @returns {Promise<void>}
+ */
+export const clearDragPreviewsByShape = async (shapeId) => {
+  try {
+    const sessionRef = ref(rtdb, `${DRAG_PREVIEWS_PATH}/${CANVAS_SESSION_ID}`);
+    
+    // Get all current drag previews
+    const { get } = await import('firebase/database');
+    const snapshot = await get(sessionRef);
+    const allPreviews = snapshot.val() || {};
+    
+    // Remove previews for the specific shape
+    const removePromises = [];
+    Object.keys(allPreviews).forEach(userId => {
+      const preview = allPreviews[userId];
+      if (preview && preview.shapeId === shapeId) {
+        const userPreviewRef = ref(rtdb, `${DRAG_PREVIEWS_PATH}/${CANVAS_SESSION_ID}/${userId}`);
+        removePromises.push(remove(userPreviewRef));
+      }
+    });
+    
+    await Promise.all(removePromises);
+  } catch (error) {
+    console.error('❌ [DRAG-PREVIEWS] Error clearing drag previews by shape:', error);
+  }
+};
+
+/**
  * Subscribe to drag previews of all users
  * @param {function} callback - Called with drag preview data updates
  * @returns {function} - Unsubscribe function
@@ -85,12 +115,27 @@ export const subscribeToDragPreviews = (callback) => {
       const allPreviews = snapshot.val() || {};
       
       const otherUsersPreviews = {};
+      const now = Date.now();
+      const PREVIEW_TIMEOUT = 30000; // 30 seconds timeout for stuck previews
+      
       Object.keys(allPreviews).forEach(userId => {
         const previewData = allPreviews[userId];
         
         // Only include previews from other users that are actively dragging
         if (userId !== currentUserId && previewData && previewData.isDragging) {
-          otherUsersPreviews[userId] = previewData;
+          // NEW: Check for timeout to clean up stuck previews
+          const lastUpdated = previewData.lastUpdated;
+          const isRecent = !lastUpdated || (now - lastUpdated < PREVIEW_TIMEOUT);
+          
+          if (isRecent) {
+            otherUsersPreviews[userId] = previewData;
+          } else {
+            // Clean up expired preview
+            const expiredPreviewRef = ref(rtdb, `${DRAG_PREVIEWS_PATH}/${CANVAS_SESSION_ID}/${userId}`);
+            remove(expiredPreviewRef).catch(() => {
+              // Silent cleanup failure
+            });
+          }
         }
       });
       

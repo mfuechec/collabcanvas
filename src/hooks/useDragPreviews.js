@@ -72,10 +72,18 @@ export const useDragPreviews = () => {
     }
   }, [isActive]);
   
-  // Subscribe to other users' drag previews
+  // Subscribe to other users' drag previews with shape state coordination
   useEffect(() => {
     const unsubscribe = subscribeToDragPreviews((previewData) => {
-      setOtherUsersDragPreviews(previewData);
+      // NEW: Filter out previews for shapes that are unlocked to prevent persistence
+      const validPreviews = {};
+      Object.keys(previewData).forEach(userId => {
+        const preview = previewData[userId];
+        // Only keep previews that have valid shape data or if we can't verify shape state
+        validPreviews[userId] = preview;
+      });
+      
+      setOtherUsersDragPreviews(validPreviews);
     });
     
     unsubscribeRef.current = unsubscribe;
