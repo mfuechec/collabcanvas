@@ -6,7 +6,9 @@ import {
   CANVAS_HEIGHT, 
   DEFAULT_ZOOM, 
   DEFAULT_CANVAS_X, 
-  DEFAULT_CANVAS_Y
+  DEFAULT_CANVAS_Y,
+  MIN_ZOOM,
+  MAX_ZOOM
 } from '../utils/constants';
 
 // Create Canvas Context
@@ -51,13 +53,32 @@ export const CanvasProvider = ({ children }) => {
 
   const updateZoom = useCallback((newZoom) => {
     // Clamp zoom between min and max values
-    const clampedZoom = Math.max(0.1, Math.min(3, newZoom));
+    const clampedZoom = Math.max(MIN_ZOOM, Math.min(MAX_ZOOM, newZoom));
     setZoom(clampedZoom);
   }, []);
 
   const resetView = useCallback(() => {
-    setCanvasPosition({ x: DEFAULT_CANVAS_X, y: DEFAULT_CANVAS_Y });
-    setZoom(DEFAULT_ZOOM);
+    // Calculate position to center the entire 5000x5000 canvas in viewport
+    const stage = stageRef.current;
+    if (stage) {
+      const stageWidth = stage.width();
+      const stageHeight = stage.height();
+      
+      // At DEFAULT_ZOOM (0.2), the 5000x5000 canvas becomes 1000x1000
+      const scaledCanvasWidth = CANVAS_WIDTH * DEFAULT_ZOOM;
+      const scaledCanvasHeight = CANVAS_HEIGHT * DEFAULT_ZOOM;
+      
+      // Center the scaled canvas in the viewport
+      const centerX = (stageWidth - scaledCanvasWidth) / 2;
+      const centerY = (stageHeight - scaledCanvasHeight) / 2;
+      
+      setCanvasPosition({ x: centerX, y: centerY });
+      setZoom(DEFAULT_ZOOM);
+    } else {
+      // Fallback if stage not available
+      setCanvasPosition({ x: DEFAULT_CANVAS_X, y: DEFAULT_CANVAS_Y });
+      setZoom(DEFAULT_ZOOM);
+    }
   }, []);
 
   // Shape management methods with Firebase integration

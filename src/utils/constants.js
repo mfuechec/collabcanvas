@@ -10,10 +10,10 @@ export const VIEWPORT_WIDTH = 1200;
 export const VIEWPORT_HEIGHT = 800;
 
 // Zoom Settings
-export const MIN_ZOOM = 0.1;
+export const MIN_ZOOM = 0.05; // Allow zooming out further to see entire canvas
 export const MAX_ZOOM = 3.0;
 export const ZOOM_STEP = 0.1;
-export const DEFAULT_ZOOM = 1.0;
+export const DEFAULT_ZOOM = 0.12; // 12% zoom level to show entire canvas with more context
 
 // Canvas Colors and Styling
 export const CANVAS_BACKGROUND_COLOR = '#f8fafc'; // Light gray background
@@ -21,9 +21,10 @@ export const CANVAS_BORDER_COLOR = '#e2e8f0'; // Subtle border
 export const GRID_COLOR = '#f1f5f9'; // Very light grid (optional)
 export const GRID_SIZE = 50; // Grid cell size in pixels
 
-// Default Canvas Position (center of viewport)
-export const DEFAULT_CANVAS_X = 0;
-export const DEFAULT_CANVAS_Y = 0;
+// Default Canvas Position (centered to show entire canvas)
+// At 0.12 zoom, 5000px canvas becomes 600px, easily fits in viewport with context
+export const DEFAULT_CANVAS_X = 0; // Center horizontally
+export const DEFAULT_CANVAS_Y = 0; // Center vertically
 
 // Pan Constraints
 export const PAN_BOUNDARY_PADDING = 200; // Allow some padding outside visible canvas

@@ -19,9 +19,10 @@ import {
 /**
  * Custom hook for managing multiplayer cursors
  * @param {object} stageRef - Konva stage reference for coordinate conversion
+ * @param {boolean} isDrawing - Whether user is currently drawing (to pause cursor updates)
  * @returns {object} - Cursor data and management functions
  */
-export const useCursors = (stageRef) => {
+export const useCursors = (stageRef, isDrawing = false) => {
   const { currentUser } = useAuth();
   const [cursors, setCursors] = useState({});
   const [isActive, setIsActive] = useState(false);
@@ -59,7 +60,8 @@ export const useCursors = (stageRef) => {
   
   // Handle mouse move events
   const handleMouseMove = useCallback((event) => {
-    if (!stageRef?.current || !isActive) return;
+    // 🔧 RACE CONDITION FIX: Don't update cursor position while drawing
+    if (!stageRef?.current || !isActive || isDrawing) return;
     
     try {
       // Get mouse position relative to the stage
@@ -83,7 +85,18 @@ export const useCursors = (stageRef) => {
     } catch (error) {
       console.error('Error handling mouse move:', error);
     }
-  }, [stageRef, isActive, throttledUpdateCursor]);
+  }, [stageRef, isActive, isDrawing, throttledUpdateCursor]);
+  
+  // Handle drawing state changes
+  useEffect(() => {
+    if (isDrawing) {
+      // Hide cursor when starting to draw
+      const displayName = getUserDisplayName();
+      const color = getUserColor();
+      updateCursorPosition(-1, -1, displayName, color); // Hide cursor
+    }
+    // Note: Don't resume cursor updates here - let natural mouse movement handle it
+  }, [isDrawing, getUserDisplayName, getUserColor]);
   
   // Handle mouse leave (hide cursor position but keep presence)
   const handleMouseLeave = useCallback(() => {

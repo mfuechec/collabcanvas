@@ -1,4 +1,4 @@
-// PresenceList Component - Display list of online users
+// PresenceList Component - Display list of online users with theme support
 import React from 'react';
 import UserPresence from './UserPresence';
 
@@ -18,45 +18,39 @@ const PresenceList = ({
   const visibleUsers = usersToShow.slice(0, maxVisible);
   const remainingCount = Math.max(0, usersToShow.length - maxVisible);
   
+  // Don't render anything if no users
   if (totalUsers === 0) {
-    return (
-      <div className={`flex items-center text-gray-500 text-sm ${className}`}>
-        <div className="w-2 h-2 bg-gray-400 rounded-full mr-2"></div>
-        No users online
-      </div>
-    );
+    return null;
   }
   
   return (
-    <div className={`flex items-center space-x-2 ${className}`}>
-      {/* User count */}
-      <div className="flex items-center text-sm text-gray-600 mr-2">
-        <div className="w-2 h-2 bg-green-500 rounded-full mr-2"></div>
-        <span className="font-medium">
-          {totalUsers} {totalUsers === 1 ? 'user' : 'users'} online
-        </span>
-      </div>
+    <div className={`flex items-center ${className}`} style={{ gap: '8px' }}>
+      {/* User avatars only */}
+      {visibleUsers.map((user) => (
+        <UserPresence
+          key={user.id}
+          user={user}
+          size="sm"
+        />
+      ))}
       
-      {/* User avatars */}
-      <div className="flex items-center space-x-1">
-        {visibleUsers.map((user) => (
-          <UserPresence
-            key={user.id}
-            user={user}
-            size="sm"
-          />
-        ))}
-        
-        {/* Show remaining count if there are more users */}
-        {remainingCount > 0 && (
-          <div 
-            className="w-8 h-8 bg-gray-200 rounded-full flex items-center justify-center text-xs font-medium text-gray-600 border-2 border-white"
-            title={`${remainingCount} more user${remainingCount > 1 ? 's' : ''} online`}
-          >
-            +{remainingCount}
-          </div>
-        )}
-      </div>
+      {/* Show remaining count if there are more users */}
+      {remainingCount > 0 && (
+        <div 
+          className="rounded-full flex items-center justify-center text-xs font-medium border-2"
+          style={{ 
+            backgroundColor: 'var(--bg-tertiary)',
+            color: 'var(--text-secondary)',
+            borderColor: 'var(--bg-primary)',
+            width: '32px',
+            height: '32px',
+            flexShrink: 0
+          }}
+          title={`${remainingCount} more user${remainingCount > 1 ? 's' : ''} online`}
+        >
+          +{remainingCount}
+        </div>
+      )}
     </div>
   );
 };

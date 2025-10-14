@@ -6,7 +6,9 @@ import {
   setUserOffline, 
   subscribeToPresence, 
   removeUserPresence,
-  updateLastSeen
+  updateLastSeen,
+  sendPresenceHeartbeat,
+  updateUserActivity
 } from '../services/presence';
 import { 
   generateUserColor, 
@@ -22,9 +24,11 @@ export const usePresence = () => {
   const { currentUser } = useAuth();
   const [onlineUsers, setOnlineUsers] = useState([]);
   const [isOnline, setIsOnline] = useState(false);
+  const [lastActivity, setLastActivity] = useState(Date.now());
   
   const unsubscribeRef = useRef(null);
   const heartbeatIntervalRef = useRef(null);
+  const activityTimeoutRef = useRef(null);
   const prevUserRef = useRef(currentUser); // Track previous user state
   
   // Get user info for presence display
@@ -42,18 +46,60 @@ export const usePresence = () => {
     return getCurrentUserColor();
   }, []);
   
+  // Track user activity
+  const markActivity = useCallback(() => {
+    setLastActivity(Date.now());
+    
+    // Clear existing timeout
+    if (activityTimeoutRef.current) {
+      clearTimeout(activityTimeoutRef.current);
+    }
+    
+    // Update activity in Firebase
+    updateUserActivity(true);
+    
+    // Set timeout to mark as inactive after 2 minutes
+    activityTimeoutRef.current = setTimeout(() => {
+      updateUserActivity(false);
+    }, 2 * 60 * 1000);
+  }, []);
+  
+  // Setup activity listeners
+  useEffect(() => {
+    if (!currentUser) return;
+    
+    const events = ['mousedown', 'mousemove', 'keydown', 'scroll', 'touchstart'];
+    
+    // Throttle activity updates to once per minute maximum
+    let lastActivityUpdate = 0;
+    const throttledMarkActivity = () => {
+      const now = Date.now();
+      if (now - lastActivityUpdate > 60000) { // 1 minute throttle
+        markActivity();
+        lastActivityUpdate = now;
+      }
+    };
+    
+    events.forEach(event => {
+      document.addEventListener(event, throttledMarkActivity, { passive: true });
+    });
+    
+    // Mark initial activity
+    markActivity();
+    
+    return () => {
+      events.forEach(event => {
+        document.removeEventListener(event, throttledMarkActivity);
+      });
+      if (activityTimeoutRef.current) {
+        clearTimeout(activityTimeoutRef.current);
+      }
+    };
+  }, [currentUser, markActivity]);
+  
   // Subscribe to presence changes
   useEffect(() => {
-    console.log('🔌 Setting up presence subscription');
-    
     const unsubscribe = subscribeToPresence((users) => {
-      // Only log when user count changes to reduce noise
-      if (users.length !== onlineUsers.length) {
-        console.log('📊 usePresence received update:', {
-          userCount: users.length,
-          users: users.map(u => ({ id: u.id, name: u.displayName, isCurrent: u.isCurrentUser }))
-        });
-      }
       setOnlineUsers(users);
     });
     
@@ -61,7 +107,6 @@ export const usePresence = () => {
     
     return () => {
       if (unsubscribe) {
-        console.log('🔌 Cleaning up presence subscription');
         unsubscribe();
       }
     };
@@ -85,9 +130,13 @@ export const usePresence = () => {
           console.error('Failed to set user online:', error);
         });
       
-      // Set up heartbeat to update last seen every 30 seconds
+      // Set up independent heartbeat to maintain online status every 30 seconds
       heartbeatIntervalRef.current = setInterval(() => {
-        updateLastSeen();
+        if (currentUser && !document.hidden) {
+          const displayName = getUserDisplayName();
+          const color = getUserColor();
+          sendPresenceHeartbeat(displayName, color);
+        }
       }, 30000);
       
     } else {
@@ -166,7 +215,9 @@ export const usePresence = () => {
     otherUsers,
     totalUsers,
     isOnline,
+    lastActivity,
     currentUserDisplayName: getUserDisplayName(),
-    currentUserColor: getUserColor()
+    currentUserColor: getUserColor(),
+    markActivity // Expose for manual activity updates
   };
 };

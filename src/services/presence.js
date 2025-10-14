@@ -1,5 +1,5 @@
 // Presence Service - Firebase Realtime Database operations for user presence tracking
-import { ref, set, onValue, off, onDisconnect, serverTimestamp } from 'firebase/database';
+import { ref, set, update, onValue, off, onDisconnect, serverTimestamp } from 'firebase/database';
 import { rtdb } from './firebase';
 import { getAuth } from 'firebase/auth';
 
@@ -27,12 +27,13 @@ const getCurrentUserId = () => {
 };
 
 /**
- * Set user as online with presence data
+ * Set user as online with presence data and activity tracking
  * @param {string} displayName - User's display name
  * @param {string} cursorColor - User's cursor color
+ * @param {boolean} isActive - Whether user is currently active (recently interacted)
  * @returns {Promise<void>}
  */
-export const setUserOnline = async (displayName, cursorColor) => {
+export const setUserOnline = async (displayName, cursorColor, isActive = true) => {
   try {
     const userId = getCurrentUserId();
     const userPresenceRef = ref(rtdb, `${SESSIONS_PATH}/${CANVAS_SESSION_ID}/${userId}`);
@@ -43,12 +44,20 @@ export const setUserOnline = async (displayName, cursorColor) => {
       cursorX: 0,
       cursorY: 0,
       lastSeen: serverTimestamp(),
-      isOnline: true
+      isOnline: true,
+      isActive: isActive,
+      lastActivity: isActive ? serverTimestamp() : null
     };
     
     await set(userPresenceRef, presenceData);
     
-    console.log('User set online:', userId, displayName);
+    // Set up automatic offline status on disconnect (don't remove, just mark offline)
+    await onDisconnect(userPresenceRef).update({
+      isOnline: false,
+      lastSeen: serverTimestamp()
+    });
+    
+    console.log('User set online:', userId, displayName, { isActive });
   } catch (error) {
     console.error('Error setting user online:', error);
     throw new Error('Failed to set user online status');
@@ -73,6 +82,61 @@ export const setUserOffline = async () => {
   } catch (error) {
     console.error('Error setting user offline:', error);
     // Don't throw - offline status should be non-blocking
+  }
+};
+
+/**
+ * Update user activity status (for heartbeat and activity tracking)
+ * @param {boolean} isActive - Whether user is currently active
+ * @returns {Promise<void>}
+ */
+export const updateUserActivity = async (isActive = false) => {
+  try {
+    const userId = getCurrentUserId();
+    const userPresenceRef = ref(rtdb, `${SESSIONS_PATH}/${CANVAS_SESSION_ID}/${userId}`);
+    
+    const updates = {
+      lastSeen: serverTimestamp(),
+      isOnline: true // Always maintain online status during heartbeat
+    };
+    
+    if (isActive) {
+      updates.isActive = true;
+      updates.lastActivity = serverTimestamp();
+    }
+    
+    await update(userPresenceRef, updates);
+    
+    console.log('User activity updated:', { userId, isActive });
+  } catch (error) {
+    console.error('Error updating user activity:', error);
+    // Don't throw - heartbeat should be non-blocking
+  }
+};
+
+/**
+ * Presence heartbeat - maintains online status regardless of activity
+ * @param {string} displayName - User's display name
+ * @param {string} cursorColor - User's cursor color
+ * @returns {Promise<void>}
+ */
+export const sendPresenceHeartbeat = async (displayName, cursorColor) => {
+  try {
+    const userId = getCurrentUserId();
+    const userPresenceRef = ref(rtdb, `${SESSIONS_PATH}/${CANVAS_SESSION_ID}/${userId}`);
+    
+    await update(userPresenceRef, {
+      displayName: displayName || 'Anonymous',
+      cursorColor: cursorColor || '#3B82F6',
+      lastSeen: serverTimestamp(),
+      isOnline: true
+      // Don't update isActive or lastActivity - those are updated separately
+    });
+    
+    console.log('Presence heartbeat sent:', { userId, displayName });
+  } catch (error) {
+    console.error('Error sending presence heartbeat:', error);
+    // Don't throw - heartbeat should be non-blocking
   }
 };
 
@@ -111,28 +175,24 @@ export const subscribeToPresence = (callback) => {
                              userData.displayName && 
                              userData.isOnline === true; // ✅ Stricter: must be explicitly true
         
-        // Only log users that should be included to reduce noise
-        if (shouldInclude || !userData?.displayName) {
-          console.log(`👤 Processing user ${userId}:`, {
-            exists: !!userData,
-            hasDisplayName: !!userData?.displayName,
-            isOnline: userData?.isOnline,
-            shouldInclude
-          });
-        }
-        
         if (shouldInclude) {
+          // Determine activity status based on lastActivity timestamp
+          const now = Date.now();
+          const lastActivity = userData.lastActivity;
+          const isActive = userData.isActive && lastActivity && (now - lastActivity) < (2 * 60 * 1000); // Active if within 2 minutes
+          
           onlineUsers.push({
             id: userId,
             displayName: userData.displayName,
             cursorColor: userData.cursorColor || '#3B82F6',
             lastSeen: userData.lastSeen,
+            lastActivity: userData.lastActivity,
+            isActive: isActive,
             isCurrentUser: userId === currentUserId
           });
         }
       });
       
-      console.log('✅ Final online users:', onlineUsers.map(u => ({ id: u.id, name: u.displayName })));
       callback(onlineUsers);
     };
     

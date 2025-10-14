@@ -73,9 +73,28 @@ export const AuthProvider = ({ children }) => {
     try {
       setError(null);
       setLoading(true);
-      const result = await signInWithGoogle();
+      
+      // Add a timeout to handle popup cancellation more quickly
+      const timeoutPromise = new Promise((_, reject) => {
+        setTimeout(() => reject(new Error('POPUP_TIMEOUT')), 3000); // 3 second timeout
+      });
+      
+      const result = await Promise.race([
+        signInWithGoogle(),
+        timeoutPromise
+      ]);
+      
       return result;
     } catch (error) {
+      // Handle popup cancellation or timeout quickly
+      if (error.code === 'auth/popup-closed-by-user' || 
+          error.code === 'auth/cancelled-popup-request' ||
+          error.message === 'POPUP_TIMEOUT') {
+        // Clear loading immediately for cancellation
+        setLoading(false);
+        return; // Don't set error for user cancellation
+      }
+      
       setError(getErrorMessage(error));
       throw error;
     } finally {

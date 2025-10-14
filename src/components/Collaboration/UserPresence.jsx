@@ -1,4 +1,4 @@
-// UserPresence Component - Individual user presence badge with avatar
+// UserPresence Component - Individual user presence badge with avatar and theme support
 import React from 'react';
 
 const UserPresence = ({ 
@@ -29,14 +29,16 @@ const UserPresence = ({
   const initials = getInitials(user.displayName);
   const sizeClass = sizeClasses[size] || sizeClasses.md;
   
-  // Create tooltip content
+  // Create tooltip content with activity status
+  const activityStatus = user.isActive ? 'Active' : 'Away';
   const tooltipContent = user.isCurrentUser 
-    ? `${user.displayName} (You)`
-    : user.displayName;
+    ? `${user.displayName} (You) - ${activityStatus}`
+    : `${user.displayName} - ${activityStatus}`;
   
   return (
     <div 
       className={`relative ${className}`}
+      style={{ flexShrink: 0 }}
       title={showTooltip ? tooltipContent : undefined}
     >
       {/* Avatar circle */}
@@ -50,27 +52,37 @@ const UserPresence = ({
           font-medium 
           text-white 
           border-2 
-          border-white 
           shadow-sm
-          ${user.isCurrentUser ? 'ring-2 ring-blue-400' : ''}
+          ${user.isCurrentUser ? 'ring-2' : ''}
+          ${!user.isActive ? 'opacity-75' : ''}
         `}
         style={{ 
-          backgroundColor: user.cursorColor || '#3B82F6' 
+          backgroundColor: user.cursorColor || '#3B82F6',
+          borderColor: 'var(--bg-primary)',
+          ringColor: user.isCurrentUser ? 'var(--accent-primary)' : 'transparent',
+          flexShrink: 0,
+          width: '32px',
+          height: '32px'
         }}
       >
         {initials}
       </div>
       
-      {/* Online indicator */}
+      {/* Activity indicator (replaces simple online indicator) */}
       <div 
-        className="absolute -bottom-0.5 -right-0.5 w-3 h-3 bg-green-500 rounded-full border-2 border-white"
-        title="Online"
+        className="absolute -bottom-0.5 -right-0.5 w-3 h-3 rounded-full border-2"
+        style={{ 
+          backgroundColor: user.isActive ? 'var(--success)' : 'var(--warning)',
+          borderColor: 'var(--bg-primary)'
+        }}
+        title={user.isActive ? 'Active' : 'Away'}
       ></div>
       
       {/* Current user indicator */}
       {user.isCurrentUser && (
         <div 
-          className="absolute -top-1 -right-1 w-4 h-4 bg-blue-500 rounded-full flex items-center justify-center"
+          className="absolute -top-1 -right-1 w-4 h-4 rounded-full flex items-center justify-center"
+          style={{ backgroundColor: 'var(--accent-primary)' }}
           title="You"
         >
           <svg 

@@ -1,5 +1,6 @@
 import { Rect } from 'react-konva';
 import { useCanvas } from '../../hooks/useCanvas';
+import { useCanvasMode } from '../../contexts/CanvasModeContext';
 
 const Shape = ({ 
   id, 
@@ -23,8 +24,15 @@ const Shape = ({
     getCurrentUserId
   } = useCanvas();
 
+  const { currentMode, CANVAS_MODES } = useCanvasMode();
+
   // Handle shape click for selection
   const handleClick = (e) => {
+    // Only allow selection in move mode
+    if (currentMode !== CANVAS_MODES.MOVE) {
+      return;
+    }
+    
     // Stop event from bubbling to stage
     e.cancelBubble = true;
     
@@ -38,6 +46,12 @@ const Shape = ({
 
   // Handle shape drag start
   const handleDragStart = (e) => {
+    // Only allow dragging in move mode
+    if (currentMode !== CANVAS_MODES.MOVE) {
+      e.target.stopDrag();
+      return;
+    }
+    
     // Only check local state, no Firebase calls
     if (isLocked && lockedBy && lockedBy !== getCurrentUserId()) {
       e.target.stopDrag();
@@ -136,7 +150,7 @@ const Shape = ({
 
   const isDraggable = () => {
     const shape = { id, isLocked, lockedBy };
-    return !isShapeLockedByOther(shape);
+    return currentMode === CANVAS_MODES.MOVE && !isShapeLockedByOther(shape);
   };
 
   return (
@@ -159,8 +173,10 @@ const Shape = ({
       onMouseEnter={(e) => {
         const container = e.target.getStage().container();
         const shape = { id, isLocked, lockedBy };
-        container.style.cursor = 
-          isShapeLockedByOther(shape) ? 'not-allowed' : 'pointer';
+        if (currentMode === CANVAS_MODES.MOVE) {
+          container.style.cursor = 
+            isShapeLockedByOther(shape) ? 'not-allowed' : 'pointer';
+        }
       }}
       onMouseLeave={(e) => {
         const container = e.target.getStage().container();

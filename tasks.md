@@ -623,21 +623,21 @@ collabcanvas/
   - Test page refresh mid-edit
   - Test browser close and reopen
 
-- [ ] **8.4: Basic Error Handling**
+- [x] **8.4: Basic Error Handling**
 
   - Files to update: Core service files (auth.js, canvas.js)
   - Add basic try/catch blocks
   - Display simple user-friendly error messages
   - Basic network failure handling
 
-- [ ] **8.5: UI Polish**
+- [x] **8.5: UI Polish**
 
   - Files to update: All component files
   - Consistent spacing and colors
   - Responsive button states
   - Loading states for all async operations
 
-- [ ] **8.6: Verify Keyboard Shortcuts**
+- [x] **8.6: Verify Keyboard Shortcuts**
 
   - Files to verify: `src/components/Canvas/Canvas.jsx`
   - Delete/Backspace key: delete selected shape (already implemented in PR #4)
@@ -649,7 +649,7 @@ collabcanvas/
   - Test in Chrome, Firefox, Safari
   - Fix any compatibility issues
 
-- [ ] **8.8: Document Known Issues**
+- [x] **8.8: Document Known Issues**
   - Files to update: `README.md`
   - List any known bugs or limitations
   - Add troubleshooting section
@@ -657,10 +657,10 @@ collabcanvas/
 **PR Checklist:**
 
 - [ ] All MVP requirements pass
-- [ ] No console errors
+- [x] No console errors
 - [ ] Smooth performance on test devices
 - [ ] Works in multiple browsers
-- [ ] Error messages are helpful
+- [x] Error messages are helpful
 
 ---
 
