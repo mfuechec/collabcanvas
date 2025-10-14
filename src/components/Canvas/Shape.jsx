@@ -1,4 +1,5 @@
 import { Rect } from 'react-konva';
+import { useRef } from 'react';
 import { useCanvas } from '../../hooks/useCanvas';
 import { useCanvasMode } from '../../contexts/CanvasModeContext';
 import { useDragPreviews } from '../../hooks/useDragPreviews';
@@ -28,6 +29,9 @@ const Shape = ({
   const { currentMode, CANVAS_MODES } = useCanvasMode();
   const { updatePreview, clearPreview, isActive: isDragPreviewActive } = useDragPreviews();
 
+  // Track if we've already locked this shape during current drag session
+  const lockAttemptedRef = useRef(false);
+
   // Handle shape click for selection
   const handleClick = (e) => {
     // Only allow selection in move mode
@@ -40,10 +44,19 @@ const Shape = ({
     
     // Don't select if locked by another user
     if (isShapeLockedByOther({ id, isLocked, lockedBy })) {
+      console.log('🚫 [LOCKING] Cannot select shape - locked by another user:', { id, lockedBy });
       return;
     }
     
+    // Select the shape
     selectShape(id);
+    
+    // Lock the shape when selected (as per PR#5 requirements)
+    // This gives the user temporary ownership for editing
+    console.log('🔒 [LOCKING] Attempting to lock shape on selection:', id);
+    lockShape(id).catch((error) => {
+      console.error('❌ [LOCKING] Failed to lock shape on selection:', error);
+    });
   };
 
   // Handle shape drag start
@@ -54,20 +67,49 @@ const Shape = ({
       return;
     }
     
-    // Only check local state, no Firebase calls
+    // Check if shape is already locked by another user
     if (isLocked && lockedBy && lockedBy !== getCurrentUserId()) {
+      console.log('🚫 [LOCKING] Cannot drag shape - locked by another user:', { id, lockedBy });
       e.target.stopDrag();
       return;
     }
     
-    // Only do selection - no Firebase operations at all
+    // Select the shape
     selectShape(id);
+    
+    // Reset lock attempt flag for new drag session
+    lockAttemptedRef.current = false;
+    
+    console.log('🎯 [LOCKING] Drag started for shape:', id, '- will lock on first move');
   };
 
   // Handle shape drag move with boundary constraints
   const handleDragMove = (e) => {
     const shape = e.target;
     const newPos = shape.position();
+    
+    // Lock the shape on first move (after drag is confirmed to be working)
+    // Only lock if: 1) shape is unlocked, 2) we haven't attempted to lock yet, 3) not already locked by current user
+    if (!isLocked && !lockAttemptedRef.current && !isShapeLockedByCurrentUser({ id, isLocked, lockedBy })) {
+      lockAttemptedRef.current = true; // Prevent multiple lock attempts
+      console.log('🔒 [LOCKING] Locking unlocked shape during first move:', id, { 
+        isLocked, 
+        lockedBy, 
+        currentUser: getCurrentUserId(),
+        isCurrentUserLocked: isShapeLockedByCurrentUser({ id, isLocked, lockedBy })
+      });
+      lockShape(id).catch((error) => {
+        console.error('❌ [LOCKING] Failed to lock shape during move:', error);
+        lockAttemptedRef.current = false; // Reset flag on failure so we can try again
+      });
+    } else if (isLocked && lockedBy && lockedBy !== getCurrentUserId()) {
+      // This shouldn't happen due to handleDragStart check, but log it for debugging
+      console.warn('⚠️ [LOCKING] Attempting to move shape locked by another user:', { 
+        id, 
+        lockedBy, 
+        currentUser: getCurrentUserId() 
+      });
+    }
     
     // Constrain shape to canvas boundaries
     const constrainedPos = constrainToBounds(
@@ -113,25 +155,23 @@ const Shape = ({
     // Clear collaborative drag preview when drag ends
     clearPreview();
     
-    // ALL Firebase operations happen here in one go (non-blocking)
+    // Update position and unlock (shape was locked in handleDragStart)
     Promise.resolve().then(async () => {
       try {
-        // Lock first
-        await lockShape(id);
-        
-        // Then update position
+        // Update position
         await updateShape(id, {
           x: constrainedPos.x,
           y: constrainedPos.y
         });
         
-        // Finally unlock
+        // Unlock the shape after successful update
+        console.log('🔓 [LOCKING] Attempting to unlock shape after drag end:', id);
         await unlockShape(id);
         
-        console.log('Shape updated and synced successfully:', id);
+        console.log('✅ [LOCKING] Shape updated and unlocked successfully:', id);
       } catch (error) {
         console.error('Firebase sync failed:', error);
-        // Try to unlock even if other operations failed
+        // Always try to unlock, even if update failed
         try {
           await unlockShape(id);
         } catch (unlockError) {

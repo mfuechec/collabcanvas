@@ -11,6 +11,7 @@ import {
   enableNetwork,
   disableNetwork
 } from 'firebase/firestore';
+import { getAuth } from 'firebase/auth';
 import { db } from './firebase';
 
 // Enhanced error handling wrapper for canvas operations
@@ -99,14 +100,21 @@ const withRetry = async (operation, maxRetries = 3, delay = 1000) => {
 const CANVAS_DOC_ID = 'global-canvas-v1';
 const CANVAS_COLLECTION = 'canvas';
 
-// Get current user ID (will be enhanced when we have proper user management)
+// Get current user ID from Firebase Auth or generate session ID
 const getCurrentUserId = () => {
-  // For now, generate a session-based user ID
-  // TODO: Replace with actual Firebase Auth user ID
-  if (!window.canvasUserId) {
-    window.canvasUserId = `user_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+  // Try to get from Firebase Auth first
+  const auth = getAuth();
+  if (auth.currentUser?.uid) {
+    return auth.currentUser.uid;
   }
-  return window.canvasUserId;
+  
+  // Fallback to session storage for anonymous users - use same key as cursor service
+  let userId = sessionStorage.getItem('cursor_user_id');
+  if (!userId) {
+    userId = `user_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+    sessionStorage.setItem('cursor_user_id', userId);
+  }
+  return userId;
 };
 
 // Initialize canvas document if it doesn't exist
@@ -203,7 +211,7 @@ const createShape = async (shapeData, canvasId = CANVAS_DOC_ID) => {
         lastModifiedBy: userId,
         lastModifiedAt: now,
         isLocked: false,
-        lockedBy: null,
+        // Don't include lockedBy or lockedAt for unlocked shapes
         ...shapeData
       };
       
@@ -331,7 +339,7 @@ const lockShape = async (shapeId, canvasId = CANVAS_DOC_ID) => {
       lockedAt: Date.now() // Use regular timestamp
     }, canvasId);
     
-    console.log('Shape locked:', shapeId, 'by user:', userId);
+    console.log('✅ [LOCKING-SERVICE] Shape locked successfully:', shapeId, 'by user:', userId);
     return true;
   } catch (error) {
     console.error('Error locking shape:', error);
@@ -344,14 +352,43 @@ const unlockShape = async (shapeId, canvasId = CANVAS_DOC_ID) => {
   try {
     const userId = getCurrentUserId();
     
-    await updateShape(shapeId, {
-      isLocked: false,
-      lockedBy: null,
-      lockedAt: null,
-      unlockedAt: Date.now() // Use regular timestamp
-    }, canvasId);
+    // Get the current shape and remove lock properties entirely
+    const canvasRef = doc(db, CANVAS_COLLECTION, canvasId);
+    const docSnapshot = await getDoc(canvasRef);
+    if (!docSnapshot.exists()) {
+      throw new Error('Canvas document not found');
+    }
     
-    console.log('Shape unlocked:', shapeId, 'by user:', userId);
+    const data = docSnapshot.data();
+    const shapes = data.shapes || [];
+    const shapeIndex = shapes.findIndex(shape => shape.id === shapeId);
+    
+    if (shapeIndex === -1) {
+      throw new Error('Shape not found');
+    }
+    
+    const currentShape = shapes[shapeIndex];
+    
+    // Create updated shape without lock properties
+    const updatedShape = { ...currentShape };
+    delete updatedShape.lockedBy;
+    delete updatedShape.lockedAt;
+    updatedShape.isLocked = false;
+    updatedShape.unlockedAt = Date.now();
+    updatedShape.lastModifiedBy = userId;
+    updatedShape.lastModifiedAt = Date.now();
+    
+    // Update the shapes array
+    const updatedShapes = [...shapes];
+    updatedShapes[shapeIndex] = updatedShape;
+    
+    await updateDoc(canvasRef, {
+      shapes: updatedShapes,
+      lastUpdated: serverTimestamp(),
+      lastModifiedBy: userId
+    });
+    
+    console.log('✅ [LOCKING-SERVICE] Shape unlocked successfully:', shapeId, 'by user:', userId);
     return true;
   } catch (error) {
     console.error('Error unlocking shape:', error);

@@ -117,12 +117,26 @@ export const CanvasProvider = ({ children }) => {
   }, [deleteShapeFirebase, selectedShapeId]);
 
   const selectShape = useCallback((shapeId) => {
+    // Unlock the previously selected shape when selecting a new one
+    if (selectedShapeId && selectedShapeId !== shapeId) {
+      console.log('🔓 [LOCKING] Unlocking previous shape on new selection:', selectedShapeId);
+      unlockShape(selectedShapeId).catch((error) => {
+        console.error('❌ [LOCKING] Failed to unlock previous shape on new selection:', error);
+      });
+    }
     setSelectedShapeId(shapeId);
-  }, []);
+  }, [selectedShapeId, unlockShape]);
 
   const deselectAll = useCallback(() => {
+    // Unlock the currently selected shape before deselecting
+    if (selectedShapeId) {
+      console.log('🔓 [LOCKING] Unlocking shape on deselect:', selectedShapeId);
+      unlockShape(selectedShapeId).catch((error) => {
+        console.error('❌ [LOCKING] Failed to unlock shape on deselect:', error);
+      });
+    }
     setSelectedShapeId(null);
-  }, []);
+  }, [selectedShapeId, unlockShape]);
 
   // Get selected shape
   const selectedShape = shapes.find(shape => shape.id === selectedShapeId) || null;

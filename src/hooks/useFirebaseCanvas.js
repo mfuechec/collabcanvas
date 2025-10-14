@@ -166,13 +166,17 @@ export const useFirebaseCanvas = (canvasId = 'global-canvas-v1') => {
   // Check if a shape is locked by current user
   const isShapeLockedByCurrentUser = useCallback((shape) => {
     const userId = getCurrentUserId();
-    return shape.isLocked && shape.lockedBy === userId;
+    return shape.isLocked === true && shape.lockedBy === userId;
   }, [getCurrentUserId]);
 
   // Check if a shape is locked by another user
   const isShapeLockedByOther = useCallback((shape) => {
     const userId = getCurrentUserId();
-    return shape.isLocked && shape.lockedBy !== userId;
+    // A shape is locked by another user if:
+    // 1. It's marked as locked (isLocked === true)
+    // 2. It has a valid lockedBy value (not null/undefined)  
+    // 3. The lockedBy value is different from current user
+    return shape.isLocked === true && shape.lockedBy && shape.lockedBy !== userId;
   }, [getCurrentUserId]);
 
   // Retry connection
