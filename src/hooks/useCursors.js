@@ -60,8 +60,8 @@ export const useCursors = (stageRef, isDrawing = false) => {
   
   // Handle mouse move events
   const handleMouseMove = useCallback((event) => {
-    // Don't update cursor position while drawing
-    if (!stageRef?.current || !isActive || isDrawing) return;
+    // Don't update cursor if not active
+    if (!stageRef?.current || !isActive) return;
     
     try {
       const stage = stageRef.current;
@@ -84,18 +84,7 @@ export const useCursors = (stageRef, isDrawing = false) => {
     } catch (error) {
       console.error('❌ [CURSORS-HOOK] Error handling mouse move:', error);
     }
-  }, [stageRef, isActive, isDrawing, throttledUpdateCursor, getUserDisplayName, getUserColor]);
-  
-  // Handle drawing state changes
-  useEffect(() => {
-    if (isDrawing) {
-      // Hide cursor when starting to draw
-      const displayName = getUserDisplayName();
-      const color = getUserColor();
-      updateCursorPosition(-1, -1, displayName, color); // Hide cursor
-    }
-    // Note: Don't resume cursor updates here - let natural mouse movement handle it
-  }, [isDrawing, getUserDisplayName, getUserColor]);
+  }, [stageRef, isActive, throttledUpdateCursor, getUserDisplayName, getUserColor]);
   
   // Handle mouse leave (hide cursor position but keep presence)
   const handleMouseLeave = useCallback(() => {

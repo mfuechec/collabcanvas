@@ -20,6 +20,9 @@ const PropertiesPanel = ({ isOpen, onToggle }) => {
     height: '',
     fill: '',
     opacity: 100,
+    strokeWidth: 2,
+    text: '',
+    fontSize: 24,
   });
   
   // Update local values when selection changes
@@ -32,6 +35,9 @@ const PropertiesPanel = ({ isOpen, onToggle }) => {
         height: Math.round(selectedShape.height).toString(),
         fill: selectedShape.fill || '#3b82f6',
         opacity: Math.round((selectedShape.opacity || 1) * 100),
+        strokeWidth: selectedShape.strokeWidth || 2,
+        text: selectedShape.text || 'Text',
+        fontSize: selectedShape.fontSize || 24,
       });
     }
   }, [selectedShape]);
@@ -85,6 +91,28 @@ const PropertiesPanel = ({ isOpen, onToggle }) => {
     const opacityValue = opacity / 100;
     setLocalValues(prev => ({ ...prev, opacity }));
     updateShape(selectedShape.id, { opacity: opacityValue });
+  };
+  
+  const handleStrokeWidthChange = (strokeWidth) => {
+    if (!selectedShape) return;
+    setLocalValues(prev => ({ ...prev, strokeWidth }));
+    updateShape(selectedShape.id, { strokeWidth });
+  };
+  
+  const handleTextChange = (text) => {
+    if (!selectedShape) return;
+    setLocalValues(prev => ({ ...prev, text }));
+  };
+  
+  const handleTextBlur = () => {
+    if (!selectedShape) return;
+    updateShape(selectedShape.id, { text: localValues.text });
+  };
+  
+  const handleFontSizeChange = (fontSize) => {
+    if (!selectedShape) return;
+    setLocalValues(prev => ({ ...prev, fontSize }));
+    updateShape(selectedShape.id, { fontSize });
   };
   
   if (!isOpen) return null;
@@ -325,13 +353,80 @@ const PropertiesPanel = ({ isOpen, onToggle }) => {
               </div>
             </div>
             
-            {/* Stroke Section - Coming Soon */}
-            <div style={{...sectionStyle, opacity: 0.5}}>
-              <div style={labelStyle}>Stroke</div>
-              <div style={{ fontSize: '11px', color: colors.textSecondary }}>
-                Coming soon
+            {/* Stroke Width Section - Only for lines/pen */}
+            {(selectedShape.type === 'line' || selectedShape.type === 'pen') && (
+              <div style={sectionStyle}>
+                <div style={labelStyle}>Stroke Width</div>
+                <div style={{ display: 'flex', alignItems: 'center', gap: SPACING.sm }}>
+                  <input
+                    type="range"
+                    min="1"
+                    max="20"
+                    value={localValues.strokeWidth}
+                    onChange={(e) => handleStrokeWidthChange(parseInt(e.target.value))}
+                    style={{
+                      flex: 1,
+                      accentColor: colors.accent,
+                    }}
+                  />
+                  <span style={{
+                    fontSize: '12px',
+                    fontFamily: TYPOGRAPHY.fontFamily.mono,
+                    color: colors.textSecondary,
+                    minWidth: '40px',
+                    textAlign: 'right',
+                  }}>
+                    {localValues.strokeWidth}px
+                  </span>
+                </div>
               </div>
-            </div>
+            )}
+            
+            {/* Text Content Section - Only for text */}
+            {selectedShape.type === 'text' && (
+              <>
+                <div style={sectionStyle}>
+                  <div style={labelStyle}>Text Content</div>
+                  <textarea
+                    value={localValues.text}
+                    onChange={(e) => handleTextChange(e.target.value)}
+                    onBlur={handleTextBlur}
+                    style={{
+                      ...inputStyle,
+                      minHeight: '80px',
+                      resize: 'vertical',
+                      fontFamily: TYPOGRAPHY.fontFamily.base,
+                    }}
+                  />
+                </div>
+                
+                <div style={sectionStyle}>
+                  <div style={labelStyle}>Font Size</div>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: SPACING.sm }}>
+                    <input
+                      type="range"
+                      min="8"
+                      max="72"
+                      value={localValues.fontSize}
+                      onChange={(e) => handleFontSizeChange(parseInt(e.target.value))}
+                      style={{
+                        flex: 1,
+                        accentColor: colors.accent,
+                      }}
+                    />
+                    <span style={{
+                      fontSize: '12px',
+                      fontFamily: TYPOGRAPHY.fontFamily.mono,
+                      color: colors.textSecondary,
+                      minWidth: '40px',
+                      textAlign: 'right',
+                    }}>
+                      {localValues.fontSize}px
+                    </span>
+                  </div>
+                </div>
+              </>
+            )}
           </>
         )}
       </div>

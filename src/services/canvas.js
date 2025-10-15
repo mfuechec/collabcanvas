@@ -358,6 +358,48 @@ const lockShape = async (shapeId, canvasId = CANVAS_DOC_ID) => {
   try {
     const userId = getCurrentUserId();
     
+    // FIRST: Unlock ALL other shapes locked by this user (ensures only one lock per user)
+    const canvasRef = doc(db, CANVAS_COLLECTION, canvasId);
+    const docSnapshot = await getDoc(canvasRef);
+    
+    if (docSnapshot.exists()) {
+      const data = docSnapshot.data();
+      const shapes = data.shapes || [];
+      
+      // Find all shapes locked by this user (except the one we're about to lock)
+      const shapesLockedByUser = shapes.filter(shape => 
+        shape.isLocked === true && 
+        shape.lockedBy === userId && 
+        shape.id !== shapeId
+      );
+      
+      if (shapesLockedByUser.length > 0) {
+        console.log(`🔓 [AUTO-UNLOCK] Unlocking ${shapesLockedByUser.length} shapes for user ${userId} before locking new shape`);
+        
+        // Unlock all previously locked shapes
+        const updatedShapes = shapes.map(shape => {
+          if (shape.isLocked === true && shape.lockedBy === userId && shape.id !== shapeId) {
+            const { isLocked, lockedBy, lockedAt, ...shapeWithoutLock } = shape;
+            return {
+              ...shapeWithoutLock,
+              unlockedAt: Date.now(),
+              lastModifiedAt: Date.now(),
+              lastModifiedBy: userId
+            };
+          }
+          return shape;
+        });
+        
+        // Update with all unlocks
+        await updateDoc(canvasRef, { 
+          shapes: updatedShapes,
+          lastModifiedBy: userId,
+          lastModifiedAt: Date.now()
+        });
+      }
+    }
+    
+    // THEN: Lock the new shape
     await updateShape(shapeId, {
       isLocked: true,
       lockedBy: userId,

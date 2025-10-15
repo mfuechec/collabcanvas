@@ -26,6 +26,11 @@ export const CanvasProvider = ({ children }) => {
   // Selection state (local)
   const [selectedShapeId, setSelectedShapeId] = useState(null);
 
+  // Undo/Redo state
+  const [undoStack, setUndoStack] = useState([]);
+  const [redoStack, setRedoStack] = useState([]);
+  const isUndoRedoAction = useRef(false); // Flag to prevent recording undo/redo actions
+
   // Stage ref for direct Konva access
   const stageRef = useRef(null);
 
@@ -96,30 +101,176 @@ export const CanvasProvider = ({ children }) => {
     }
   }, []);
 
+  // Helper to add action to history
+  const recordAction = useCallback((action) => {
+    if (isUndoRedoAction.current) return; // Don't record undo/redo actions
+    
+    setUndoStack(prev => [...prev, action]);
+    setRedoStack([]); // Clear redo stack when new action is performed
+    
+    // Limit undo stack to 50 actions to prevent memory issues
+    setUndoStack(prev => prev.slice(-50));
+  }, []);
+
+  // Undo function
+  const undo = useCallback(async () => {
+    if (undoStack.length === 0) {
+      console.log('Nothing to undo');
+      return false;
+    }
+
+    const action = undoStack[undoStack.length - 1];
+    isUndoRedoAction.current = true;
+
+    try {
+      switch (action.type) {
+        case 'ADD_SHAPE':
+          // Undo add by deleting the shape
+          await deleteShapeFirebase(action.shapeId);
+          setRedoStack(prev => [...prev, action]);
+          break;
+
+        case 'DELETE_SHAPE':
+          // Undo delete by re-adding the shape
+          await addShapeFirebase({ ...action.shapeData, id: action.shapeId });
+          setRedoStack(prev => [...prev, action]);
+          break;
+
+        case 'UPDATE_SHAPE':
+          // Undo update by restoring previous state
+          await updateShapeFirebase(action.shapeId, action.oldData);
+          setRedoStack(prev => [...prev, action]);
+          break;
+
+        default:
+          console.warn('Unknown action type:', action.type);
+      }
+
+      setUndoStack(prev => prev.slice(0, -1));
+      console.log('✅ Undo successful:', action.type);
+      return true;
+    } catch (error) {
+      console.error('❌ Undo failed:', error);
+      return false;
+    } finally {
+      isUndoRedoAction.current = false;
+    }
+  }, [undoStack, deleteShapeFirebase, addShapeFirebase, updateShapeFirebase]);
+
+  // Redo function
+  const redo = useCallback(async () => {
+    if (redoStack.length === 0) {
+      console.log('Nothing to redo');
+      return false;
+    }
+
+    const action = redoStack[redoStack.length - 1];
+    isUndoRedoAction.current = true;
+
+    try {
+      switch (action.type) {
+        case 'ADD_SHAPE':
+          // Redo add by re-adding the shape
+          await addShapeFirebase({ ...action.shapeData, id: action.shapeId });
+          setUndoStack(prev => [...prev, action]);
+          break;
+
+        case 'DELETE_SHAPE':
+          // Redo delete by deleting again
+          await deleteShapeFirebase(action.shapeId);
+          setUndoStack(prev => [...prev, action]);
+          break;
+
+        case 'UPDATE_SHAPE':
+          // Redo update by applying new state
+          await updateShapeFirebase(action.shapeId, action.newData);
+          setUndoStack(prev => [...prev, action]);
+          break;
+
+        default:
+          console.warn('Unknown action type:', action.type);
+      }
+
+      setRedoStack(prev => prev.slice(0, -1));
+      console.log('✅ Redo successful:', action.type);
+      return true;
+    } catch (error) {
+      console.error('❌ Redo failed:', error);
+      return false;
+    } finally {
+      isUndoRedoAction.current = false;
+    }
+  }, [redoStack, addShapeFirebase, deleteShapeFirebase, updateShapeFirebase]);
+
   // Shape management methods with Firebase integration
   const addShape = useCallback(async (shapeData) => {
     try {
       const newShape = await addShapeFirebase(shapeData);
+      
+      // Record action for undo
+      if (newShape) {
+        recordAction({
+          type: 'ADD_SHAPE',
+          shapeId: newShape.id,
+          shapeData: { ...newShape }
+        });
+      }
+      
       return newShape;
     } catch (error) {
       console.error('Failed to add shape:', error);
       throw error;
     }
-  }, [addShapeFirebase]);
+  }, [addShapeFirebase, recordAction]);
 
   const updateShape = useCallback(async (shapeId, updates) => {
     try {
+      // Get the old shape data before updating
+      const oldShape = shapesMap.get(shapeId);
+      
       const updatedShape = await updateShapeFirebase(shapeId, updates);
+      
+      // Record action for undo (only if we have old data)
+      if (oldShape && updatedShape) {
+        // Extract only the fields that were updated
+        const oldData = {};
+        const newData = {};
+        Object.keys(updates).forEach(key => {
+          oldData[key] = oldShape[key];
+          newData[key] = updates[key];
+        });
+        
+        recordAction({
+          type: 'UPDATE_SHAPE',
+          shapeId,
+          oldData,
+          newData
+        });
+      }
+      
       return updatedShape;
     } catch (error) {
       console.error('Failed to update shape:', error);
       throw error;
     }
-  }, [updateShapeFirebase]);
+  }, [updateShapeFirebase, shapesMap, recordAction]);
 
   const deleteShape = useCallback(async (shapeId) => {
     try {
+      // Get the shape data before deleting
+      const shapeToDelete = shapesMap.get(shapeId);
+      
       await deleteShapeFirebase(shapeId);
+      
+      // Record action for undo
+      if (shapeToDelete) {
+        recordAction({
+          type: 'DELETE_SHAPE',
+          shapeId,
+          shapeData: { ...shapeToDelete }
+        });
+      }
+      
       // Clear selection if deleted shape was selected
       if (selectedShapeId === shapeId) {
         setSelectedShapeId(null);
@@ -129,28 +280,73 @@ export const CanvasProvider = ({ children }) => {
       console.error('Failed to delete shape:', error);
       throw error;
     }
-  }, [deleteShapeFirebase, selectedShapeId]);
+  }, [deleteShapeFirebase, selectedShapeId, shapesMap, recordAction]);
 
-  const selectShape = useCallback((shapeId) => {
-    // Unlock the previously selected shape when selecting a new one
-    if (selectedShapeId && selectedShapeId !== shapeId) {
-      console.log('🔓 [LOCKING] Unlocking previous shape on new selection:', selectedShapeId);
-      unlockShape(selectedShapeId).catch((error) => {
-        console.error('❌ [LOCKING] Failed to unlock previous shape on new selection:', error);
-      });
+  const duplicateShape = useCallback(async (shapeId) => {
+    try {
+      // Find the shape to duplicate (shapesMap is a Map object)
+      const shape = shapesMap.get(shapeId);
+      if (!shape) {
+        console.error('Shape not found for duplication:', shapeId);
+        return null;
+      }
+
+      // Create a copy with a small offset
+      const duplicateData = {
+        type: shape.type || 'rectangle',
+        x: shape.x + 20, // Offset by 20px
+        y: shape.y + 20,
+        width: shape.width,
+        height: shape.height,
+        fill: shape.fill,
+        opacity: shape.opacity
+      };
+
+      // Add the duplicate to Firebase
+      const newShape = await addShapeFirebase(duplicateData);
+      
+      // Select the new shape
+      if (newShape) {
+        setSelectedShapeId(newShape.id);
+      }
+      
+      return newShape;
+    } catch (error) {
+      console.error('Failed to duplicate shape:', error);
+      throw error;
     }
+  }, [shapesMap, addShapeFirebase]);
+
+  const selectShape = useCallback(async (shapeId) => {
+    // Set selection immediately (optimistic)
     setSelectedShapeId(shapeId);
-  }, [selectedShapeId, unlockShape]);
+    
+    // Lock the newly selected shape (lockShape will auto-unlock all other shapes by this user)
+    if (shapeId) {
+      try {
+        await lockShape(shapeId, 300000); // 5 minute lock
+        console.log('✅ [LOCKING] Shape locked:', shapeId);
+      } catch (error) {
+        console.error('❌ [LOCKING] Failed to lock newly selected shape:', error);
+        // If lock fails, still keep it selected (local only)
+      }
+    }
+  }, [lockShape]);
 
   const deselectAll = useCallback(() => {
     // Unlock the currently selected shape before deselecting
-    if (selectedShapeId) {
-      console.log('🔓 [LOCKING] Unlocking shape on deselect:', selectedShapeId);
-      unlockShape(selectedShapeId).catch((error) => {
+    const shapeToUnlock = selectedShapeId;
+    
+    // Deselect immediately (optimistic)
+    setSelectedShapeId(null);
+    
+    // Then unlock in background
+    if (shapeToUnlock) {
+      console.log('🔓 [LOCKING] Unlocking shape on deselect:', shapeToUnlock);
+      unlockShape(shapeToUnlock).catch((error) => {
         console.error('❌ [LOCKING] Failed to unlock shape on deselect:', error);
       });
     }
-    setSelectedShapeId(null);
   }, [selectedShapeId, unlockShape]);
 
   // Get selected shape
@@ -218,8 +414,15 @@ export const CanvasProvider = ({ children }) => {
     addShape,
     updateShape,
     deleteShape,
+    duplicateShape,
     selectShape,
     deselectAll,
+
+    // Undo/Redo
+    undo,
+    redo,
+    canUndo: undoStack.length > 0,
+    canRedo: redoStack.length > 0,
 
     // Firebase-specific methods
     lockShape,

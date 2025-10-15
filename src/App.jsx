@@ -26,18 +26,18 @@ import './utils/clearCanvas'
 
 // Inner component with access to all contexts
 const AppLayout = ({ showProperties, setShowProperties, showLayers, setShowLayers }) => {
-  const { setMode, CANVAS_MODES } = useCanvasMode();
-  const { deleteShape, selectedShapeId, deselectAll, resetView } = useCanvas();
+  const { setMode, CANVAS_MODES, SHAPE_TYPES } = useCanvasMode();
+  const { deleteShape, duplicateShape, selectedShapeId, deselectAll, resetView, undo, redo, canUndo, canRedo } = useCanvas();
   
   // Global keyboard shortcuts
   useKeyboardShortcuts({
     // Tool switching
     onHandTool: () => setMode(CANVAS_MODES.MOVE),
-    onRectangleTool: () => setMode(CANVAS_MODES.DRAW),
-    onCircleTool: () => console.log('Circle tool - coming soon'),
-    onLineTool: () => console.log('Line tool - coming soon'),
-    onPenTool: () => console.log('Pen tool - coming soon'),
-    onTextTool: () => console.log('Text tool - coming soon'),
+    onRectangleTool: () => setMode(CANVAS_MODES.DRAW, SHAPE_TYPES.RECTANGLE),
+    onCircleTool: () => setMode(CANVAS_MODES.DRAW, SHAPE_TYPES.CIRCLE),
+    onLineTool: () => setMode(CANVAS_MODES.DRAW, SHAPE_TYPES.LINE),
+    onPenTool: () => setMode(CANVAS_MODES.DRAW, SHAPE_TYPES.PEN),
+    onTextTool: () => setMode(CANVAS_MODES.DRAW, SHAPE_TYPES.TEXT),
     
     // Actions
     onDelete: () => {
@@ -46,9 +46,13 @@ const AppLayout = ({ showProperties, setShowProperties, showLayers, setShowLayer
         deselectAll();
       }
     },
-    onDuplicate: () => console.log('Duplicate - coming soon'),
-    onUndo: () => console.log('Undo - coming soon'),
-    onRedo: () => console.log('Redo - coming soon'),
+    onDuplicate: () => {
+      if (selectedShapeId) {
+        duplicateShape(selectedShapeId);
+      }
+    },
+    onUndo: () => undo(),
+    onRedo: () => redo(),
     onSelectAll: () => console.log('Select all - coming soon'),
     onEscape: () => deselectAll(),
     

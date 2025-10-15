@@ -118,33 +118,38 @@ const FloatingUserMenu = () => {
       {onlineUsers.length > 0 && (
         <div style={presenceContainerStyle}>
           <div style={{ display: 'flex', alignItems: 'center', gap: SPACING.xs }}>
-            {onlineUsers.slice(0, 3).map((onlineUser, index) => (
-              <div
-                key={onlineUser.userId}
-                style={{
-                  ...avatarButtonStyle,
-                  width: '28px',
-                  height: '28px',
-                  fontSize: '11px',
-                  marginLeft: index > 0 ? '-8px' : '0',
-                  zIndex: 10 - index,
-                  backgroundColor: onlineUser.userId === user?.uid ? colors.accent : '#9333EA',
-                }}
-                title={onlineUser.displayName || onlineUser.email || 'Anonymous'}
-              >
-                {getUserInitials(onlineUser.displayName || onlineUser.email)}
-              </div>
-            ))}
-            {onlineUsers.length > 3 && (
-              <div style={{
-                fontSize: '12px',
-                color: colors.textSecondary,
-                fontWeight: 500,
-                marginLeft: SPACING.xs,
-              }}>
-                +{onlineUsers.length - 3}
-              </div>
-            )}
+            {[
+              ...onlineUsers.slice(0, 3).map((onlineUser, index) => (
+                <div
+                  key={onlineUser.userId}
+                  style={{
+                    ...avatarButtonStyle,
+                    width: '28px',
+                    height: '28px',
+                    fontSize: '11px',
+                    marginLeft: index > 0 ? '-8px' : '0',
+                    zIndex: 10 - index,
+                    backgroundColor: onlineUser.userId === user?.uid ? colors.accent : '#9333EA',
+                  }}
+                  title={onlineUser.displayName || onlineUser.email || 'Anonymous'}
+                >
+                  {getUserInitials(onlineUser.displayName || onlineUser.email)}
+                </div>
+              )),
+              ...(onlineUsers.length > 3 ? [
+                <div 
+                  key="more-users"
+                  style={{
+                    fontSize: '12px',
+                    color: colors.textSecondary,
+                    fontWeight: 500,
+                    marginLeft: SPACING.xs,
+                  }}
+                >
+                  +{onlineUsers.length - 3}
+                </div>
+              ] : [])
+            ]}
           </div>
           <div style={{
             fontSize: '12px',

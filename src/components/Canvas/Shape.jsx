@@ -1,16 +1,22 @@
-import { Rect } from 'react-konva';
+import { Rect, Circle, Line, Text } from 'react-konva';
 import { useRef, useEffect, useMemo } from 'react';
 import { useCanvas } from '../../hooks/useCanvas';
 import { useCanvasMode } from '../../contexts/CanvasModeContext';
 
 const Shape = ({ 
-  id, 
+  id,
+  type = 'rectangle', // Default to rectangle for backward compatibility
   x, 
   y, 
   width, 
   height, 
   fill,
   opacity = 1.0, // Default to full opacity if not provided
+  points, // For lines: [x1, y1, x2, y2]
+  stroke, // For lines and borders
+  strokeWidth, // For lines and borders
+  text, // For text shapes
+  fontSize, // For text shapes
   isSelected, 
   isLocked, 
   lockedBy,
@@ -116,17 +122,42 @@ const Shape = ({
       
       // Get the Konva shape node
       const shapeNode = e.target;
+      const shapePos = shapeNode.position();
+      
+      // Convert to bounding box coordinates for consistent broadcasting
+      let boundingBoxX, boundingBoxY;
+      if (type === 'circle') {
+        // Circle position is center, convert to bounding box top-left
+        boundingBoxX = shapePos.x - width / 2;
+        boundingBoxY = shapePos.y - height / 2;
+      } else if (type === 'line' || type === 'pen') {
+        // Lines/pen are positioned at (0, 0), use stored bounding box
+        boundingBoxX = x;
+        boundingBoxY = y;
+      } else {
+        // Rectangle position is already top-left
+        boundingBoxX = shapePos.x;
+        boundingBoxY = shapePos.y;
+      }
       
       // Send initial drag start position to other users
-      updateDragPreview(id, {
+      const previewData = {
         userId: getCurrentUserId(),
-        x: shapeNode.x(),
-        y: shapeNode.y(),
+        type, // Include type so preview renders correctly
+        x: boundingBoxX,
+        y: boundingBoxY,
         width,
         height,
         fill,
         isDragging: true
-      });
+      };
+      
+      // For lines/pen, include the points array (no translation needed at drag start)
+      if ((type === 'line' || type === 'pen') && points) {
+        previewData.points = points;
+      }
+      
+      updateDragPreview(id, previewData);
     }
   };
 
@@ -135,13 +166,49 @@ const Shape = ({
     const shape = e.target;
     const newPos = shape.position();
     
-    // Constrain shape to canvas boundaries
-    const constrainedPos = constrainToBounds(
-      newPos.x, 
-      newPos.y, 
+    // For lines/pen, newPos is the drag offset from (0, 0)
+    // For circles, newPos is the center. For rectangles, it's top-left.
+    // Convert to bounding box coordinates for boundary checking
+    let boundingBoxX, boundingBoxY;
+    if (type === 'line' || type === 'pen') {
+      // Lines/pen: their position changed from (0, 0), so add offset to original bounding box
+      boundingBoxX = x + newPos.x;
+      boundingBoxY = y + newPos.y;
+    } else if (type === 'circle') {
+      // Circle position is center, convert to bounding box top-left
+      boundingBoxX = newPos.x - width / 2;
+      boundingBoxY = newPos.y - height / 2;
+    } else {
+      // Rectangle position is already top-left
+      boundingBoxX = newPos.x;
+      boundingBoxY = newPos.y;
+    }
+    
+    // Constrain shape to canvas boundaries using bounding box
+    const constrainedBoundingBox = constrainToBounds(
+      boundingBoxX, 
+      boundingBoxY, 
       width, 
       height
     );
+    
+    // Convert back to shape-specific coordinates for Konva
+    let constrainedPos;
+    if (type === 'line' || type === 'pen') {
+      // For lines/pen, calculate the constrained offset from original position
+      constrainedPos = {
+        x: constrainedBoundingBox.x - x,
+        y: constrainedBoundingBox.y - y
+      };
+    } else if (type === 'circle') {
+      // Convert bounding box back to center for circle
+      constrainedPos = {
+        x: constrainedBoundingBox.x + width / 2,
+        y: constrainedBoundingBox.y + height / 2
+      };
+    } else {
+      constrainedPos = constrainedBoundingBox;
+    }
     
     // Update position if it was constrained
     if (constrainedPos.x !== newPos.x || constrainedPos.y !== newPos.y) {
@@ -149,26 +216,46 @@ const Shape = ({
     }
     
     // 🚀 PERFORMANCE: ZERO RE-RENDERS during drag
-    // Store final position in ref for drag end sync - NO React state updates
-    originalPositionRef.current = { x: constrainedPos.x, y: constrainedPos.y };
+    // Store final bounding box position in ref for drag end sync
+    originalPositionRef.current = { 
+      x: constrainedBoundingBox.x, 
+      y: constrainedBoundingBox.y 
+    };
     
     // 🚀 COLLABORATIVE: Broadcast drag updates to other users (throttled)
     // Throttle to ~20fps for collaborative previews
     const now = Date.now();
     if (!lastPreviewUpdate.current || now - lastPreviewUpdate.current > 50) {
       if (updateDragPreview && getCurrentUserId()) {
-        console.log('📡 [COLLAB] Broadcasting drag position:', constrainedPos.x, constrainedPos.y);
+        console.log('📡 [COLLAB] Broadcasting drag position (bounding box):', constrainedBoundingBox.x, constrainedBoundingBox.y);
         
-        // Send position update to other users via Firebase
-        updateDragPreview(id, {
+        // Send bounding box position to other users via Firebase
+        const previewData = {
           userId: getCurrentUserId(),
-          x: constrainedPos.x,
-          y: constrainedPos.y,
+          type, // Include shape type for correct preview rendering
+          x: constrainedBoundingBox.x,
+          y: constrainedBoundingBox.y,
           width,
           height,
           fill,
           isDragging: true
-        });
+        };
+        
+        // For lines/pen, translate points based on drag offset
+        if ((type === 'line' || type === 'pen') && points) {
+          const deltaX = constrainedBoundingBox.x - x;
+          const deltaY = constrainedBoundingBox.y - y;
+          const translatedPoints = points.map((coord, index) => {
+            if (index % 2 === 0) {
+              return coord + deltaX; // X coordinate
+            } else {
+              return coord + deltaY; // Y coordinate
+            }
+          });
+          previewData.points = translatedPoints;
+        }
+        
+        updateDragPreview(id, previewData);
       }
       lastPreviewUpdate.current = now;
     }
@@ -191,16 +278,63 @@ const Shape = ({
     // 🚀 CRITICAL: Clear dragging state FIRST
     isDraggingRef.current = false;
     
-    // Ensure final position is within bounds
-    const constrainedPos = constrainToBounds(
-      finalPos.x, 
-      finalPos.y, 
+    // Convert to bounding box coordinates for storage
+    let boundingBoxX, boundingBoxY;
+    if (type === 'line' || type === 'pen') {
+      // Lines/pen: finalPos is offset from (0, 0), add to original bounding box
+      boundingBoxX = x + finalPos.x;
+      boundingBoxY = y + finalPos.y;
+    } else if (type === 'circle') {
+      // Circle position is center, convert to bounding box top-left
+      boundingBoxX = finalPos.x - width / 2;
+      boundingBoxY = finalPos.y - height / 2;
+    } else {
+      // Rectangle position is already top-left
+      boundingBoxX = finalPos.x;
+      boundingBoxY = finalPos.y;
+    }
+    
+    // Ensure final bounding box position is within bounds
+    const constrainedBoundingBox = constrainToBounds(
+      boundingBoxX, 
+      boundingBoxY, 
       width, 
       height
     );
     
-    // Ensure shape is positioned correctly immediately
-    shape.position(constrainedPos);
+    // For non-line/pen shapes, update position immediately for smooth UX
+    if (type !== 'line' && type !== 'pen') {
+      // Convert back to shape-specific coordinates for Konva display
+      let constrainedPos;
+      if (type === 'circle') {
+        constrainedPos = {
+          x: constrainedBoundingBox.x + width / 2,
+          y: constrainedBoundingBox.y + height / 2
+        };
+      } else {
+        constrainedPos = constrainedBoundingBox;
+      }
+      
+      // Ensure shape is positioned correctly immediately
+      shape.position(constrainedPos);
+    } else if ((type === 'line' || type === 'pen') && points) {
+      // For lines/pen, optimistically update points AND reset position to prevent blink
+      const deltaX = constrainedBoundingBox.x - x;
+      const deltaY = constrainedBoundingBox.y - y;
+      
+      const translatedPoints = points.map((coord, index) => {
+        if (index % 2 === 0) {
+          return coord + deltaX; // X coordinate
+        } else {
+          return coord + deltaY; // Y coordinate
+        }
+      });
+      
+      // Apply translated points immediately to Konva shape
+      shape.points(translatedPoints);
+      // Reset position to (0, 0)
+      shape.position({ x: 0, y: 0 });
+    }
     
     // 🚀 COLLABORATIVE: End drag preview broadcast to other users
     if (clearDragPreview && getCurrentUserId()) {
@@ -215,11 +349,34 @@ const Shape = ({
     // Update position (keep lock since shape is still selected)
     Promise.resolve().then(async () => {
       try {
-        // Update position
-        await updateShape(id, {
-          x: constrainedPos.x,
-          y: constrainedPos.y
-        });
+        // Calculate position offset for updating points arrays
+        const deltaX = constrainedBoundingBox.x - x;
+        const deltaY = constrainedBoundingBox.y - y;
+        
+        // For lines and pen strokes, update the points array as well
+        const updates = {
+          x: constrainedBoundingBox.x,
+          y: constrainedBoundingBox.y
+        };
+        
+        if ((type === 'line' || type === 'pen') && points && points.length >= 4) {
+          // Translate all points by the offset
+          const updatedPoints = points.map((coord, index) => {
+            if (index % 2 === 0) {
+              // X coordinate
+              return coord + deltaX;
+            } else {
+              // Y coordinate
+              return coord + deltaY;
+            }
+          });
+          updates.points = updatedPoints;
+          // Note: We already applied the optimistic update above (line 332-334)
+          // so no need to reset position here
+        }
+        
+        // Update position using bounding box coordinates (and points for lines/pen)
+        await updateShape(id, updates);
         
         // Keep shape locked - it's still selected!
         // Lock will expire after 5 minutes or when shape is deselected
@@ -272,14 +429,17 @@ const Shape = ({
     const manyShapes = _totalShapes > 100;
     const isViewportCulled = _isViewportCulled;
     
+    // For lines and pen strokes, we need a wider hit area since they don't have fill
+    const needsWideHitArea = type === 'line' || type === 'pen';
+    
     return {
       // Disable expensive features when there are many shapes
       perfectDrawEnabled: false,
       shadowEnabled: !manyShapes, // Disable shadows when many shapes for performance
       shadowForStrokeEnabled: false, // Always disable expensive shadow for stroke
       
-      // Optimize hit detection
-      hitStrokeWidth: isSelected ? undefined : 0, // Only enable hit on stroke for selected shapes
+      // Optimize hit detection - lines/pen need wider hit area for easier selection
+      hitStrokeWidth: needsWideHitArea ? 20 : (isSelected ? undefined : 0),
       
       // Optimize listening based on interaction state  
       listening: !isViewportCulled || isSelected || visualStyles.draggable, // Reduce listeners when culled
@@ -287,7 +447,7 @@ const Shape = ({
       // Optimize transforms
       transformsEnabled: 'all' // Keep all transforms enabled for dragging
     };
-  }, [_totalShapes, _isViewportCulled, isSelected, visualStyles.draggable]);
+  }, [_totalShapes, _isViewportCulled, isSelected, visualStyles.draggable, type]);
 
   // 🚀 PERFORMANCE: Optimized cleanup effect - minimal dependencies
   useEffect(() => {
@@ -325,28 +485,112 @@ const Shape = ({
     };
   }, [id, registerShapeHandlers, unregisterShapeHandlers, unlockShape]);
 
+  // Common props for all shape types
+  const commonProps = {
+    fill,
+    stroke: visualStyles.stroke,
+    strokeWidth: visualStyles.strokeWidth,
+    opacity: visualStyles.opacity,
+    draggable: visualStyles.draggable,
+    shapeId: id,
+    onDragStart: handleDragStart,
+    onDragMove: handleDragMove,
+    onDragEnd: handleDragEnd,
+    onClick: registerShapeHandlers ? undefined : handleClick,
+    onTap: registerShapeHandlers ? undefined : handleClick,
+    ...konvaOptimizations
+  };
+
+  // Render different shapes based on type
+  if (type === 'circle') {
+    // For circles, use the bounding box to calculate center and radius
+    const centerX = x + width / 2;
+    const centerY = y + height / 2;
+    const radius = Math.min(width, height) / 2;
+    
+    return (
+      <Circle
+        x={centerX}
+        y={centerY}
+        radius={radius}
+        {...commonProps}
+      />
+    );
+  }
+  
+  if (type === 'line' && points && points.length === 4) {
+    // For lines, use points array (absolute coordinates) and position at (0, 0)
+    // Note: We don't pass x, y from commonProps because points are already absolute
+    const lineProps = {
+      ...commonProps,
+      x: 0, // Lines use absolute coordinates in points array
+      y: 0,
+      fill: undefined, // Lines don't have fill
+      stroke: stroke || visualStyles.stroke || '#cccccc', // Same default as other shapes
+      strokeWidth: strokeWidth || visualStyles.strokeWidth || 2
+    };
+    
+    return (
+      <Line
+        points={points}
+        {...lineProps}
+      />
+    );
+  }
+  
+  if (type === 'pen' && points && points.length >= 4) {
+    // For pen (freehand), use points array (absolute coordinates) and position at (0, 0)
+    // Note: We don't pass x, y from commonProps because points are already absolute
+    const penProps = {
+      ...commonProps,
+      x: 0, // Pen strokes use absolute coordinates in points array
+      y: 0,
+      fill: undefined, // Pen strokes don't have fill
+      stroke: stroke || visualStyles.stroke || '#cccccc', // Same default as other shapes
+      strokeWidth: strokeWidth || visualStyles.strokeWidth || 2,
+      tension: 0.5, // Smooth the path
+      lineCap: 'round',
+      lineJoin: 'round'
+    };
+    
+    return (
+      <Line
+        points={points}
+        {...penProps}
+      />
+    );
+  }
+  
+  if (type === 'text') {
+    // For text shapes
+    const textProps = {
+      ...commonProps,
+      text: text || 'Text',
+      fontSize: fontSize || 24,
+      fontFamily: 'Inter, system-ui, sans-serif',
+      fill: fill || '#000000',
+      width: width,
+      wrap: 'word',
+      align: 'left'
+    };
+    
+    return (
+      <Text
+        x={x}
+        y={y}
+        {...textProps}
+      />
+    );
+  }
+  
+  // Default to rectangle
   return (
     <Rect
       x={x}
       y={y}
       width={width}
       height={height}
-      fill={fill}
-      stroke={visualStyles.stroke}
-      strokeWidth={visualStyles.strokeWidth}
-      opacity={visualStyles.opacity}
-      draggable={visualStyles.draggable}
-      // 🚀 PERFORMANCE: Add shape ID for event delegation
-      shapeId={id}
-      // 🚀 PERFORMANCE: Keep drag handlers on Rect - Konva needs them for proper drag lifecycle
-      onDragStart={handleDragStart}
-      onDragMove={handleDragMove}
-      onDragEnd={handleDragEnd}
-      // 🚀 PERFORMANCE: Use event delegation for click events only
-      onClick={registerShapeHandlers ? undefined : handleClick}
-      onTap={registerShapeHandlers ? undefined : handleClick}
-      // 🚀 PERFORMANCE: Apply Konva optimizations
-      {...konvaOptimizations}
+      {...commonProps}
     />
   );
 };

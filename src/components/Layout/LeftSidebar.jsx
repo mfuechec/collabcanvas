@@ -7,18 +7,25 @@ import './LeftSidebar.css';
 
 const LeftSidebar = ({ onToggleLayers, layersOpen }) => {
   const { theme } = useTheme();
-  const { currentMode, setMode } = useCanvasMode();
-  const { deleteShape, selectedShapeId, deselectAll } = useCanvas();
+  const { currentMode, currentShapeType, setMode, CANVAS_MODES, SHAPE_TYPES } = useCanvasMode();
+  const { deleteShape, duplicateShape, selectedShapeId, deselectAll, undo, redo, canUndo, canRedo } = useCanvas();
   
   const colors = COLORS[theme];
   
   const handleToolClick = (tool) => {
     if (tool === TOOLS.HAND) {
-      setMode('move');
+      setMode(CANVAS_MODES.MOVE);
     } else if (tool === TOOLS.RECTANGLE) {
-      setMode('draw');
+      setMode(CANVAS_MODES.DRAW, SHAPE_TYPES.RECTANGLE);
+    } else if (tool === TOOLS.CIRCLE) {
+      setMode(CANVAS_MODES.DRAW, SHAPE_TYPES.CIRCLE);
+    } else if (tool === TOOLS.LINE) {
+      setMode(CANVAS_MODES.DRAW, SHAPE_TYPES.LINE);
+    } else if (tool === TOOLS.PEN) {
+      setMode(CANVAS_MODES.DRAW, SHAPE_TYPES.PEN);
+    } else if (tool === TOOLS.TEXT) {
+      setMode(CANVAS_MODES.DRAW, SHAPE_TYPES.TEXT);
     }
-    // TODO: Add handlers for other tools when implemented
   };
   
   const sidebarStyle = {
@@ -96,10 +103,10 @@ const LeftSidebar = ({ onToggleLayers, layersOpen }) => {
       
       {/* Tool Section */}
       <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
-        {/* Hand/Pan Tool (V key) */}
+        {/* Hand/Pan Tool (H key) */}
         <Tooltip text="Hand Tool" shortcut="H">
           <button
-            style={toolButtonStyle(currentMode === 'move')}
+            style={toolButtonStyle(currentMode === CANVAS_MODES.MOVE)}
             onClick={() => handleToolClick(TOOLS.HAND)}
             className="tool-button"
           >
@@ -115,7 +122,7 @@ const LeftSidebar = ({ onToggleLayers, layersOpen }) => {
         {/* Rectangle Tool (R key) */}
         <Tooltip text="Rectangle Tool" shortcut="R">
           <button
-            style={toolButtonStyle(currentMode === 'draw')}
+            style={toolButtonStyle(currentMode === CANVAS_MODES.DRAW && currentShapeType === SHAPE_TYPES.RECTANGLE)}
             onClick={() => handleToolClick(TOOLS.RECTANGLE)}
             className="tool-button"
           >
@@ -125,11 +132,12 @@ const LeftSidebar = ({ onToggleLayers, layersOpen }) => {
           </button>
         </Tooltip>
         
-        {/* Circle Tool (C key) - Coming soon */}
-        <Tooltip text="Circle Tool - Coming Soon" shortcut="C">
+        {/* Circle Tool (C key) */}
+        <Tooltip text="Circle Tool" shortcut="C">
           <button
-            style={{...toolButtonStyle(false), opacity: 0.5, cursor: 'not-allowed'}}
-            disabled
+            style={toolButtonStyle(currentMode === CANVAS_MODES.DRAW && currentShapeType === SHAPE_TYPES.CIRCLE)}
+            onClick={() => handleToolClick(TOOLS.CIRCLE)}
+            className="tool-button"
           >
             <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
               <circle cx="12" cy="12" r="10"/>
@@ -137,11 +145,11 @@ const LeftSidebar = ({ onToggleLayers, layersOpen }) => {
           </button>
         </Tooltip>
         
-        {/* Line Tool (L key) - Coming soon */}
-        <Tooltip text="Line Tool - Coming Soon" shortcut="L">
+        {/* Line Tool (L key) */}
+        <Tooltip text="Line Tool" shortcut="L">
           <button
-            style={{...toolButtonStyle(false), opacity: 0.5, cursor: 'not-allowed'}}
-            disabled
+            style={toolButtonStyle(currentMode === CANVAS_MODES.DRAW && currentShapeType === SHAPE_TYPES.LINE)}
+            onClick={() => handleToolClick(TOOLS.LINE)}
           >
             <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
               <path d="M5 19 19 5"/>
@@ -149,11 +157,11 @@ const LeftSidebar = ({ onToggleLayers, layersOpen }) => {
           </button>
         </Tooltip>
         
-        {/* Pen Tool (P key) - Coming soon */}
-        <Tooltip text="Pen Tool - Coming Soon" shortcut="P">
+        {/* Pen Tool (P key) */}
+        <Tooltip text="Pen Tool" shortcut="P">
           <button
-            style={{...toolButtonStyle(false), opacity: 0.5, cursor: 'not-allowed'}}
-            disabled
+            style={toolButtonStyle(currentMode === CANVAS_MODES.DRAW && currentShapeType === SHAPE_TYPES.PEN)}
+            onClick={() => handleToolClick(TOOLS.PEN)}
           >
             <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
               <path d="M12 19l7-7 3 3-7 7-3-3z"/>
@@ -164,11 +172,11 @@ const LeftSidebar = ({ onToggleLayers, layersOpen }) => {
           </button>
         </Tooltip>
         
-        {/* Text Tool (T key) - Coming soon */}
-        <Tooltip text="Text Tool - Coming Soon" shortcut="T">
+        {/* Text Tool (T key) */}
+        <Tooltip text="Text Tool" shortcut="T">
           <button
-            style={{...toolButtonStyle(false), opacity: 0.5, cursor: 'not-allowed'}}
-            disabled
+            style={toolButtonStyle(currentMode === CANVAS_MODES.DRAW && currentShapeType === SHAPE_TYPES.TEXT)}
+            onClick={() => handleToolClick(TOOLS.TEXT)}
           >
             <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
               <path d="M4 7V4h16v3"/>
@@ -211,8 +219,18 @@ const LeftSidebar = ({ onToggleLayers, layersOpen }) => {
         {/* Duplicate Button */}
         <Tooltip text="Duplicate" shortcut="Cmd+D">
           <button
-            style={{...toolButtonStyle(false), opacity: 0.5, cursor: 'not-allowed'}}
-            disabled
+            style={{
+              ...toolButtonStyle(false),
+              opacity: selectedShapeId ? 1 : 0.5,
+              cursor: selectedShapeId ? 'pointer' : 'not-allowed'
+            }}
+            onClick={() => {
+              if (selectedShapeId) {
+                duplicateShape(selectedShapeId);
+              }
+            }}
+            disabled={!selectedShapeId}
+            className="tool-button"
           >
             <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
               <rect x="9" y="9" width="13" height="13" rx="2"/>
@@ -224,8 +242,13 @@ const LeftSidebar = ({ onToggleLayers, layersOpen }) => {
         {/* Undo Button */}
         <Tooltip text="Undo" shortcut="Cmd+Z">
           <button
-            style={{...toolButtonStyle(false), opacity: 0.5, cursor: 'not-allowed'}}
-            disabled
+            style={{
+              ...toolButtonStyle(false),
+              opacity: canUndo ? 1 : 0.3,
+              cursor: canUndo ? 'pointer' : 'not-allowed'
+            }}
+            disabled={!canUndo}
+            onClick={() => canUndo && undo()}
           >
             <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
               <path d="M3 7v6h6"/>
@@ -237,8 +260,13 @@ const LeftSidebar = ({ onToggleLayers, layersOpen }) => {
         {/* Redo Button */}
         <Tooltip text="Redo" shortcut="Cmd+Shift+Z">
           <button
-            style={{...toolButtonStyle(false), opacity: 0.5, cursor: 'not-allowed'}}
-            disabled
+            style={{
+              ...toolButtonStyle(false),
+              opacity: canRedo ? 1 : 0.3,
+              cursor: canRedo ? 'pointer' : 'not-allowed'
+            }}
+            disabled={!canRedo}
+            onClick={() => canRedo && redo()}
           >
             <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
               <path d="M21 7v6h-6"/>

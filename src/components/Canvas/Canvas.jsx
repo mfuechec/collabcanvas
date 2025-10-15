@@ -1,9 +1,9 @@
 // Canvas Component - Modern canvas with drawing functionality and theme support
 import { useEffect, useCallback, useRef, useState, useMemo } from 'react';
-import { Stage, Layer, Rect, Line } from 'react-konva';
+import { Stage, Layer, Rect, Circle, Line } from 'react-konva';
 import { useCanvas } from '../../hooks/useCanvas';
 import { useCursors } from '../../hooks/useCursors';
-import { useCanvasMode } from '../../contexts/CanvasModeContext';
+import { useCanvasMode, SHAPE_TYPES } from '../../contexts/CanvasModeContext';
 import { useTheme } from '../../contexts/ThemeContext';
 import { useDragPreviews } from '../../hooks/useDragPreviews';
 import Shape from './Shape';
@@ -43,8 +43,9 @@ const Canvas = () => {
   } = useCanvas();
 
   const { isDark } = useTheme();
-  const { 
+  const {
     currentMode, 
+    currentShapeType,
     setMode,
     CANVAS_MODES, 
     isDrawing, 
@@ -86,73 +87,14 @@ const Canvas = () => {
   const canvasBorderColor = isDark ? '#60a5fa' : '#3b82f6'; // Blue border for visibility
   const canvasShadow = isDark ? 'rgba(96, 165, 250, 0.3)' : 'rgba(59, 130, 246, 0.2)'; // Subtle glow
 
-  // 🚀 PERFORMANCE: Smart viewport culling system
+  // 🚀 PERFORMANCE: Viewport culling DISABLED - showing all shapes
   const { visibleShapes, cullingStats } = useMemo(() => {
-    const stage = stageRef.current;
-    
-    // If no stage or no shapes, return all shapes
-    if (!stage || shapes.length === 0 || stageSize.width === 0 || stageSize.height === 0) {
-      return { 
-        visibleShapes: shapes, 
-        cullingStats: { total: shapes.length, visible: shapes.length, culled: 0, mode: 'no-stage' }
-      };
-    }
-    
-    // 🚀 PERFORMANCE: Get live stage position to avoid stale React state during panning
-    const stagePos = stage.position();
-    const scale = stage.scaleX();
-    
-    // Calculate what portion of the canvas is currently visible
-    const viewportWidth = stageSize.width / scale;
-    const viewportHeight = stageSize.height / scale;
-    const canvasVisibleRatio = Math.min(
-      viewportWidth / CANVAS_WIDTH,
-      viewportHeight / CANVAS_HEIGHT
-    );
-    
-    // If viewing most of the canvas (>70% visible), show all shapes
-    // This ensures 500 shapes are visible when zoomed out to see full canvas
-    if (canvasVisibleRatio > 0.7) {
-      console.log('🔍 Full canvas view - showing all shapes (canvas visible ratio:', canvasVisibleRatio.toFixed(2), ')');
-      return { 
-        visibleShapes: shapes, 
-        cullingStats: { total: shapes.length, visible: shapes.length, culled: 0, mode: 'full-canvas' }
-      };
-    }
-    
-    // Calculate viewport bounds with padding for smooth scrolling
-    const padding = Math.max(100, Math.min(500, 1000 / scale)); // Adaptive padding based on zoom
-    const viewportBounds = {
-      left: (-stagePos.x / scale) - padding,
-      top: (-stagePos.y / scale) - padding,
-      right: ((-stagePos.x + stageSize.width) / scale) + padding,
-      bottom: ((-stagePos.y + stageSize.height) / scale) + padding
+    // Return all shapes without culling
+    return { 
+      visibleShapes: shapes, 
+      cullingStats: { total: shapes.length, visible: shapes.length, culled: 0, mode: 'disabled' }
     };
-    
-    // Filter shapes to only those intersecting with viewport
-    const visible = shapes.filter(shape => {
-      // Quick bounding box intersection test
-      return !(
-        shape.x + shape.width < viewportBounds.left ||
-        shape.x > viewportBounds.right ||
-        shape.y + shape.height < viewportBounds.top ||
-        shape.y > viewportBounds.bottom
-      );
-    });
-    
-    const stats = { 
-      total: shapes.length, 
-      visible: visible.length, 
-      culled: shapes.length - visible.length,
-      mode: 'culling',
-      viewportRatio: canvasVisibleRatio.toFixed(2),
-      zoom: scale.toFixed(2)
-    };
-    
-    console.log('🚀 Viewport culling active:', stats);
-    
-    return { visibleShapes: visible, cullingStats: stats };
-  }, [shapes, stageSize, zoom]); // 🚀 PERFORMANCE: Removed canvasPosition dependency to reduce recalculations
+  }, [shapes]);
 
   // Shared function to constrain stage position
   const constrainPosition = useCallback((position, scale, stageWidth, stageHeight) => {
@@ -172,6 +114,18 @@ const Canvas = () => {
     };
   }, []);
 
+  // 🚀 PERFORMANCE: Throttled React state updates for zoom/position (for CanvasInfo display)
+  const throttledZoomUpdate = useRef(null);
+  
+  // Cleanup throttled zoom timeout on unmount
+  useEffect(() => {
+    return () => {
+      if (throttledZoomUpdate.current) {
+        clearTimeout(throttledZoomUpdate.current);
+      }
+    };
+  }, []);
+  
   // Handle wheel zoom
   const handleWheel = useCallback((e) => {
     e.evt.preventDefault();
@@ -198,11 +152,19 @@ const Canvas = () => {
 
     const constrainedPos = constrainPosition(newPos, newScale, stageSize.width, stageSize.height);
     
+    // CRITICAL: Update Konva stage directly, DON'T trigger React re-render immediately
     stage.scale({ x: newScale, y: newScale });
     stage.position(constrainedPos);
     
-    updateZoom(newScale);
-    updateCanvasPosition(constrainedPos);
+    // 🚀 PERFORMANCE: Throttle React state updates to avoid jittering (only update every 100ms)
+    if (throttledZoomUpdate.current) {
+      clearTimeout(throttledZoomUpdate.current);
+    }
+    
+    throttledZoomUpdate.current = setTimeout(() => {
+      updateZoom(newScale);
+      updateCanvasPosition(constrainedPos);
+    }, 100);
   }, [constrainPosition, stageSize, updateZoom, updateCanvasPosition]);
 
   // Convert screen coordinates to canvas coordinates using shared function
@@ -242,8 +204,28 @@ const Canvas = () => {
         y: Math.max(0, Math.min(CANVAS_HEIGHT, canvasPos.y))
       };
       
-      startDrawing(constrainedPos);
-      e.cancelBubble = true;
+      // Text tool: create immediately on click, no drag
+      if (currentShapeType === SHAPE_TYPES.TEXT) {
+        addShape({
+          type: 'text',
+          x: constrainedPos.x,
+          y: constrainedPos.y,
+          text: 'Text',
+          fontSize: 24,
+          fill: '#000000',
+          width: 200, // Initial width for wrapping
+          height: 32  // Approximate height for single line
+        }).then((newShape) => {
+          if (newShape) {
+            selectShape(newShape.id);
+          }
+        });
+        e.cancelBubble = true;
+      } else {
+        // Other draw tools: start drawing
+        startDrawing(constrainedPos);
+        e.cancelBubble = true;
+      }
     } else if (currentMode === CANVAS_MODES.MOVE) {
       const clickedOnEmpty = e.target === e.target.getStage() || e.target.attrs.id === 'canvas-background';
       
@@ -307,15 +289,37 @@ const Canvas = () => {
         try {
           console.log('🔧 Creating shape with coordinates:', result);
           
+          // Constrain final shape to canvas boundaries
+          const constrainedResult = constrainToBounds(
+            result.x,
+            result.y,
+            result.width,
+            result.height
+          );
+          
+          // Adjust width/height if position was constrained
+          const finalWidth = Math.min(result.width, CANVAS_WIDTH - constrainedResult.x);
+          const finalHeight = Math.min(result.height, CANVAS_HEIGHT - constrainedResult.y);
+          
           // 🔧 RACE CONDITION FIX: Use exact coordinates from drawing preview
-          await addShape({
-            type: 'rectangle',
-            x: result.x,
-            y: result.y,
-            width: result.width,
-            height: result.height,
-            fill: '#cccccc'
-          });
+          // Support multiple shape types from the drawing result
+          const shapeData = {
+            type: result.type || 'rectangle', // Use the shape type from finishDrawing
+            x: constrainedResult.x,
+            y: constrainedResult.y,
+            width: finalWidth,
+            height: finalHeight,
+            fill: '#cccccc',
+            stroke: '#cccccc', // Same default color as fill
+            strokeWidth: 2
+          };
+          
+          // For lines and pen, also include the points array
+          if ((result.type === 'line' || result.type === 'pen') && result.points) {
+            shapeData.points = result.points;
+          }
+          
+          await addShape(shapeData);
           
           // 🔧 RACE CONDITION FIX: Reset creation flag after successful creation
           resetCreationFlag();
@@ -575,12 +579,18 @@ const Canvas = () => {
                 <Shape
                   key={shape.id}
                   id={shape.id}
+                  type={shape.type}
                   x={shape.x}
                   y={shape.y}
                   width={shape.width}
                   height={shape.height}
                   fill={shape.fill}
                   opacity={shape.opacity}
+                  points={shape.points} // For lines
+                  stroke={shape.stroke} // For lines and borders
+                  strokeWidth={shape.strokeWidth} // For lines and borders
+                  text={shape.text} // For text shapes
+                  fontSize={shape.fontSize} // For text shapes
                   isSelected={selectedShapeId === shape.id}
                   isLocked={shape.isLocked}
                   lockedBy={shape.lockedBy}
@@ -597,26 +607,104 @@ const Canvas = () => {
               ))}
 
               {/* Drawing Preview - Only show if not creating shape */}
-              {isDrawing && drawPreview && !isCreatingShape && (
-                <Rect
-                  x={Math.min(drawPreview.startX, drawPreview.currentX)}
-                  y={Math.min(drawPreview.startY, drawPreview.currentY)}
-                  width={Math.abs(drawPreview.currentX - drawPreview.startX)}
-                  height={Math.abs(drawPreview.currentY - drawPreview.startY)}
-                  fill="rgba(59, 130, 246, 0.3)"
-                  stroke="#3b82f6"
-                  strokeWidth={2}
-                  dash={[5, 5]}
-                  // 🚀 PERFORMANCE: Optimize preview rect
-                  perfectDrawEnabled={false}
-                  shadowEnabled={false}
-                  listening={false} // Preview doesn't need events
-                />
-              )}
+              {isDrawing && drawPreview && !isCreatingShape && (() => {
+                const previewProps = {
+                  fill: "rgba(59, 130, 246, 0.3)",
+                  stroke: "#3b82f6",
+                  strokeWidth: 2,
+                  dash: [5, 5],
+                  perfectDrawEnabled: false,
+                  shadowEnabled: false,
+                  listening: false
+                };
+                
+                if (drawPreview.type === 'circle') {
+                  // For circles: start is center, current defines radius
+                  const centerX = drawPreview.startX;
+                  const centerY = drawPreview.startY;
+                  const radius = Math.sqrt(
+                    Math.pow(drawPreview.currentX - drawPreview.startX, 2) +
+                    Math.pow(drawPreview.currentY - drawPreview.startY, 2)
+                  );
+                  return <Circle x={centerX} y={centerY} radius={radius} {...previewProps} />;
+                } else if (drawPreview.type === 'line') {
+                  // For lines: draw straight line from start to current
+                  const linePoints = [
+                    drawPreview.startX,
+                    drawPreview.startY,
+                    drawPreview.currentX,
+                    drawPreview.currentY
+                  ];
+                  return <Line points={linePoints} {...previewProps} fill={undefined} />;
+                } else if (drawPreview.type === 'pen' && drawPreview.points && drawPreview.points.length >= 2) {
+                  // For pen: draw freehand path (need at least 1 point = 2 values)
+                  return <Line points={drawPreview.points} {...previewProps} fill={undefined} tension={0.5} lineCap="round" lineJoin="round" />;
+                }
+                
+                // For rectangles: standard bounding box
+                const previewX = Math.min(drawPreview.startX, drawPreview.currentX);
+                const previewY = Math.min(drawPreview.startY, drawPreview.currentY);
+                const previewWidth = Math.abs(drawPreview.currentX - drawPreview.startX);
+                const previewHeight = Math.abs(drawPreview.currentY - drawPreview.startY);
+                return <Rect x={previewX} y={previewY} width={previewWidth} height={previewHeight} {...previewProps} />;
+              })()}
 
               {/* Other Users' Drawing Previews */}
               {Object.entries(otherUsersPreviews).map(([userId, preview]) => {
-                // Calculate preview rectangle dimensions
+                // Use user's color with transparency
+                const userColor = preview.userColor || '#ef4444'; // Default to red if no color
+                const fillColor = `${userColor}33`; // Add transparency (20%)
+                
+                const collaborativeProps = {
+                  key: `preview-${userId}`,
+                  fill: fillColor,
+                  stroke: userColor,
+                  strokeWidth: 2,
+                  dash: [3, 3],
+                  opacity: 0.8,
+                  perfectDrawEnabled: false,
+                  shadowEnabled: false,
+                  listening: false,
+                  hitStrokeWidth: 0
+                };
+                
+                // Render different preview shapes based on type
+                if (preview.type === 'circle') {
+                  // For circles: start is center, current defines radius
+                  const centerX = preview.startX;
+                  const centerY = preview.startY;
+                  const radius = Math.sqrt(
+                    Math.pow(preview.currentX - preview.startX, 2) +
+                    Math.pow(preview.currentY - preview.startY, 2)
+                  );
+                  
+                  // Only render if radius is meaningful
+                  if (radius < 1) return null;
+                  
+                  return <Circle x={centerX} y={centerY} radius={radius} {...collaborativeProps} />;
+                } else if (preview.type === 'line') {
+                  // For lines: draw straight line
+                  const linePoints = [
+                    preview.startX,
+                    preview.startY,
+                    preview.currentX,
+                    preview.currentY
+                  ];
+                  const distance = Math.sqrt(
+                    Math.pow(preview.currentX - preview.startX, 2) +
+                    Math.pow(preview.currentY - preview.startY, 2)
+                  );
+                  
+                  // Only render if line has meaningful length
+                  if (distance < 1) return null;
+                  
+                  return <Line points={linePoints} {...collaborativeProps} fill={undefined} />;
+                } else if (preview.type === 'pen' && preview.points && preview.points.length >= 2) {
+                  // For pen: draw freehand path (need at least 1 point = 2 values)
+                  return <Line points={preview.points} {...collaborativeProps} fill={undefined} tension={0.5} lineCap="round" lineJoin="round" />;
+                }
+                
+                // For rectangles: standard bounding box
                 const x = Math.min(preview.startX, preview.currentX);
                 const y = Math.min(preview.startY, preview.currentY);
                 const width = Math.abs(preview.currentX - preview.startX);
@@ -625,29 +713,7 @@ const Canvas = () => {
                 // Only render if the preview has meaningful dimensions
                 if (width < 1 || height < 1) return null;
                 
-                // Use user's color with transparency
-                const userColor = preview.userColor || '#ef4444'; // Default to red if no color
-                const fillColor = `${userColor}33`; // Add transparency (20%)
-                
-                return (
-                  <Rect
-                    key={`preview-${userId}`}
-                    x={x}
-                    y={y}
-                    width={width}
-                    height={height}
-                    fill={fillColor}
-                    stroke={userColor}
-                    strokeWidth={2}
-                    dash={[3, 3]} // Different dash pattern to distinguish from current user
-                    opacity={0.8}
-                    // 🚀 PERFORMANCE: Optimize collaborative preview rects
-                    perfectDrawEnabled={false}
-                    shadowEnabled={false}
-                    listening={false} // Previews don't need events
-                    hitStrokeWidth={0} // Disable hit detection
-                  />
-                );
+                return <Rect x={x} y={y} width={width} height={height} {...collaborativeProps} />;
               })}
 
               {/* Other Users' Drag Previews */}
@@ -656,27 +722,44 @@ const Canvas = () => {
                 const userColor = dragPreview.userColor || '#ef4444'; // Default to red if no color
                 const fillColor = `${userColor}44`; // Add transparency (27%)
                 
+                const dragProps = {
+                  key: `drag-preview-${userId}-${dragPreview.shapeId}`,
+                  fill: fillColor,
+                  stroke: userColor,
+                  strokeWidth: 3,
+                  dash: [8, 4],
+                  opacity: 0.9,
+                  shadowColor: userColor,
+                  shadowBlur: 8,
+                  shadowOpacity: 0.3,
+                  perfectDrawEnabled: false,
+                  listening: false,
+                  hitStrokeWidth: 0,
+                  shadowForStrokeEnabled: false
+                };
+                
+                // Render based on shape type
+                if (dragPreview.type === 'circle') {
+                  const centerX = dragPreview.x + dragPreview.width / 2;
+                  const centerY = dragPreview.y + dragPreview.height / 2;
+                  const radius = Math.min(dragPreview.width, dragPreview.height) / 2;
+                  return <Circle x={centerX} y={centerY} radius={radius} {...dragProps} />;
+                } else if (dragPreview.type === 'line' && dragPreview.points && dragPreview.points.length === 4) {
+                  // For line drag preview, render with translated points
+                  return <Line x={0} y={0} points={dragPreview.points} {...dragProps} fill={undefined} />;
+                } else if (dragPreview.type === 'pen' && dragPreview.points && dragPreview.points.length >= 4) {
+                  // For pen drag preview, render with translated points
+                  return <Line x={0} y={0} points={dragPreview.points} {...dragProps} fill={undefined} tension={0.5} lineCap="round" lineJoin="round" />;
+                }
+                
+                // Default to rectangle
                 return (
                   <Rect
-                    key={`drag-preview-${userId}-${dragPreview.shapeId}`}
                     x={dragPreview.x}
                     y={dragPreview.y}
                     width={dragPreview.width}
                     height={dragPreview.height}
-                    fill={fillColor}
-                    stroke={userColor}
-                    strokeWidth={3} // Thicker stroke to indicate active dragging
-                    dash={[8, 4]} // Different dash pattern for drag previews
-                    opacity={0.9}
-                    // Add subtle glow effect for dragging
-                    shadowColor={userColor}
-                    shadowBlur={8}
-                    shadowOpacity={0.3}
-                    // 🚀 PERFORMANCE: Optimize drag preview rects
-                    perfectDrawEnabled={false}
-                    listening={false} // Drag previews don't need events
-                    hitStrokeWidth={0} // Disable hit detection
-                    shadowForStrokeEnabled={false} // Optimize shadow rendering
+                    {...dragProps}
                   />
                 );
               })}
