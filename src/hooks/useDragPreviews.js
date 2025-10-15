@@ -8,7 +8,6 @@ import {
   setupDragPreviewCleanup 
 } from '../services/dragPreviews';
 import { 
-  generateUserColor, 
   getCurrentUserColor, 
   generateDisplayNameFromEmail,
   throttle
@@ -129,10 +128,7 @@ export const useDragPreviews = () => {
   
   return {
     otherUsersDragPreviews,
-    isActive,
     updatePreview,
-    clearPreview,
-    currentUserColor: getUserColor(),
-    currentUserDisplayName: getUserDisplayName()
+    clearPreview
   };
 };

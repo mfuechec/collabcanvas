@@ -1,7 +1,7 @@
 // Integration tests for cursor functionality
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { render, screen, fireEvent, waitFor } from '@testing-library/react';
-import Canvas from '../../../src/components/Canvas/Canvas';
+import Canvas from '../../src/components/Canvas/Canvas';
 
 // Mock Firebase services
 const mockRtdb = {};
@@ -13,7 +13,7 @@ const mockAuth = {
   }
 };
 
-vi.mock('../../../src/services/firebase', () => ({
+vi.mock('../../src/services/firebase', () => ({
   rtdb: mockRtdb,
   auth: mockAuth,
   db: {},
@@ -53,7 +53,7 @@ vi.mock('firebase/firestore', () => ({
 }));
 
 // Mock useAuth hook
-vi.mock('../../../src/hooks/useAuth', () => ({
+vi.mock('../../src/hooks/useAuth', () => ({
   useAuth: () => ({
     currentUser: mockAuth.currentUser,
     loading: false,
@@ -62,7 +62,7 @@ vi.mock('../../../src/hooks/useAuth', () => ({
 }));
 
 // Mock useFirebaseCanvas hook
-vi.mock('../../../src/hooks/useFirebaseCanvas', () => ({
+vi.mock('../../src/hooks/useFirebaseCanvas', () => ({
   useFirebaseCanvas: () => ({
     shapes: [],
     isLoading: false,

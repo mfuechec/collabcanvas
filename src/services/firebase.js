@@ -63,4 +63,3 @@ try {
 }
 
 export { auth, db, rtdb };
-export default app;

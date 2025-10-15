@@ -69,16 +69,15 @@ export const subscribeToCursors = (callback) => {
       const otherUsersCursors = {};
       Object.keys(allCursors).forEach(userId => {
         const cursorData = allCursors[userId];
-        // Debug each condition step by step
+        // Filter conditions
         const notCurrentUser = userId !== currentUserId;
         const hasData = !!cursorData;
-        const hasDisplayName = cursorData && !!cursorData.displayName;
+        const isOnline = cursorData && cursorData.isOnline === true;
         const hasValidX = cursorData && typeof cursorData.cursorX === 'number' && cursorData.cursorX >= 0;
         const hasValidY = cursorData && typeof cursorData.cursorY === 'number' && cursorData.cursorY >= 0;
         
-        // Include cursors that have data, even if display name is missing (we'll get it from presence)
-        const shouldInclude = notCurrentUser && hasData;
-        
+        // Include cursors that are online and have valid positions
+        const shouldInclude = notCurrentUser && hasData && isOnline && hasValidX && hasValidY;
         
         if (shouldInclude) {
           otherUsersCursors[userId] = cursorData;
@@ -112,7 +111,13 @@ export const setupCursorCleanup = async (displayName, cursorColor) => {
     const userId = getCurrentUserId();
     const userCursorRef = ref(rtdb, `${SESSIONS_PATH}/${CANVAS_SESSION_ID}/${userId}`);
     
-    await onDisconnect(userCursorRef).remove();
+    // Mark user as offline on disconnect (don't remove, to coordinate with presence service)
+    await onDisconnect(userCursorRef).update({
+      isOnline: false,
+      lastSeen: serverTimestamp(),
+      cursorX: -1,  // Hide cursor by moving off-canvas
+      cursorY: -1
+    });
     
     const cursorData = {
       displayName: displayName || 'Anonymous',

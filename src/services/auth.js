@@ -149,41 +149,9 @@ export const signOutUser = async () => {
   }
 };
 
-// Update user profile display name
-export const updateUserProfile = async (displayName) => {
-  try {
-    if (!auth.currentUser) {
-      throw new Error('No user logged in');
-    }
-    
-    if (!displayName || displayName.trim() === '') {
-      throw new Error('Display name cannot be empty.');
-    }
-    
-    const truncatedName = truncateDisplayName(displayName.trim());
-    await updateProfile(auth.currentUser, {
-      displayName: truncatedName
-    });
-    
-    return truncatedName;
-  } catch (error) {
-    handleAuthError(error, 'profile update');
-  }
-};
-
 // Get user display name (with fallback logic)
 export const getUserDisplayName = (user) => {
   if (!user) return '';
   
   return user.displayName || getDisplayNameFromEmail(user.email);
-};
-
-// Check if current user is authenticated
-export const isAuthenticated = () => {
-  return !!auth.currentUser;
-};
-
-// Get current user
-export const getCurrentUser = () => {
-  return auth.currentUser;
 };

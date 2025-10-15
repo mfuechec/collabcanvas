@@ -188,9 +188,6 @@ export const useCursors = (stageRef, isDrawing = false) => {
   });
   
   return {
-    cursors,  // Return raw cursors object for Canvas.jsx (Object.entries)
-    isActive,
-    currentUserColor: getUserColor(),
-    currentUserDisplayName: getUserDisplayName()
+    cursors  // Return raw cursors object for Canvas.jsx (Object.entries)
   };
 };

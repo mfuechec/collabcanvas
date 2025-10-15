@@ -256,6 +256,3 @@ export const useCanvas = () => {
   
   return context;
 };
-
-// Export context for testing
-export { CanvasContext };

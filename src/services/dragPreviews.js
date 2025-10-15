@@ -173,11 +173,3 @@ export const setupDragPreviewCleanup = async (displayName, userColor) => {
   }
 };
 
-/**
- * Get current user's drag preview ID for filtering
- * @returns {string}
- */
-export const getCurrentDragUserId = getCurrentUserId;
-
-// Export session constants for testing
-export { DRAG_PREVIEWS_PATH, CANVAS_SESSION_ID };

@@ -3,15 +3,11 @@ import { useState, useEffect, useRef, useCallback } from 'react';
 import { useAuth } from './useAuth';
 import { 
   setUserOnline, 
-  setUserOffline, 
   subscribeToPresence, 
-  removeUserPresence,
-  updateLastSeen,
   sendPresenceHeartbeat,
   updateUserActivity
 } from '../services/presence';
 import { 
-  generateUserColor, 
   getCurrentUserColor, 
   generateDisplayNameFromEmail
 } from '../utils/helpers';
@@ -24,7 +20,6 @@ export const usePresence = () => {
   const { currentUser } = useAuth();
   const [onlineUsers, setOnlineUsers] = useState([]);
   const [isOnline, setIsOnline] = useState(false);
-  const [lastActivity, setLastActivity] = useState(Date.now());
   
   const unsubscribeRef = useRef(null);
   const heartbeatIntervalRef = useRef(null);
@@ -48,8 +43,6 @@ export const usePresence = () => {
   
   // Track user activity
   const markActivity = useCallback(() => {
-    setLastActivity(Date.now());
-    
     // Clear existing timeout
     if (activityTimeoutRef.current) {
       clearTimeout(activityTimeoutRef.current);
@@ -197,20 +190,11 @@ export const usePresence = () => {
     };
   }, []);
   
-  // Get current user info
-  const currentUserInfo = onlineUsers.find(user => user.isCurrentUser) || null;
-  const otherUsers = onlineUsers.filter(user => !user.isCurrentUser);
+  // Get total user count
   const totalUsers = onlineUsers.length;
   
   return {
     onlineUsers,
-    currentUserInfo,
-    otherUsers,
-    totalUsers,
-    isOnline,
-    lastActivity,
-    currentUserDisplayName: getUserDisplayName(),
-    currentUserColor: getUserColor(),
-    markActivity // Expose for manual activity updates
+    totalUsers
   };
 };

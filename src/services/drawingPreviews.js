@@ -126,11 +126,3 @@ export const setupDrawingPreviewCleanup = async (displayName, userColor) => {
   }
 };
 
-/**
- * Get current user's preview ID for filtering
- * @returns {string}
- */
-export const getCurrentDrawingUserId = getCurrentUserId;
-
-// Export session constants for testing
-export { PREVIEWS_PATH, CANVAS_SESSION_ID };

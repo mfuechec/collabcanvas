@@ -573,9 +573,5 @@ export {
   clearDisconnectCleanup,
   monitorDisconnectCleanup,
   processDisconnectCleanup,
-  initializeCanvasDocument,
-  enableOfflinePersistence,
-  disableOfflinePersistence,
-  getUserId,
-  CANVAS_DOC_ID
+  getUserId
 };

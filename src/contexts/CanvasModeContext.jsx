@@ -12,7 +12,7 @@ export const useCanvasMode = () => {
   return context;
 };
 
-export const CANVAS_MODES = {
+const CANVAS_MODES = {
   MOVE: 'move',
   DRAW: 'draw'
 };

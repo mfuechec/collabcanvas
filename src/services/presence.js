@@ -228,11 +228,3 @@ export const removeUserPresence = async () => {
   }
 };
 
-/**
- * Get current user's presence ID for filtering
- * @returns {string}
- */
-export const getCurrentPresenceUserId = getCurrentUserId;
-
-// Export session constants for testing
-export { SESSIONS_PATH, CANVAS_SESSION_ID };

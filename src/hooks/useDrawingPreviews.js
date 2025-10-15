@@ -8,7 +8,6 @@ import {
   setupDrawingPreviewCleanup 
 } from '../services/drawingPreviews';
 import { 
-  generateUserColor, 
   getCurrentUserColor, 
   generateDisplayNameFromEmail,
   throttle
@@ -120,10 +119,7 @@ export const useDrawingPreviews = () => {
   
   return {
     otherUsersPreviews,
-    isActive,
     updatePreview,
-    clearPreview,
-    currentUserColor: getUserColor(),
-    currentUserDisplayName: getUserDisplayName()
+    clearPreview
   };
 };

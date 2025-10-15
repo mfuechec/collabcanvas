@@ -236,28 +236,6 @@ export const useFirebaseCanvas = (canvasId = 'global-canvas-v1') => {
     }
   }, [canvasId, currentUserId, updateShapeOptimistically]);
 
-  // Emergency unlock for page unload scenarios
-  const emergencyUnlock = useCallback(async (shapeId, originalPosition = null) => {
-    try {
-      // Clear any existing timeout first
-      clearLockTimeout(shapeId);
-      
-      // If original position provided, revert first
-      if (originalPosition) {
-        await updateShapeService(shapeId, {
-          x: originalPosition.x,
-          y: originalPosition.y
-        }, canvasId);
-      }
-      
-      // Then unlock
-      await unlockShapeService(shapeId, canvasId);
-      return true;
-    } catch (err) {
-      throw err;
-    }
-  }, [canvasId]);
-
   // Clear timeout for a shape (to prevent auto-unlock during active operations)
   const clearLockTimeout = useCallback((shapeId) => {
     const timeoutId = lockTimeoutsRef.current.get(shapeId);
@@ -266,24 +244,6 @@ export const useFirebaseCanvas = (canvasId = 'global-canvas-v1') => {
       lockTimeoutsRef.current.delete(shapeId);
     }
   }, []);
-
-  // Reset timeout for a shape (useful during drag operations to extend the lock)
-  const resetLockTimeout = useCallback(async (shapeId, timeoutMs = 5000) => {
-    // Clear existing timeout
-    clearLockTimeout(shapeId);
-    
-    // Set new timeout
-    const timeoutId = setTimeout(async () => {
-      try {
-        await unlockShapeService(shapeId, canvasId);
-      } catch (err) {
-        // Silent reset timeout errors
-      }
-      lockTimeoutsRef.current.delete(shapeId);
-    }, timeoutMs);
-    
-    lockTimeoutsRef.current.set(shapeId, timeoutId);
-  }, [canvasId, clearLockTimeout]);
 
   // Unlock a shape
   const unlockShape = useCallback(async (shapeId) => {
@@ -375,9 +335,7 @@ export const useFirebaseCanvas = (canvasId = 'global-canvas-v1') => {
     // Locking operations
     lockShape,
     unlockShape,
-    emergencyUnlock,
     clearLockTimeout,
-    resetLockTimeout,
     isShapeLockedByCurrentUser,
     isShapeLockedByOther,
     
