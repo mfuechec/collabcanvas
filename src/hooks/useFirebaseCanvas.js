@@ -63,6 +63,16 @@ export const useFirebaseCanvas = (canvasId = 'global-canvas-v1') => {
           setError(data.error);
           setIsConnected(false);
         } else {
+          // Log lock states to debug disappearing locks
+          const lockedShapes = (data.shapes || []).filter(s => s.isLocked);
+          if (lockedShapes.length > 0) {
+            console.log('📥 [FIRESTORE-SUB] Received lock states:', lockedShapes.map(s => ({
+              id: s.id,
+              isLocked: s.isLocked,
+              lockedBy: s.lockedBy
+            })));
+          }
+          
           setShapes(data.shapes || []);
           setError(null);
           setIsConnected(true);

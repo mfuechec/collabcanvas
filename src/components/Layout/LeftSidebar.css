@@ -1,0 +1,18 @@
+.tool-button:hover:not(:disabled) {
+  background-color: var(--hover-bg) !important;
+}
+
+.tool-button:disabled {
+  cursor: not-allowed !important;
+}
+
+/* Light theme */
+:root {
+  --hover-bg: #E5E5E5;
+}
+
+/* Dark theme */
+[data-theme="dark"] {
+  --hover-bg: #3C3C3C;
+}
+

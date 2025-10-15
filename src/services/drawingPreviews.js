@@ -123,6 +123,7 @@ export const setupDrawingPreviewCleanup = async (displayName, userColor) => {
     await onDisconnect(userPreviewRef).remove();
   } catch (error) {
     console.error('❌ [DRAWING-PREVIEWS] Error setting up preview cleanup:', error);
+    throw error; // Re-throw so the hook knows it failed
   }
 };
 

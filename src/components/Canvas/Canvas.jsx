@@ -81,8 +81,8 @@ const Canvas = () => {
   const lastPointerPosition = useRef(null);
   const [stageSize, setStageSize] = useState({ width: 0, height: 0 });
 
-  // Theme-based canvas colors with better differentiation
-  const canvasBackgroundColor = isDark ? '#ffffff' : '#ffffff'; // Canvas is always white
+  // Theme-based canvas colors - Figma-style redesign
+  const canvasBackgroundColor = isDark ? '#1E1E1E' : '#FFFFFF'; // Pure white in light, dark in dark mode
   const canvasBorderColor = isDark ? '#60a5fa' : '#3b82f6'; // Blue border for visibility
   const canvasShadow = isDark ? 'rgba(96, 165, 250, 0.3)' : 'rgba(59, 130, 246, 0.2)'; // Subtle glow
 
@@ -236,10 +236,13 @@ const Canvas = () => {
     if (currentMode === CANVAS_MODES.DRAW && !isDrawing) {
       const screenPos = e.target.getStage().getPointerPosition();
       const canvasPos = screenToCanvasCoords(screenPos);
+      // Constrain to canvas boundaries
+      const constrainedPos = {
+        x: Math.max(0, Math.min(CANVAS_WIDTH, canvasPos.x)),
+        y: Math.max(0, Math.min(CANVAS_HEIGHT, canvasPos.y))
+      };
       
-      console.log('🎯 Mouse down - Screen pos:', screenPos, 'Canvas pos:', canvasPos);
-      
-      startDrawing(canvasPos);
+      startDrawing(constrainedPos);
       e.cancelBubble = true;
     } else if (currentMode === CANVAS_MODES.MOVE) {
       const clickedOnEmpty = e.target === e.target.getStage() || e.target.attrs.id === 'canvas-background';
@@ -261,8 +264,12 @@ const Canvas = () => {
     if (currentMode === CANVAS_MODES.DRAW && isDrawing) {
       const screenPos = e.target.getStage().getPointerPosition();
       const pos = screenToCanvasCoords(screenPos);
-      console.log('🎯 Mouse move - Screen pos:', screenPos, 'Canvas pos:', pos);
-      updateDrawing(pos);
+      // Constrain to canvas boundaries
+      const constrainedPos = {
+        x: Math.max(0, Math.min(CANVAS_WIDTH, pos.x)),
+        y: Math.max(0, Math.min(CANVAS_HEIGHT, pos.y))
+      };
+      updateDrawing(constrainedPos);
     } else if (currentMode === CANVAS_MODES.MOVE && isDraggingCanvas.current) {
       // 🚀 PERFORMANCE: Optimized canvas panning - keep in Konva, avoid React updates
       const currentPos = stage.getPointerPosition();
@@ -335,7 +342,8 @@ const Canvas = () => {
     }
   }, [currentMode, CANVAS_MODES.DRAW, isDrawing, finishDrawing, addShape, cancelDrawing, resetCreationFlag]);
 
-  // Enhanced keyboard shortcuts
+  // Canvas-specific keyboard shortcuts (drawing cancellation)
+  // Note: Most shortcuts are now handled globally by useKeyboardShortcuts in App.jsx
   useEffect(() => {
     const handleKeyDown = (e) => {
       // Prevent shortcuts when typing in input fields
@@ -343,62 +351,17 @@ const Canvas = () => {
         return;
       }
 
-      switch (e.key) {
-        case 'Escape':
-          if (isDrawing) {
-            cancelDrawing();
-          } else if (selectedShapeId) {
-            deselectAll();
-          }
-          break;
-          
-        case 'Delete':
-        case 'Backspace':
-          if (selectedShapeId) {
-            e.preventDefault();
-            deleteShape(selectedShapeId);
-          }
-          break;
-          
-        case 'd':
-        case 'D':
-          if (!e.ctrlKey && !e.metaKey) {
-            e.preventDefault();
-            setMode(CANVAS_MODES.DRAW);
-          }
-          break;
-          
-        case 'v':
-        case 'V':
-          if (!e.ctrlKey && !e.metaKey) {
-            e.preventDefault();
-            setMode(CANVAS_MODES.MOVE);
-          }
-          break;
-          
-        case 'r':
-        case 'R':
-          if (!e.ctrlKey && !e.metaKey) {
-            e.preventDefault();
-            resetView();
-          }
-          break;
-          
-        case '0':
-          if (e.ctrlKey || e.metaKey) {
-            e.preventDefault();
-            resetView();
-          }
-          break;
-          
-        default:
-          break;
+      // Only handle Escape for canceling active drawing
+      // (other Escape behavior is handled by global shortcuts)
+      if (e.key === 'Escape' && isDrawing) {
+        e.preventDefault();
+        cancelDrawing();
       }
     };
 
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [isDrawing, cancelDrawing, selectedShapeId, deleteShape, deselectAll, setMode, CANVAS_MODES, resetView]);
+  }, [isDrawing, cancelDrawing]);
 
   // Handle container resize
   useEffect(() => {
@@ -617,6 +580,7 @@ const Canvas = () => {
                   width={shape.width}
                   height={shape.height}
                   fill={shape.fill}
+                  opacity={shape.opacity}
                   isSelected={selectedShapeId === shape.id}
                   isLocked={shape.isLocked}
                   lockedBy={shape.lockedBy}

@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import './App.css'
 import { AuthProvider } from './contexts/AuthContext'
 import { CanvasProvider } from './contexts/CanvasContext'
@@ -7,35 +7,121 @@ import { CanvasModeProvider } from './contexts/CanvasModeContext'
 import { ErrorProvider } from './contexts/ErrorContext'
 import { useAuth } from './hooks/useAuth'
 import { useError } from './contexts/ErrorContext'
+import { useCanvasMode } from './contexts/CanvasModeContext'
+import { useCanvas } from './hooks/useCanvas'
+import useKeyboardShortcuts from './hooks/useKeyboardShortcuts'
 import Login from './components/Auth/Login'
 import Signup from './components/Auth/Signup'
-import Navbar from './components/Layout/Navbar'
+import LeftSidebar from './components/Layout/LeftSidebar'
+import FloatingUserMenu from './components/Layout/FloatingUserMenu'
+import PropertiesPanel from './components/Layout/PropertiesPanel'
+import LayersPanel from './components/Layout/LayersPanel'
 import Canvas from './components/Canvas/Canvas'
 import CanvasInfo from './components/Canvas/CanvasInfo'
-import CanvasToolbar from './components/Canvas/CanvasToolbar'
 import ErrorBoundary from './components/Error/ErrorBoundary'
 import ErrorToast from './components/Error/ErrorToast'
 
 // Import clear canvas utilities (makes them available in console)
 import './utils/clearCanvas'
 
-// Main app content (authenticated view)
+// Inner component with access to all contexts
+const AppLayout = ({ showProperties, setShowProperties, showLayers, setShowLayers }) => {
+  const { setMode, CANVAS_MODES } = useCanvasMode();
+  const { deleteShape, selectedShapeId, deselectAll, resetView } = useCanvas();
+  
+  // Global keyboard shortcuts
+  useKeyboardShortcuts({
+    // Tool switching
+    onHandTool: () => setMode(CANVAS_MODES.MOVE),
+    onRectangleTool: () => setMode(CANVAS_MODES.DRAW),
+    onCircleTool: () => console.log('Circle tool - coming soon'),
+    onLineTool: () => console.log('Line tool - coming soon'),
+    onPenTool: () => console.log('Pen tool - coming soon'),
+    onTextTool: () => console.log('Text tool - coming soon'),
+    
+    // Actions
+    onDelete: () => {
+      if (selectedShapeId) {
+        deleteShape(selectedShapeId);
+        deselectAll();
+      }
+    },
+    onDuplicate: () => console.log('Duplicate - coming soon'),
+    onUndo: () => console.log('Undo - coming soon'),
+    onRedo: () => console.log('Redo - coming soon'),
+    onSelectAll: () => console.log('Select all - coming soon'),
+    onEscape: () => deselectAll(),
+    
+    // Zoom
+    onZoomIn: () => console.log('Zoom in - coming soon'),
+    onZoomOut: () => console.log('Zoom out - coming soon'),
+    onZoomReset: () => resetView(), // Cmd+0 to reset view
+    onZoomFit: () => console.log('Zoom fit - coming soon'),
+    onZoomSelection: () => console.log('Zoom selection - coming soon'),
+    
+    // Panels
+    onToggleProperties: () => setShowProperties(prev => !prev),
+    onToggleLayers: () => setShowLayers(prev => !prev),
+    onCommandPalette: () => console.log('Command palette - coming soon'),
+  });
+  
+  // Calculate canvas margin based on open panels
+  const leftMargin = 60 + (showLayers ? 320 : 0);
+  const rightMargin = showProperties ? 280 : 0;
+  
+  return (
+    <div className="h-screen flex overflow-hidden" style={{ position: 'relative' }}>
+      {/* Left Sidebar - Fixed 60px */}
+      <LeftSidebar 
+        onToggleLayers={() => setShowLayers(!showLayers)}
+        layersOpen={showLayers}
+      />
+      
+      {/* Layers Panel - Collapsible */}
+      <LayersPanel isOpen={showLayers} onToggle={() => setShowLayers(!showLayers)} />
+      
+      {/* Main Canvas Area - Takes remaining space */}
+      <div 
+        className="canvas-container" 
+        style={{ 
+          marginLeft: `${leftMargin}px`, 
+          marginRight: `${rightMargin}px`,
+          width: `calc(100% - ${leftMargin + rightMargin}px)`, 
+          height: '100vh',
+          position: 'relative',
+          transition: 'margin 200ms ease, width 200ms ease',
+        }}
+      >
+        <Canvas />
+        
+        {/* Floating overlay panels */}
+        <CanvasInfo />
+        <FloatingUserMenu />
+      </div>
+      
+      {/* Properties Panel - Collapsible */}
+      <PropertiesPanel isOpen={showProperties} onToggle={() => setShowProperties(!showProperties)} />
+    </div>
+  );
+};
+
+// Main app content (authenticated view) - Figma-style layout
 const AuthenticatedApp = () => {
+  const [showProperties, setShowProperties] = useState(true);
+  const [showLayers, setShowLayers] = useState(false);
+  
   return (
     <CanvasModeProvider>
       <CanvasProvider>
-        <div className="h-screen flex flex-col overflow-hidden">
-          <Navbar />
-          <div className="canvas-container">
-            <Canvas />
-            {/* Floating overlay panels */}
-            <CanvasInfo />
-            <CanvasToolbar />
-          </div>
-        </div>
+        <AppLayout 
+          showProperties={showProperties}
+          setShowProperties={setShowProperties}
+          showLayers={showLayers}
+          setShowLayers={setShowLayers}
+        />
       </CanvasProvider>
     </CanvasModeProvider>
-  )
+  );
 }
 
 // Unauthenticated app content (login/signup views)

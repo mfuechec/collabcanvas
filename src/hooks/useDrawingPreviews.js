@@ -99,16 +99,17 @@ export const useDrawingPreviews = () => {
         })
         .catch((error) => {
           console.error('❌ [DRAWING-PREVIEWS-HOOK] Failed to setup preview cleanup:', error);
+          setIsActive(false);
         });
     } else {
-      if (prevUser && isActive) {
+      if (prevUser) {
         removeDrawingPreview(prevUser.uid);
       }
       setIsActive(false);
     }
     
     prevUserRef.current = currentUser;
-  }, [currentUser, getUserDisplayName, getUserColor, isActive]);
+  }, [currentUser, getUserDisplayName, getUserColor]);
   
   // Cleanup effect for unmounting
   useEffect(() => {
@@ -119,6 +120,7 @@ export const useDrawingPreviews = () => {
   
   return {
     otherUsersPreviews,
+    isActive,
     updatePreview,
     clearPreview
   };

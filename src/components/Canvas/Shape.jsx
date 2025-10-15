@@ -9,7 +9,8 @@ const Shape = ({
   y, 
   width, 
   height, 
-  fill, 
+  fill,
+  opacity = 1.0, // Default to full opacity if not provided
   isSelected, 
   isLocked, 
   lockedBy,
@@ -29,9 +30,7 @@ const Shape = ({
     constrainToBounds,
     lockShape,
     unlockShape,
-    emergencyUnlock,
     clearLockTimeout,
-    resetLockTimeout,
     isShapeLockedByCurrentUser,
     isShapeLockedByOther,
     getCurrentUserId,
@@ -42,17 +41,8 @@ const Shape = ({
   const { currentMode, CANVAS_MODES } = useCanvasMode();
   // 🚀 PERFORMANCE: Removed useDragPreviews - no more real-time drag updates
 
-  // Track if we've already locked this shape during current drag session
-  const lockAttemptedRef = useRef(false);
-  const lockPromiseRef = useRef(null); // Track the lock promise
-  const dragCompletedRef = useRef(false); // Track if drag has completed to prevent timeout re-locking
-  
-  // Track if shape is currently being dragged (including drag and hold)
+  // Track if shape is currently being dragged
   const isDraggingRef = useRef(false);
-  
-  // Race condition prevention: cancellation token and pending unlock state
-  const lockCancelTokenRef = useRef(null);
-  const pendingUnlockRef = useRef(false);
   
   // Store original position for potential revert on page unload
   const originalPositionRef = useRef({ x, y });
@@ -104,75 +94,46 @@ const Shape = ({
       return;
     }
     
-    // Select the shape
+    // Select the shape (this will lock it if not already locked)
     selectShape(id);
     
-    // Reset lock attempt flag for new drag session
-    lockAttemptedRef.current = false;
-    lockPromiseRef.current = null; // Clear any previous lock promise
-    dragCompletedRef.current = false; // Reset drag completion flag
+    // Ensure shape is locked for dragging (in case drag started without click)
+    if (!shapeStateFlags.isLockedByCurrentUser) {
+      lockShape(id, 300000).catch(() => {
+        // Silent error - will still allow drag
+      });
+    }
     
-    // Reset race condition prevention states
-    lockCancelTokenRef.current = null;
-    pendingUnlockRef.current = false;
-    
-    // Mark as actively dragging (including drag and hold)
+    // Mark as actively dragging
     isDraggingRef.current = true;
     
     // Store original position for potential revert
     originalPositionRef.current = { x, y };
     
-    // Clear any existing timeouts (from click or previous operations) to prevent conflicts
-    clearLockTimeout(id);
-    
     // 🚀 COLLABORATIVE: Start broadcasting drag preview to other users
     if (updateDragPreview && getCurrentUserId()) {
       console.log('📡 [COLLAB] Starting drag preview broadcast for shape:', id);
       
+      // Get the Konva shape node
+      const shapeNode = e.target;
+      
       // Send initial drag start position to other users
       updateDragPreview(id, {
         userId: getCurrentUserId(),
-        x: shape.x(),
-        y: shape.y(),
+        x: shapeNode.x(),
+        y: shapeNode.y(),
         width,
         height,
         fill,
         isDragging: true
       });
     }
-    
   };
 
   // Handle shape drag move with boundary constraints
   const handleDragMove = (e) => {
     const shape = e.target;
     const newPos = shape.position();
-    
-    // Lock the shape on first move (after drag is confirmed to be working)
-    // Only lock if: 1) shape is unlocked, 2) we haven't attempted to lock yet, 3) not already locked by current user, 4) not pending unlock
-    if (!liveShape.isLocked && !lockAttemptedRef.current && !shapeStateFlags.isLockedByCurrentUser && !pendingUnlockRef.current) {
-      lockAttemptedRef.current = true; // Prevent multiple lock attempts
-      
-      // Create cancellation token for this lock operation
-      const cancelToken = { cancelled: false };
-      lockCancelTokenRef.current = cancelToken;
-      
-      // Pass a callback to check if still dragging AND drag hasn't completed AND not cancelled
-      const isDraggingCallback = () => isDraggingRef.current && !dragCompletedRef.current && !cancelToken.cancelled;
-      const originalPos = originalPositionRef.current;
-      
-      // Use a very long timeout for drag operations - we'll unlock manually before it fires
-      const lockPromise = lockShape(id, 300000, isDraggingCallback, originalPos, cancelToken); // 5 minutes
-      lockPromiseRef.current = lockPromise; // Store the promise
-      
-      lockPromise.then(() => {
-        // Silent success
-      }).catch(() => {
-        lockAttemptedRef.current = false; // Reset flag on failure so we can try again
-      });
-    } else if (liveShape.isLocked && liveShape.lockedBy && liveShape.lockedBy !== getCurrentUserId()) {
-      // This shouldn't happen due to handleDragStart check, but handle silently
-    }
     
     // Constrain shape to canvas boundaries
     const constrainedPos = constrainToBounds(
@@ -229,15 +190,6 @@ const Shape = ({
     
     // 🚀 CRITICAL: Clear dragging state FIRST
     isDraggingRef.current = false;
-    dragCompletedRef.current = true;
-    
-    // Set pending unlock state to prevent race conditions
-    pendingUnlockRef.current = true;
-    
-    // Cancel any pending lock operations
-    if (lockCancelTokenRef.current) {
-      lockCancelTokenRef.current.cancelled = true;
-    }
     
     // Ensure final position is within bounds
     const constrainedPos = constrainToBounds(
@@ -260,54 +212,19 @@ const Shape = ({
     
     // 🚀 PERFORMANCE: No more clearPreview() call - we removed drag previews
     
-    // Update position and unlock shape (drag is complete)
+    // Update position (keep lock since shape is still selected)
     Promise.resolve().then(async () => {
       try {
-        // Wait for any pending lock operation to complete first
-        if (lockPromiseRef.current) {
-          try {
-            await lockPromiseRef.current;
-          } catch (lockError) {
-            // Silent lock error
-          }
-          lockPromiseRef.current = null;
-        }
-        
         // Update position
         await updateShape(id, {
           x: constrainedPos.x,
           y: constrainedPos.y
         });
         
-        // Clear any pending timeout to prevent race condition
-        clearLockTimeout(id);
-        
-        // Unlock the shape immediately after drag ends
-        await unlockShape(id);
-        
-        // NEW: Clear drag preview immediately after unlock to prevent persistence
-        if (isDragPreviewActive) {
-          clearPreview();
-        }
-        
-        // Clear pending unlock state after successful unlock
-        pendingUnlockRef.current = false;
+        // Keep shape locked - it's still selected!
+        // Lock will expire after 5 minutes or when shape is deselected
       } catch (error) {
-        // On error, unlock immediately to prevent permanent locks
-        try {
-          await unlockShape(id);
-          
-          // NEW: Clear drag preview on error to prevent persistence  
-          if (isDragPreviewActive) {
-            clearPreview();
-          }
-          
-          // Clear pending unlock state after error unlock
-          pendingUnlockRef.current = false;
-        } catch (unlockError) {
-          // Clear pending unlock state even if unlock fails
-          pendingUnlockRef.current = false;
-        }
+        console.error('Failed to update shape position:', error);
       }
     });
   };
@@ -334,32 +251,21 @@ const Shape = ({
 
   // 🚀 PERFORMANCE: Stable visual styling with minimal dependencies  
   const visualStyles = useMemo(() => {
-    const isPendingUnlock = pendingUnlockRef.current;
-    
     return {
-      stroke: isPendingUnlock 
-        ? (isSelected ? '#3b82f6' : 'transparent')
-        : shapeStateFlags.isLockedByOther 
-          ? '#ef4444' 
-          : isSelected ? '#3b82f6' : 'transparent',
+      stroke: shapeStateFlags.isLockedByOther 
+        ? '#ef4444' 
+        : isSelected ? '#3b82f6' : 'transparent',
       
-      strokeWidth: isPendingUnlock 
-        ? (isSelected ? 2 : 0)
-        : (shapeStateFlags.shouldShowStroke ? 2 : 0),
+      strokeWidth: shapeStateFlags.shouldShowStroke ? 2 : 0,
       
-      opacity: isPendingUnlock 
-        ? 1.0 
-        : (shapeStateFlags.shouldShowOpacity ? 0.6 : 1.0),
+      // Use the shape's actual opacity, but reduce it further if locked by another user
+      opacity: shapeStateFlags.shouldShowOpacity ? opacity * 0.6 : opacity,
       
-      draggable: isPendingUnlock 
-        ? (currentMode === CANVAS_MODES.MOVE)
-        : shapeStateFlags.canDrag,
+      draggable: shapeStateFlags.canDrag,
       
-      cursorStyle: isPendingUnlock 
-        ? 'pointer' 
-        : shapeStateFlags.cursorType
+      cursorStyle: shapeStateFlags.cursorType
     };
-  }, [shapeStateFlags, isSelected, currentMode, CANVAS_MODES.MOVE]);
+  }, [shapeStateFlags, isSelected, currentMode, CANVAS_MODES.MOVE, opacity]);
 
   // 🚀 PERFORMANCE: Konva optimizations based on context
   const konvaOptimizations = useMemo(() => {
@@ -407,17 +313,17 @@ const Shape = ({
       }
       
       // If component unmounts during drag, unlock the shape
-      if (isDraggingRef.current && isLocked && lockedBy) {
-        const currentUserId = getCurrentUserId();
-        if (lockedBy === currentUserId) {
-          console.log('🔄 [LOCKING] Component unmount during drag, unlocking:', id);
-          unlockShape(id).catch(error => {
-            console.error('Failed to unlock on unmount:', error);
-          });
-        }
+      // Only unlock if actively dragging (use ref to avoid dependencies)
+      if (isDraggingRef.current) {
+        console.log('🔄 [LOCKING] Component unmount during drag, unlocking:', id);
+        // Don't check lock state here - just attempt unlock if dragging
+        // The unlock function will handle the validation
+        unlockShape(id).catch(error => {
+          // Silent error - component is unmounting anyway
+        });
       }
     };
-  }, [id, x, y, isLocked, lockedBy, registerShapeHandlers, unregisterShapeHandlers, handleClick]);
+  }, [id, registerShapeHandlers, unregisterShapeHandlers, unlockShape]);
 
   return (
     <Rect
