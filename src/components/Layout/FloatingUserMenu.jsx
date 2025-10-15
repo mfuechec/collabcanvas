@@ -5,7 +5,7 @@ import { useTheme } from '../../contexts/ThemeContext';
 import { COLORS, SPACING, BORDER_RADIUS, SHADOWS } from '../../utils/designSystem';
 
 const FloatingUserMenu = () => {
-  const { user, signOut } = useAuth();
+  const { currentUser: user, logout } = useAuth();
   const { onlineUsers, totalUsers } = usePresence();
   const { theme, toggleTheme } = useTheme();
   const [showMenu, setShowMenu] = useState(false);
@@ -32,7 +32,7 @@ const FloatingUserMenu = () => {
   
   const handleSignOut = async () => {
     try {
-      await signOut();
+      await logout();
     } catch (error) {
       console.error('Sign out error:', error);
     }
