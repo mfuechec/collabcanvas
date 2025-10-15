@@ -85,6 +85,11 @@ export const SPACING = {
 
 // Border Radius
 export const BORDER_RADIUS = {
+  sm: '4px',
+  md: '8px',
+  lg: '12px',
+  xl: '16px',
+  // Aliases for specific use cases
   button: '4px',
   panel: '8px',
   toolbar: '8px',
@@ -94,6 +99,10 @@ export const BORDER_RADIUS = {
 // Shadows
 export const SHADOWS = {
   none: 'none',
+  sm: '0 1px 2px 0 rgba(0, 0, 0, 0.05)',
+  md: '0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06)',
+  lg: '0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -2px rgba(0, 0, 0, 0.05)',
+  xl: '0 20px 25px -5px rgba(0, 0, 0, 0.1), 0 10px 10px -5px rgba(0, 0, 0, 0.04)',
   floating: '0 2px 8px rgba(0, 0, 0, 0.1)',
   modal: '0 8px 32px rgba(0, 0, 0, 0.15)',
 };
@@ -127,6 +136,25 @@ export const ANIMATION = {
   fast: '150ms',
   normal: '200ms',
   slow: '300ms',
+};
+
+// Standard Transitions (for consistent animations across components)
+export const TRANSITIONS = {
+  // General purpose transitions
+  all: 'all 150ms ease',
+  allNormal: 'all 200ms ease',
+  allSlow: 'all 300ms ease',
+  
+  // Specific property transitions
+  transform: 'transform 150ms ease',
+  opacity: 'opacity 150ms ease',
+  background: 'background-color 150ms ease',
+  color: 'color 150ms ease',
+  border: 'border 150ms ease',
+  
+  // Interactive states
+  hover: 'background-color 150ms ease, opacity 150ms ease, transform 150ms ease',
+  scale: 'transform 150ms cubic-bezier(0.4, 0, 0.2, 1)',
 };
 
 // Canvas Constants

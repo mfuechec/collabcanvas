@@ -2,9 +2,9 @@ import { useState, useRef, useEffect } from 'react';
 import { useAuth } from '../../hooks/useAuth';
 import { usePresence } from '../../hooks/usePresence';
 import { useTheme } from '../../contexts/ThemeContext';
-import { COLORS, SPACING, BORDER_RADIUS, SHADOWS } from '../../utils/designSystem';
+import { COLORS, SPACING, BORDER_RADIUS, SHADOWS, LAYOUT, TRANSITIONS } from '../../utils/designSystem';
 
-const FloatingUserMenu = () => {
+const FloatingUserMenu = ({ propertiesPanelOpen = false }) => {
   const { currentUser: user, logout } = useAuth();
   const { onlineUsers, totalUsers } = usePresence();
   const { theme, toggleTheme } = useTheme();
@@ -12,6 +12,10 @@ const FloatingUserMenu = () => {
   const menuRef = useRef(null);
   
   const colors = COLORS[theme];
+  
+  // Find current user's presence data to get their cursor color
+  const currentUserPresence = onlineUsers.find(u => u.id === user?.uid);
+  const currentUserColor = currentUserPresence?.cursorColor || colors.accent;
   
   // Close menu when clicking outside
   useEffect(() => {
@@ -41,11 +45,12 @@ const FloatingUserMenu = () => {
   const containerStyle = {
     position: 'fixed',
     top: SPACING.lg,
-    right: SPACING.lg,
+    right: propertiesPanelOpen ? `calc(${LAYOUT.rightSidebar.width} + ${SPACING.lg})` : SPACING.lg,
     zIndex: 20,
     display: 'flex',
     alignItems: 'center',
     gap: SPACING.sm,
+    transition: TRANSITIONS.allNormal,
   };
   
   const presenceContainerStyle = {
@@ -104,9 +109,28 @@ const FloatingUserMenu = () => {
     transition: 'background-color 150ms ease',
   };
   
-  const getUserInitials = (email) => {
-    if (!email) return 'U';
-    return email.charAt(0).toUpperCase();
+  const getUserInitials = (nameOrEmail) => {
+    if (!nameOrEmail) return 'U';
+    
+    // If it looks like an email (contains @), extract username part
+    if (nameOrEmail.includes('@')) {
+      const username = nameOrEmail.split('@')[0];
+      // Try to get first letter of first and last name from username
+      const parts = username.split(/[._-]/);
+      if (parts.length >= 2) {
+        // e.g., "mark.fuechec" -> "MF"
+        return (parts[0].charAt(0) + parts[1].charAt(0)).toUpperCase();
+      }
+      return username.charAt(0).toUpperCase();
+    }
+    
+    // For display names, get first letter of first and last name
+    const words = nameOrEmail.trim().split(/\s+/);
+    if (words.length >= 2) {
+      return (words[0].charAt(0) + words[1].charAt(0)).toUpperCase();
+    }
+    
+    return nameOrEmail.charAt(0).toUpperCase();
   };
   
   // Get other users' initials
@@ -121,7 +145,7 @@ const FloatingUserMenu = () => {
             {[
               ...onlineUsers.slice(0, 3).map((onlineUser, index) => (
                 <div
-                  key={onlineUser.userId}
+                  key={onlineUser.id}
                   style={{
                     ...avatarButtonStyle,
                     width: '28px',
@@ -129,7 +153,7 @@ const FloatingUserMenu = () => {
                     fontSize: '11px',
                     marginLeft: index > 0 ? '-8px' : '0',
                     zIndex: 10 - index,
-                    backgroundColor: onlineUser.userId === user?.uid ? colors.accent : '#9333EA',
+                    backgroundColor: onlineUser.cursorColor || colors.accent,
                   }}
                   title={onlineUser.displayName || onlineUser.email || 'Anonymous'}
                 >
@@ -164,13 +188,16 @@ const FloatingUserMenu = () => {
       {/* Current User Menu */}
       <div style={{ position: 'relative' }} ref={menuRef}>
         <button
-          style={avatarButtonStyle}
+          style={{
+            ...avatarButtonStyle,
+            backgroundColor: currentUserColor
+          }}
           onClick={() => setShowMenu(!showMenu)}
           onMouseEnter={(e) => e.currentTarget.style.transform = 'scale(1.05)'}
           onMouseLeave={(e) => e.currentTarget.style.transform = 'scale(1)'}
           title="User menu"
         >
-          {getUserInitials(user?.email)}
+          {getUserInitials(user?.displayName || user?.email)}
         </button>
         
         {showMenu && (

@@ -225,19 +225,23 @@ const createShape = async (shapeData, canvasId = CANVAS_DOC_ID) => {
       
       const newShape = {
         id: `shape_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
-        type: 'rectangle', // Only rectangles for MVP
+        // Spread shapeData first, then apply defaults/overrides
+        ...shapeData,
+        // Apply defaults for missing fields
+        type: shapeData.type || 'rectangle',
         x: shapeData.x || 100,
         y: shapeData.y || 100,
         width: shapeData.width || 100,
         height: shapeData.height || 100,
         fill: shapeData.fill || '#cccccc',
+        opacity: shapeData.opacity !== undefined ? shapeData.opacity : 0.8, // Default 80% opacity
+        // System fields (always override)
         createdBy: userId,
         createdAt: now,
         lastModifiedBy: userId,
         lastModifiedAt: now,
-        isLocked: false,
+        isLocked: false
         // Don't include lockedBy or lockedAt for unlocked shapes
-        ...shapeData
       };
       
       console.log('Creating shape:', newShape);
@@ -406,7 +410,17 @@ const lockShape = async (shapeId, canvasId = CANVAS_DOC_ID) => {
       lockedAt: Date.now() // Use regular timestamp
     }, canvasId);
     
-    console.log('✅ [LOCKING-SERVICE] Shape locked successfully:', shapeId, 'by user:', userId);
+    // Set up automatic unlock on disconnect (browser close/refresh)
+    const lockCleanupRef = ref(rtdb, `${DISCONNECT_CLEANUP_PATH}/${CANVAS_SESSION_ID}/${userId}/${shapeId}`);
+    await onDisconnect(lockCleanupRef).set({
+      action: 'unlock',
+      shapeId,
+      canvasId,
+      userId,
+      timestamp: Date.now()
+    });
+    
+    console.log('✅ [LOCKING-SERVICE] Shape locked successfully with disconnect cleanup:', shapeId);
     return true;
   } catch (error) {
     console.error('Error locking shape:', error);
@@ -476,15 +490,16 @@ const monitorDisconnectCleanup = (callback) => {
         Object.keys(userCleanups).forEach(shapeId => {
           const cleanup = userCleanups[shapeId];
           
-          if (cleanup && cleanup.action === 'unlock_and_revert') {
-            console.log('🔄 [DISCONNECT-CLEANUP] Processing cleanup for shape:', shapeId);
+          if (cleanup && (cleanup.action === 'unlock_and_revert' || cleanup.action === 'unlock')) {
+            console.log('🔄 [DISCONNECT-CLEANUP] Processing cleanup for shape:', shapeId, 'action:', cleanup.action);
             
             // Process the cleanup
             callback({
               shapeId: cleanup.shapeId,
-              originalPosition: cleanup.originalPosition,
+              originalPosition: cleanup.originalPosition, // May be undefined for 'unlock' action
               canvasId: cleanup.canvasId,
-              userId: cleanup.userId
+              userId: cleanup.userId,
+              action: cleanup.action
             });
             
             // Remove the cleanup event after processing
@@ -582,20 +597,24 @@ const disableOfflinePersistence = async () => {
 };
 
 // Process a disconnect cleanup event
-const processDisconnectCleanup = async ({ shapeId, originalPosition, canvasId, userId }) => {
+const processDisconnectCleanup = async ({ shapeId, originalPosition, canvasId, userId, action }) => {
   try {
-    console.log('🔄 [DISCONNECT-CLEANUP] Processing cleanup for shape:', shapeId, 'from user:', userId);
+    console.log('🔄 [DISCONNECT-CLEANUP] Processing cleanup for shape:', shapeId, 'from user:', userId, 'action:', action);
     
-    // First revert position
-    await updateShape(shapeId, {
-      x: originalPosition.x,
-      y: originalPosition.y
-    }, canvasId);
-    
-    // Then unlock
-    await unlockShape(shapeId, canvasId);
-    
-    console.log('✅ [DISCONNECT-CLEANUP] Completed cleanup for shape:', shapeId);
+    if (action === 'unlock_and_revert' && originalPosition) {
+      // Drag operation disconnect: revert position AND unlock
+      await updateShape(shapeId, {
+        x: originalPosition.x,
+        y: originalPosition.y
+      }, canvasId);
+      
+      await unlockShape(shapeId, canvasId);
+      console.log('✅ [DISCONNECT-CLEANUP] Reverted position and unlocked shape:', shapeId);
+    } else if (action === 'unlock') {
+      // Selection-only disconnect: just unlock
+      await unlockShape(shapeId, canvasId);
+      console.log('✅ [DISCONNECT-CLEANUP] Unlocked shape:', shapeId);
+    }
   } catch (error) {
     console.error('❌ [DISCONNECT-CLEANUP] Processing failed:', error);
   }

@@ -340,7 +340,7 @@ const Shape = ({
     if (clearDragPreview && getCurrentUserId()) {
       console.log('📡 [COLLAB] Clearing drag preview for shape:', id);
       
-      // Clear drag preview for other users
+      // Clear drag preview immediately - Firestore latency (~500ms) is acceptable
       clearDragPreview(id);
     }
     
@@ -408,18 +408,29 @@ const Shape = ({
 
   // 🚀 PERFORMANCE: Stable visual styling with minimal dependencies  
   const visualStyles = useMemo(() => {
+    // Determine stroke color: Red for locked by other, Blue for selected (#0D99FF Figma-style)
+    let strokeColor = 'transparent';
+    if (shapeStateFlags.isLockedByOther) {
+      strokeColor = '#ef4444'; // Red for locked by another user
+    } else if (isSelected) {
+      strokeColor = '#0D99FF'; // Figma-style blue for single selection
+      // TODO: Use '#7B61FF' (purple) for multi-selection when implemented
+    }
+    
+    // Calculate final opacity: opacity is the single source of truth from shape data
+    let finalOpacity = opacity;
+    if (shapeStateFlags.shouldShowOpacity) {
+      // Locked by another user: 60% of base opacity
+      finalOpacity = opacity * 0.6;
+    }
+    // Note: We no longer reduce opacity for unselected shapes. 
+    // The stored opacity value is the single source of truth.
+    
     return {
-      stroke: shapeStateFlags.isLockedByOther 
-        ? '#ef4444' 
-        : isSelected ? '#3b82f6' : 'transparent',
-      
+      stroke: strokeColor,
       strokeWidth: shapeStateFlags.shouldShowStroke ? 2 : 0,
-      
-      // Use the shape's actual opacity, but reduce it further if locked by another user
-      opacity: shapeStateFlags.shouldShowOpacity ? opacity * 0.6 : opacity,
-      
+      opacity: finalOpacity,
       draggable: shapeStateFlags.canDrag,
-      
       cursorStyle: shapeStateFlags.cursorType
     };
   }, [shapeStateFlags, isSelected, currentMode, CANVAS_MODES.MOVE, opacity]);

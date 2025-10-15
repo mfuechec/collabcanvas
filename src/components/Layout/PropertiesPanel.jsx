@@ -132,7 +132,7 @@ const PropertiesPanel = ({ isOpen, onToggle }) => {
   };
   
   const headerStyle = {
-    padding: SPACING.lg,
+    padding: `${SPACING.md} ${SPACING.lg}`, // Reduce top/bottom padding
     borderBottom: `1px solid ${colors.border}`,
     fontFamily: TYPOGRAPHY.fontFamily.base,
     fontSize: TYPOGRAPHY.fontSize.sidebarLabel,

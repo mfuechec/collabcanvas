@@ -214,7 +214,8 @@ const Canvas = () => {
           fontSize: 24,
           fill: '#000000',
           width: 200, // Initial width for wrapping
-          height: 32  // Approximate height for single line
+          height: 32, // Approximate height for single line
+          opacity: 0.8 // Default opacity (single source of truth)
         }).then((newShape) => {
           if (newShape) {
             selectShape(newShape.id);
@@ -311,7 +312,8 @@ const Canvas = () => {
             height: finalHeight,
             fill: '#cccccc',
             stroke: '#cccccc', // Same default color as fill
-            strokeWidth: 2
+            strokeWidth: 2,
+            opacity: 0.8 // Default opacity (single source of truth)
           };
           
           // For lines and pen, also include the points array

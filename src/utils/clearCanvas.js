@@ -40,6 +40,7 @@ export const clearAllShapes = async () => {
 
 /**
  * Generate a random shape with random position and size
+ * Creates rectangles, circles, and lines with different primary colors
  * @returns {object} - Shape object
  */
 const generateRandomShape = () => {
@@ -57,13 +58,88 @@ const generateRandomShape = () => {
   const width = Math.floor(DEFAULT_SHAPE_WIDTH * sizeMultiplier);
   const height = Math.floor(DEFAULT_SHAPE_HEIGHT * sizeMultiplier);
   
+  // Randomly choose shape type: 40% rectangles, 30% circles, 30% lines
+  const rand = Math.random();
+  let shapeType, fill, stroke, strokeWidth, points;
+  
+  if (rand < 0.4) {
+    // Rectangle - Red
+    shapeType = 'rectangle';
+    fill = '#EF4444'; // Red-500
+    stroke = '#EF4444';
+    strokeWidth = 2;
+  } else if (rand < 0.7) {
+    // Circle - Blue (ensure width === height for proper circles)
+    shapeType = 'circle';
+    const size = Math.floor((width + height) / 2); // Average size
+    fill = '#3B82F6'; // Blue-500
+    stroke = '#3B82F6';
+    strokeWidth = 2;
+    return {
+      id,
+      type: shapeType,
+      x: Math.floor(x),
+      y: Math.floor(y),
+      width: size,
+      height: size, // Same as width for circles
+      fill,
+      stroke,
+      strokeWidth,
+      opacity: 0.8,
+      createdBy: userId,
+      createdAt: now,
+      lastModifiedBy: userId,
+      lastModifiedAt: now,
+      isLocked: false
+    };
+  } else {
+    // Line - Green
+    shapeType = 'line';
+    fill = '#22C55E'; // Green-500
+    stroke = '#22C55E';
+    strokeWidth = 3;
+    
+    // Create random line with absolute start and end points
+    const startX = x;
+    const startY = y;
+    const endX = x + width;
+    const endY = y + (height * (Math.random() > 0.5 ? 1 : -1)); // Vary direction
+    
+    // Points array uses absolute coordinates (since Line renders with x={0}, y={0})
+    points = [startX, startY, endX, endY];
+    
+    return {
+      id,
+      type: shapeType,
+      x: Math.floor(Math.min(startX, endX)),
+      y: Math.floor(Math.min(startY, endY)),
+      width: Math.abs(endX - startX),
+      height: Math.abs(endY - startY),
+      fill,
+      stroke,
+      strokeWidth,
+      points,
+      opacity: 0.8,
+      createdBy: userId,
+      createdAt: now,
+      lastModifiedBy: userId,
+      lastModifiedAt: now,
+      isLocked: false
+    };
+  }
+  
+  // Rectangle return
   return {
     id,
+    type: shapeType,
     x: Math.floor(x),
     y: Math.floor(y),
     width,
     height,
-    fill: DEFAULT_SHAPE_FILL,
+    fill,
+    stroke,
+    strokeWidth,
+    opacity: 0.8,
     createdBy: userId,
     createdAt: now,
     lastModifiedBy: userId,

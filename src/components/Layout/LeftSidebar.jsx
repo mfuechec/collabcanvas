@@ -1,7 +1,7 @@
 import { useTheme } from '../../contexts/ThemeContext';
 import { useCanvasMode } from '../../contexts/CanvasModeContext';
 import { useCanvas } from '../../hooks/useCanvas';
-import { COLORS, LAYOUT, SPACING, BORDER_RADIUS, TOOLS } from '../../utils/designSystem';
+import { COLORS, LAYOUT, SPACING, BORDER_RADIUS, TOOLS, TRANSITIONS, SHADOWS } from '../../utils/designSystem';
 import Tooltip from '../UI/Tooltip';
 import './LeftSidebar.css';
 
@@ -65,7 +65,7 @@ const LeftSidebar = ({ onToggleLayers, layersOpen }) => {
     alignItems: 'center',
     justifyContent: 'center',
     marginBottom: SPACING.sm,
-    transition: 'background-color 150ms ease',
+    transition: TRANSITIONS.hover,
     color: isActive ? '#FFFFFF' : colors.textPrimary,
   });
   

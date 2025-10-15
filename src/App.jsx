@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import './App.css'
 import { AuthProvider } from './contexts/AuthContext'
 import { CanvasProvider } from './contexts/CanvasContext'
@@ -17,7 +17,7 @@ import FloatingUserMenu from './components/Layout/FloatingUserMenu'
 import PropertiesPanel from './components/Layout/PropertiesPanel'
 import LayersPanel from './components/Layout/LayersPanel'
 import Canvas from './components/Canvas/Canvas'
-import CanvasInfo from './components/Canvas/CanvasInfo'
+import Minimap from './components/Canvas/Minimap'
 import ErrorBoundary from './components/Error/ErrorBoundary'
 import ErrorToast from './components/Error/ErrorToast'
 
@@ -99,8 +99,8 @@ const AppLayout = ({ showProperties, setShowProperties, showLayers, setShowLayer
         <Canvas />
         
         {/* Floating overlay panels */}
-        <CanvasInfo />
-        <FloatingUserMenu />
+        <FloatingUserMenu propertiesPanelOpen={showProperties} />
+        <Minimap propertiesPanelOpen={showProperties} />
       </div>
       
       {/* Properties Panel - Collapsible */}
