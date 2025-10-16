@@ -1,7 +1,7 @@
 // Firebase Configuration and Initialization
 import { initializeApp } from 'firebase/app';
 import { getAuth } from 'firebase/auth';
-import { getFirestore } from 'firebase/firestore';
+import { getFirestore, enableIndexedDbPersistence, CACHE_SIZE_UNLIMITED } from 'firebase/firestore';
 import { getDatabase } from 'firebase/database';
 
 // Firebase configuration from environment variables
@@ -49,7 +49,20 @@ try {
   db = getFirestore(app); // Firestore for persistent canvas state
   rtdb = getDatabase(app); // Realtime Database for cursors/presence
   
-  console.log('Firebase initialized successfully');
+  // Enable offline persistence for faster reads and writes
+  enableIndexedDbPersistence(db, {
+    cacheSizeBytes: CACHE_SIZE_UNLIMITED
+  }).catch((err) => {
+    if (err.code === 'failed-precondition') {
+      // Multiple tabs open, persistence can only be enabled in one tab at a time
+      console.warn('Firestore persistence failed: Multiple tabs open');
+    } else if (err.code === 'unimplemented') {
+      // The current browser doesn't support persistence
+      console.warn('Firestore persistence not supported in this browser');
+    }
+  });
+  
+  console.log('Firebase initialized successfully with offline persistence');
 } catch (error) {
   console.error('Firebase initialization failed:', error);
   

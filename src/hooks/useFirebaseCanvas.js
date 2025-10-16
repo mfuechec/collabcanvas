@@ -4,8 +4,11 @@ import { useAuth } from './useAuth';
 import {
   subscribeToShapes,
   createShape as createShapeService,
+  batchCreateShapes as batchCreateShapesService,
   updateShape as updateShapeService,
+  batchUpdateShapes as batchUpdateShapesService,
   deleteShape as deleteShapeService,
+  batchDeleteShapes as batchDeleteShapesService,
   lockShape as lockShapeService,
   unlockShape as unlockShapeService,
   setupDisconnectCleanup,
@@ -135,6 +138,20 @@ export const useFirebaseCanvas = (canvasId = 'global-canvas-v1') => {
     }
   }, [canvasId]);
 
+  // Batch add multiple shapes in a single Firebase operation
+  const batchAddShapes = useCallback(async (shapesData) => {
+    try {
+      setError(null);
+      const newShapes = await batchCreateShapesService(shapesData, canvasId);
+      
+      return newShapes;
+    } catch (err) {
+      console.error('Failed to batch create shapes:', err);
+      setError(err.message);
+      throw err;
+    }
+  }, [canvasId]);
+
   // Update an existing shape
   const updateShape = useCallback(async (shapeId, updates) => {
     try {
@@ -149,6 +166,20 @@ export const useFirebaseCanvas = (canvasId = 'global-canvas-v1') => {
     }
   }, [canvasId]);
 
+  // Batch update multiple shapes in a single Firebase operation
+  const batchUpdateShapes = useCallback(async (shapeIds, updates) => {
+    try {
+      setError(null);
+      await batchUpdateShapesService(shapeIds, updates, canvasId);
+      
+      return shapeIds;
+    } catch (err) {
+      console.error('Failed to batch update shapes:', err);
+      setError(err.message);
+      throw err;
+    }
+  }, [canvasId]);
+
   // Delete a shape
   const deleteShape = useCallback(async (shapeId) => {
     try {
@@ -157,6 +188,20 @@ export const useFirebaseCanvas = (canvasId = 'global-canvas-v1') => {
       return shapeId;
     } catch (err) {
       console.error('Failed to delete shape:', err);
+      setError(err.message);
+      throw err;
+    }
+  }, [canvasId]);
+
+  // Batch delete multiple shapes in a single Firebase operation
+  const batchDeleteShapes = useCallback(async (shapeIds) => {
+    try {
+      setError(null);
+      await batchDeleteShapesService(shapeIds, canvasId);
+      
+      return shapeIds;
+    } catch (err) {
+      console.error('Failed to batch delete shapes:', err);
       setError(err.message);
       throw err;
     }
@@ -339,8 +384,11 @@ export const useFirebaseCanvas = (canvasId = 'global-canvas-v1') => {
     
     // Shape operations
     addShape,
+    batchAddShapes,
     updateShape,
+    batchUpdateShapes,
     deleteShape,
+    batchDeleteShapes,
     
     // Locking operations
     lockShape,

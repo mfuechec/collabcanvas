@@ -9,7 +9,12 @@ import {
   arrayRemove,
   serverTimestamp,
   enableNetwork,
-  disableNetwork
+  disableNetwork,
+  collection,
+  writeBatch,
+  query,
+  getDocs,
+  deleteDoc
 } from 'firebase/firestore';
 import { 
   ref, 
@@ -127,6 +132,7 @@ const getCurrentUserId = () => {
 };
 
 // Initialize canvas document if it doesn't exist
+// ARCHITECTURE: Canvas metadata in main doc, shapes in subcollection
 const initializeCanvasDocument = async (canvasId = CANVAS_DOC_ID) => {
   return withRetry(async () => {
     try {
@@ -134,10 +140,11 @@ const initializeCanvasDocument = async (canvasId = CANVAS_DOC_ID) => {
       const canvasDoc = await getDoc(canvasRef);
       
       if (!canvasDoc.exists()) {
-        console.log('Initializing new canvas document:', canvasId);
+        console.log('✨ Initializing new per-shape canvas architecture:', canvasId);
+        // NEW: Only metadata in main document, shapes go in subcollection
         await setDoc(canvasRef, {
           canvasId,
-          shapes: [],
+          shapeCount: 0, // Track count instead of array
           lastUpdated: serverTimestamp(),
           createdAt: serverTimestamp(),
           createdBy: getCurrentUserId()
@@ -152,47 +159,44 @@ const initializeCanvasDocument = async (canvasId = CANVAS_DOC_ID) => {
 };
 
 // Subscribe to real-time shape updates
+// NEW ARCHITECTURE: Listens to shapes subcollection (each shape is a separate document)
 const subscribeToShapes = (canvasId = CANVAS_DOC_ID, callback) => {
   try {
-    const canvasRef = doc(db, CANVAS_COLLECTION, canvasId);
+    // Subscribe to shapes subcollection instead of main document
+    const shapesCollectionRef = getShapesCollectionRef(canvasId);
+    const shapesQuery = query(shapesCollectionRef);
     
-    console.log('Subscribing to canvas updates:', canvasId);
+    console.log('📡 [PER-SHAPE] Subscribing to shapes subcollection:', canvasId);
     
-    const unsubscribe = onSnapshot(canvasRef, (docSnapshot) => {
-      if (docSnapshot.exists()) {
-        const data = docSnapshot.data();
-        console.log('Canvas data updated:', data);
-        
-        // Debug: Log lock state of all shapes
-        if (data.shapes && data.shapes.length > 0) {
-          data.shapes.forEach(shape => {
-            if (shape.isLocked) {
-              console.log('🔍 [FIREBASE-UPDATE] Shape lock state:', {
-                id: shape.id,
-                isLocked: shape.isLocked,
-                lockedBy: shape.lockedBy,
-                lockedAt: shape.lockedAt,
-                unlockedAt: shape.unlockedAt
-              });
-            }
+    const unsubscribe = onSnapshot(shapesQuery, (querySnapshot) => {
+      // Convert Firestore documents to shape objects
+      const shapes = [];
+      querySnapshot.forEach((doc) => {
+        shapes.push({
+          id: doc.id,
+          ...doc.data()
+        });
+      });
+      
+      console.log(`📊 [PER-SHAPE] Canvas updated: ${shapes.length} shapes`);
+      
+      // Debug: Log lock state of locked shapes
+      shapes.forEach(shape => {
+        if (shape.isLocked) {
+          console.log('🔍 [FIREBASE-UPDATE] Shape lock state:', {
+            id: shape.id,
+            isLocked: shape.isLocked,
+            lockedBy: shape.lockedBy,
+            lockedAt: shape.lockedAt
           });
         }
-        
-        callback({
-          shapes: data.shapes || [],
-          lastUpdated: data.lastUpdated,
-          canvasId: data.canvasId
-        });
-      } else {
-        console.log('Canvas document does not exist, initializing...');
-        initializeCanvasDocument(canvasId).then(() => {
-          callback({
-            shapes: [],
-            lastUpdated: null,
-            canvasId
-          });
-        });
-      }
+      });
+      
+      callback({
+        shapes,
+        lastUpdated: Date.now(),
+        canvasId
+      });
     }, (error) => {
       console.error('Error in canvas subscription:', error);
       callback({
@@ -210,21 +214,30 @@ const subscribeToShapes = (canvasId = CANVAS_DOC_ID, callback) => {
   }
 };
 
+// HELPER: Get reference to a shape document in subcollection
+const getShapeRef = (shapeId, canvasId = CANVAS_DOC_ID) => {
+  return doc(db, CANVAS_COLLECTION, canvasId, 'shapes', shapeId);
+};
+
+// HELPER: Get reference to shapes collection
+const getShapesCollectionRef = (canvasId = CANVAS_DOC_ID) => {
+  return collection(db, CANVAS_COLLECTION, canvasId, 'shapes');
+};
+
 // Create a new shape
+// NEW ARCHITECTURE: Creates shape as individual document in subcollection
 const createShape = async (shapeData, canvasId = CANVAS_DOC_ID) => {
   return withRetry(async () => {
     try {
-      const canvasRef = doc(db, CANVAS_COLLECTION, canvasId);
       const userId = getCurrentUserId();
       
       // Ensure canvas document exists
       await initializeCanvasDocument(canvasId);
       
-      // Use regular timestamp since serverTimestamp() doesn't work with arrayUnion
       const now = Date.now();
+      const shapeId = `shape_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
       
       const newShape = {
-        id: `shape_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
         // Spread shapeData first, then apply defaults/overrides
         ...shapeData,
         // Apply defaults for missing fields
@@ -234,181 +247,262 @@ const createShape = async (shapeData, canvasId = CANVAS_DOC_ID) => {
         width: shapeData.width || 100,
         height: shapeData.height || 100,
         fill: shapeData.fill || '#cccccc',
-        opacity: shapeData.opacity !== undefined ? shapeData.opacity : 0.8, // Default 80% opacity
+        opacity: shapeData.opacity !== undefined ? shapeData.opacity : 0.8,
         // System fields (always override)
         createdBy: userId,
         createdAt: now,
         lastModifiedBy: userId,
         lastModifiedAt: now,
         isLocked: false
-        // Don't include lockedBy or lockedAt for unlocked shapes
       };
       
-      console.log('Creating shape:', newShape);
+      console.log('📝 [PER-SHAPE] Creating shape:', shapeId);
       
-      // Add shape to shapes array
-      await updateDoc(canvasRef, {
-        shapes: arrayUnion(newShape),
-        lastUpdated: serverTimestamp(),
-        lastModifiedBy: userId
-      });
+      // Write shape to its own document in subcollection
+      const shapeRef = getShapeRef(shapeId, canvasId);
+      await setDoc(shapeRef, newShape);
       
-      return newShape;
+      return { id: shapeId, ...newShape };
     } catch (error) {
       throw handleCanvasError(error, 'create', { shapeData, canvasId });
     }
   });
 };
 
+// Batch create multiple shapes in a single Firebase operation
+// NEW ARCHITECTURE: Uses writeBatch() to write all shapes simultaneously
+const batchCreateShapes = async (shapesData, canvasId = CANVAS_DOC_ID) => {
+  return withRetry(async () => {
+    try {
+      const userId = getCurrentUserId();
+      
+      // Ensure canvas document exists
+      await initializeCanvasDocument(canvasId);
+      
+      const now = Date.now();
+      
+      // Create batch operation (can handle up to 500 operations)
+      const batch = writeBatch(db);
+      
+      // Process all shapes and add to batch
+      const newShapes = shapesData.map((shapeData, index) => {
+        const shapeId = `shape_${Date.now()}_${Math.random().toString(36).substr(2, 9)}_${index}`;
+        
+        const shape = {
+          ...shapeData,
+          type: shapeData.type || 'rectangle',
+          x: shapeData.x !== undefined ? shapeData.x : 100,
+          y: shapeData.y !== undefined ? shapeData.y : 100,
+          width: shapeData.width || 100,
+          height: shapeData.height || 100,
+          fill: shapeData.fill || '#cccccc',
+          opacity: shapeData.opacity !== undefined ? shapeData.opacity : 0.8,
+          createdBy: userId,
+          createdAt: now + index,
+          lastModifiedBy: userId,
+          lastModifiedAt: now + index,
+          isLocked: false
+        };
+        
+        // Add this shape's document to the batch
+        const shapeRef = getShapeRef(shapeId, canvasId);
+        batch.set(shapeRef, shape);
+        
+        return { id: shapeId, ...shape };
+      });
+      
+      console.log(`🚀 [WRITEBATCH] Creating ${newShapes.length} shapes in TRUE parallel operation`);
+      
+      // Execute all writes atomically (all succeed or all fail)
+      await batch.commit();
+      
+      console.log(`✅ [WRITEBATCH] Successfully batch created ${newShapes.length} shapes`);
+      
+      return newShapes;
+    } catch (error) {
+      throw handleCanvasError(error, 'batchCreate', { shapesCount: shapesData.length, canvasId });
+    }
+  });
+};
+
 // Update an existing shape
+// NEW ARCHITECTURE: Updates shape document directly in subcollection
 const updateShape = async (shapeId, updates, canvasId = CANVAS_DOC_ID) => {
   try {
-    const canvasRef = doc(db, CANVAS_COLLECTION, canvasId);
     const userId = getCurrentUserId();
+    const shapeRef = getShapeRef(shapeId, canvasId);
     
-    // Get current document
-    const docSnapshot = await getDoc(canvasRef);
-    if (!docSnapshot.exists()) {
-      throw new Error('Canvas document not found');
-    }
-    
-    const data = docSnapshot.data();
-    const shapes = data.shapes || [];
-    
-    // Find and update the shape
-    const shapeIndex = shapes.findIndex(shape => shape.id === shapeId);
-    if (shapeIndex === -1) {
+    // Get current shape document
+    const shapeDoc = await getDoc(shapeRef);
+    if (!shapeDoc.exists()) {
       throw new Error('Shape not found');
     }
     
-    const currentShape = shapes[shapeIndex];
+    const currentShape = shapeDoc.data();
     
     // Check if shape is locked by another user
     if (currentShape.isLocked && currentShape.lockedBy !== userId) {
       throw new Error('Shape is locked by another user');
     }
     
-    // Update the shape
-    const updatedShape = {
-      ...currentShape,
+    // Update the shape document
+    const updateData = {
       ...updates,
       lastModifiedBy: userId,
-      lastModifiedAt: Date.now() // Use regular timestamp instead of serverTimestamp
+      lastModifiedAt: Date.now()
     };
     
-    // Replace the shape in the array
-    const updatedShapes = [...shapes];
-    updatedShapes[shapeIndex] = updatedShape;
+    console.log('📝 [PER-SHAPE] Updating shape:', shapeId);
     
-    console.log('Updating shape:', shapeId, updates);
+    await updateDoc(shapeRef, updateData);
     
-    await updateDoc(canvasRef, {
-      shapes: updatedShapes,
-      lastUpdated: serverTimestamp(),
-      lastModifiedBy: userId
-    });
-    
-    return updatedShape;
+    return { id: shapeId, ...currentShape, ...updateData };
   } catch (error) {
     console.error('Error updating shape:', error);
-    throw error; // Re-throw to preserve specific error messages
+    throw error;
   }
 };
 
 // Delete a shape
+// NEW ARCHITECTURE: Deletes shape document from subcollection
 const deleteShape = async (shapeId, canvasId = CANVAS_DOC_ID) => {
   try {
-    const canvasRef = doc(db, CANVAS_COLLECTION, canvasId);
     const userId = getCurrentUserId();
+    const shapeRef = getShapeRef(shapeId, canvasId);
     
-    // Get current document
-    const docSnapshot = await getDoc(canvasRef);
-    if (!docSnapshot.exists()) {
-      throw new Error('Canvas document not found');
-    }
-    
-    const data = docSnapshot.data();
-    const shapes = data.shapes || [];
-    
-    // Find the shape to delete
-    const shapeToDelete = shapes.find(shape => shape.id === shapeId);
-    if (!shapeToDelete) {
+    // Get shape to check lock status
+    const shapeDoc = await getDoc(shapeRef);
+    if (!shapeDoc.exists()) {
       throw new Error('Shape not found');
     }
     
+    const shape = shapeDoc.data();
+    
     // Check if shape is locked by another user
-    if (shapeToDelete.isLocked && shapeToDelete.lockedBy !== userId) {
+    if (shape.isLocked && shape.lockedBy !== userId) {
       throw new Error('Cannot delete shape locked by another user');
     }
     
-    console.log('Deleting shape:', shapeId);
+    console.log('🗑️ [PER-SHAPE] Deleting shape:', shapeId);
     
-    // Remove shape from shapes array
-    await updateDoc(canvasRef, {
-      shapes: arrayRemove(shapeToDelete),
-      lastUpdated: serverTimestamp(),
-      lastModifiedBy: userId
-    });
+    // Delete the shape document
+    await deleteDoc(shapeRef);
     
     return shapeId;
   } catch (error) {
     console.error('Error deleting shape:', error);
-    throw error; // Re-throw to preserve specific error messages
+    throw error;
+  }
+};
+
+// Batch update multiple shapes in a single Firebase operation
+// NEW ARCHITECTURE: Uses writeBatch() for parallel updates
+const batchUpdateShapes = async (shapeIds, updates, canvasId = CANVAS_DOC_ID) => {
+  try {
+    const userId = getCurrentUserId();
+    const now = Date.now();
+    
+    // Create batch operation
+    const batch = writeBatch(db);
+    
+    console.log(`🚀 [WRITEBATCH] Updating ${shapeIds.length} shapes in parallel`);
+    
+    // Add all updates to batch
+    for (const shapeId of shapeIds) {
+      const shapeRef = getShapeRef(shapeId, canvasId);
+      
+      // Note: We can't check locks before batch, so we update optimistically
+      // The client-side should prevent updating locked shapes
+      batch.update(shapeRef, {
+        ...updates,
+        lastModifiedBy: userId,
+        lastModifiedAt: now
+      });
+    }
+    
+    // Execute all updates atomically
+    await batch.commit();
+    
+    console.log(`✅ [WRITEBATCH] Successfully batch updated ${shapeIds.length} shapes`);
+    
+    return shapeIds;
+  } catch (error) {
+    throw handleCanvasError(error, 'batchUpdate', { shapeIds, updates, canvasId });
+  }
+};
+
+// Batch delete multiple shapes in a single Firebase operation
+// NEW ARCHITECTURE: Uses writeBatch() for parallel deletes
+const batchDeleteShapes = async (shapeIds, canvasId = CANVAS_DOC_ID) => {
+  try {
+    // Create batch operation
+    const batch = writeBatch(db);
+    
+    console.log(`🚀 [WRITEBATCH] Deleting ${shapeIds.length} shapes in parallel`);
+    
+    // Add all deletes to batch
+    for (const shapeId of shapeIds) {
+      const shapeRef = getShapeRef(shapeId, canvasId);
+      batch.delete(shapeRef);
+    }
+    
+    // Execute all deletes atomically
+    await batch.commit();
+    
+    console.log(`✅ [WRITEBATCH] Successfully batch deleted ${shapeIds.length} shapes`);
+    
+    return shapeIds;
+  } catch (error) {
+    throw handleCanvasError(error, 'batchDelete', { shapeIds, canvasId });
   }
 };
 
 // Lock a shape (for collaborative editing)
+// NEW ARCHITECTURE: Works with subcollection, uses batch for auto-unlock
 const lockShape = async (shapeId, canvasId = CANVAS_DOC_ID) => {
   try {
     const userId = getCurrentUserId();
     
-    // FIRST: Unlock ALL other shapes locked by this user (ensures only one lock per user)
-    const canvasRef = doc(db, CANVAS_COLLECTION, canvasId);
-    const docSnapshot = await getDoc(canvasRef);
+    // FIRST: Query all shapes to find those locked by this user
+    const shapesCollectionRef = getShapesCollectionRef(canvasId);
+    const shapesSnapshot = await getDocs(query(shapesCollectionRef));
     
-    if (docSnapshot.exists()) {
-      const data = docSnapshot.data();
-      const shapes = data.shapes || [];
-      
-      // Find all shapes locked by this user (except the one we're about to lock)
-      const shapesLockedByUser = shapes.filter(shape => 
-        shape.isLocked === true && 
-        shape.lockedBy === userId && 
-        shape.id !== shapeId
-      );
-      
-      if (shapesLockedByUser.length > 0) {
-        console.log(`🔓 [AUTO-UNLOCK] Unlocking ${shapesLockedByUser.length} shapes for user ${userId} before locking new shape`);
-        
-        // Unlock all previously locked shapes
-        const updatedShapes = shapes.map(shape => {
-          if (shape.isLocked === true && shape.lockedBy === userId && shape.id !== shapeId) {
-            const { isLocked, lockedBy, lockedAt, ...shapeWithoutLock } = shape;
-            return {
-              ...shapeWithoutLock,
-              unlockedAt: Date.now(),
-              lastModifiedAt: Date.now(),
-              lastModifiedBy: userId
-            };
-          }
-          return shape;
+    const batch = writeBatch(db);
+    let shapesToUnlock = 0;
+    
+    // Find all shapes locked by this user (except the one we're about to lock)
+    shapesSnapshot.forEach((doc) => {
+      const shape = doc.data();
+      if (shape.isLocked === true && shape.lockedBy === userId && doc.id !== shapeId) {
+        // Add unlock to batch
+        batch.update(doc.ref, {
+          isLocked: false,
+          lockedBy: null,
+          lockedAt: null,
+          unlockedAt: Date.now(),
+          lastModifiedAt: Date.now(),
+          lastModifiedBy: userId
         });
-        
-        // Update with all unlocks
-        await updateDoc(canvasRef, { 
-          shapes: updatedShapes,
-          lastModifiedBy: userId,
-          lastModifiedAt: Date.now()
-        });
+        shapesToUnlock++;
       }
+    });
+    
+    if (shapesToUnlock > 0) {
+      console.log(`🔓 [AUTO-UNLOCK] Unlocking ${shapesToUnlock} shapes for user ${userId}`);
     }
     
-    // THEN: Lock the new shape
-    await updateShape(shapeId, {
+    // Add lock for new shape to the same batch
+    const shapeRef = getShapeRef(shapeId, canvasId);
+    batch.update(shapeRef, {
       isLocked: true,
       lockedBy: userId,
-      lockedAt: Date.now() // Use regular timestamp
-    }, canvasId);
+      lockedAt: Date.now(),
+      lastModifiedAt: Date.now(),
+      lastModifiedBy: userId
+    });
+    
+    // Execute all operations atomically
+    await batch.commit();
     
     // Set up automatic unlock on disconnect (browser close/refresh)
     const lockCleanupRef = ref(rtdb, `${DISCONNECT_CLEANUP_PATH}/${CANVAS_SESSION_ID}/${userId}/${shapeId}`);
@@ -526,6 +620,7 @@ const monitorDisconnectCleanup = (callback) => {
 };
 
 // Unlock a shape
+// NEW ARCHITECTURE: Updates shape document directly in subcollection
 const unlockShape = async (shapeId, canvasId = CANVAS_DOC_ID) => {
   try {
     const userId = getCurrentUserId();
@@ -533,40 +628,23 @@ const unlockShape = async (shapeId, canvasId = CANVAS_DOC_ID) => {
     // Clear disconnect cleanup first
     await clearDisconnectCleanup(shapeId);
     
-    // Get the current shape and remove lock properties entirely
-    const canvasRef = doc(db, CANVAS_COLLECTION, canvasId);
-    const docSnapshot = await getDoc(canvasRef);
-    if (!docSnapshot.exists()) {
-      throw new Error('Canvas document not found');
+    // Get reference to shape document
+    const shapeRef = getShapeRef(shapeId, canvasId);
+    const shapeDoc = await getDoc(shapeRef);
+    
+    if (!shapeDoc.exists()) {
+      console.warn('Shape not found for unlock (may have been deleted):', shapeId);
+      return; // Shape doesn't exist, nothing to unlock
     }
     
-    const data = docSnapshot.data();
-    const shapes = data.shapes || [];
-    const shapeIndex = shapes.findIndex(shape => shape.id === shapeId);
-    
-    if (shapeIndex === -1) {
-      throw new Error('Shape not found');
-    }
-    
-    const currentShape = shapes[shapeIndex];
-    
-    // Create updated shape without lock properties
-    const updatedShape = { ...currentShape };
-    delete updatedShape.lockedBy;
-    delete updatedShape.lockedAt;
-    updatedShape.isLocked = false;
-    updatedShape.unlockedAt = Date.now();
-    updatedShape.lastModifiedBy = userId;
-    updatedShape.lastModifiedAt = Date.now();
-    
-    // Update the shapes array
-    const updatedShapes = [...shapes];
-    updatedShapes[shapeIndex] = updatedShape;
-    
-    await updateDoc(canvasRef, {
-      shapes: updatedShapes,
-      lastUpdated: serverTimestamp(),
-      lastModifiedBy: userId
+    // Update shape to remove lock
+    await updateDoc(shapeRef, {
+      isLocked: false,
+      lockedBy: null,
+      lockedAt: null,
+      unlockedAt: Date.now(),
+      lastModifiedBy: userId,
+      lastModifiedAt: Date.now()
     });
     
     console.log('✅ [LOCKING-SERVICE] Shape unlocked successfully:', shapeId, 'by user:', userId);
@@ -626,8 +704,11 @@ const getUserId = getCurrentUserId;
 export {
   subscribeToShapes,
   createShape,
+  batchCreateShapes,
   updateShape,
+  batchUpdateShapes,
   deleteShape,
+  batchDeleteShapes,
   lockShape,
   unlockShape,
   setupDisconnectCleanup,

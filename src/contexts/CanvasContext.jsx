@@ -42,8 +42,11 @@ export const CanvasProvider = ({ children }) => {
     error,
     isConnected,
     addShape: addShapeFirebase,
+    batchAddShapes: batchAddShapesFirebase,
     updateShape: updateShapeFirebase,
+    batchUpdateShapes: batchUpdateShapesFirebase,
     deleteShape: deleteShapeFirebase,
+    batchDeleteShapes: batchDeleteShapesFirebase,
     lockShape,
     unlockShape,
     clearLockTimeout,
@@ -223,6 +226,29 @@ export const CanvasProvider = ({ children }) => {
     }
   }, [addShapeFirebase, recordAction]);
 
+  const batchAddShapes = useCallback(async (shapesData) => {
+    try {
+      const newShapes = await batchAddShapesFirebase(shapesData);
+      
+      // Record actions for undo (record each shape)
+      if (newShapes && newShapes.length > 0) {
+        // Record as multiple ADD_SHAPE actions for proper undo support
+        newShapes.forEach(newShape => {
+          recordAction({
+            type: 'ADD_SHAPE',
+            shapeId: newShape.id,
+            shapeData: { ...newShape }
+          });
+        });
+      }
+      
+      return newShapes;
+    } catch (error) {
+      console.error('Failed to batch add shapes:', error);
+      throw error;
+    }
+  }, [batchAddShapesFirebase, recordAction]);
+
   const updateShape = useCallback(async (shapeId, updates) => {
     try {
       // Get the old shape data before updating
@@ -281,6 +307,69 @@ export const CanvasProvider = ({ children }) => {
       throw error;
     }
   }, [deleteShapeFirebase, selectedShapeId, shapesMap, recordAction]);
+
+  const batchUpdateShapes = useCallback(async (shapeIds, updates) => {
+    try {
+      // Get old shape data for undo
+      const shapesToUpdate = shapeIds.map(id => shapesMap.get(id)).filter(Boolean);
+      
+      await batchUpdateShapesFirebase(shapeIds, updates);
+      
+      // Record actions for undo
+      if (shapesToUpdate.length > 0) {
+        shapesToUpdate.forEach(oldShape => {
+          const oldData = {};
+          const newData = {};
+          Object.keys(updates).forEach(key => {
+            oldData[key] = oldShape[key];
+            newData[key] = updates[key];
+          });
+          
+          recordAction({
+            type: 'UPDATE_SHAPE',
+            shapeId: oldShape.id,
+            oldData,
+            newData
+          });
+        });
+      }
+      
+      return shapeIds;
+    } catch (error) {
+      console.error('Failed to batch update shapes:', error);
+      throw error;
+    }
+  }, [batchUpdateShapesFirebase, shapesMap, recordAction]);
+
+  const batchDeleteShapes = useCallback(async (shapeIds) => {
+    try {
+      // Get shape data before deleting for undo
+      const shapesToDelete = shapeIds.map(id => shapesMap.get(id)).filter(Boolean);
+      
+      await batchDeleteShapesFirebase(shapeIds);
+      
+      // Record actions for undo
+      if (shapesToDelete.length > 0) {
+        shapesToDelete.forEach(shape => {
+          recordAction({
+            type: 'DELETE_SHAPE',
+            shapeId: shape.id,
+            shapeData: { ...shape }
+          });
+        });
+      }
+      
+      // Clear selection if any deleted shape was selected
+      if (shapeIds.includes(selectedShapeId)) {
+        setSelectedShapeId(null);
+      }
+      
+      return shapeIds;
+    } catch (error) {
+      console.error('Failed to batch delete shapes:', error);
+      throw error;
+    }
+  }, [batchDeleteShapesFirebase, shapesMap, selectedShapeId, recordAction]);
 
   const duplicateShape = useCallback(async (shapeId) => {
     try {
@@ -362,10 +451,52 @@ export const CanvasProvider = ({ children }) => {
     );
   }, []);
 
-  const constrainToBounds = useCallback((x, y, width = 0, height = 0) => {
+  const constrainToBounds = useCallback((x, y, width = 0, height = 0, rotation = 0) => {
+    // No rotation - simple bounds check
+    if (!rotation || rotation === 0) {
+      return {
+        x: Math.max(0, Math.min(x, CANVAS_WIDTH - width)),
+        y: Math.max(0, Math.min(y, CANVAS_HEIGHT - height))
+      };
+    }
+    
+    // Calculate rotated bounding box by checking all four corners
+    const radians = (rotation * Math.PI) / 180;
+    const cos = Math.cos(radians);
+    const sin = Math.sin(radians);
+    
+    // Four corners of the unrotated rectangle (relative to top-left)
+    const corners = [
+      { x: 0, y: 0 },           // Top-left
+      { x: width, y: 0 },       // Top-right
+      { x: width, y: height },  // Bottom-right
+      { x: 0, y: height }       // Bottom-left
+    ];
+    
+    // Rotate each corner around (0, 0) and find min/max
+    const rotatedCorners = corners.map(corner => ({
+      x: corner.x * cos - corner.y * sin,
+      y: corner.x * sin + corner.y * cos
+    }));
+    
+    const minX = Math.min(...rotatedCorners.map(c => c.x));
+    const maxX = Math.max(...rotatedCorners.map(c => c.x));
+    const minY = Math.min(...rotatedCorners.map(c => c.y));
+    const maxY = Math.max(...rotatedCorners.map(c => c.y));
+    
+    // Rotated bounding box dimensions
+    const rotatedWidth = maxX - minX;
+    const rotatedHeight = maxY - minY;
+    const offsetX = minX; // Offset from original top-left
+    const offsetY = minY;
+    
+    // Constrain the top-left of the rotated bounding box
+    const constrainedX = Math.max(-offsetX, Math.min(x, CANVAS_WIDTH - rotatedWidth - offsetX));
+    const constrainedY = Math.max(-offsetY, Math.min(y, CANVAS_HEIGHT - rotatedHeight - offsetY));
+    
     return {
-      x: Math.max(0, Math.min(x, CANVAS_WIDTH - width)),
-      y: Math.max(0, Math.min(y, CANVAS_HEIGHT - height))
+      x: constrainedX,
+      y: constrainedY
     };
   }, []);
 
@@ -412,8 +543,11 @@ export const CanvasProvider = ({ children }) => {
 
     // Shape methods (now Firebase-connected)
     addShape,
+    batchAddShapes,
     updateShape,
+    batchUpdateShapes,
     deleteShape,
+    batchDeleteShapes,
     duplicateShape,
     selectShape,
     deselectAll,

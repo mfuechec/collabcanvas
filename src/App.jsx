@@ -18,6 +18,7 @@ import PropertiesPanel from './components/Layout/PropertiesPanel'
 import LayersPanel from './components/Layout/LayersPanel'
 import Canvas from './components/Canvas/Canvas'
 import Minimap from './components/Canvas/Minimap'
+import AIChat from './components/AI/AIChat'
 import ErrorBoundary from './components/Error/ErrorBoundary'
 import ErrorToast from './components/Error/ErrorToast'
 
@@ -25,7 +26,7 @@ import ErrorToast from './components/Error/ErrorToast'
 import './utils/clearCanvas'
 
 // Inner component with access to all contexts
-const AppLayout = ({ showProperties, setShowProperties, showLayers, setShowLayers }) => {
+const AppLayout = ({ showLayers, setShowLayers }) => {
   const { setMode, CANVAS_MODES, SHAPE_TYPES } = useCanvasMode();
   const { deleteShape, duplicateShape, selectedShapeId, deselectAll, resetView, undo, redo, canUndo, canRedo } = useCanvas();
   
@@ -64,14 +65,13 @@ const AppLayout = ({ showProperties, setShowProperties, showLayers, setShowLayer
     onZoomSelection: () => console.log('Zoom selection - coming soon'),
     
     // Panels
-    onToggleProperties: () => setShowProperties(prev => !prev),
     onToggleLayers: () => setShowLayers(prev => !prev),
     onCommandPalette: () => console.log('Command palette - coming soon'),
   });
   
   // Calculate canvas margin based on open panels
   const leftMargin = 60 + (showLayers ? 320 : 0);
-  const rightMargin = showProperties ? 280 : 0;
+  const rightMargin = 280; // Properties panel always open
   
   return (
     <div className="h-screen flex overflow-hidden" style={{ position: 'relative' }}>
@@ -99,27 +99,25 @@ const AppLayout = ({ showProperties, setShowProperties, showLayers, setShowLayer
         <Canvas />
         
         {/* Floating overlay panels */}
-        <FloatingUserMenu propertiesPanelOpen={showProperties} />
-        <Minimap propertiesPanelOpen={showProperties} />
+        <FloatingUserMenu propertiesPanelOpen={true} />
+        <Minimap />
+        <AIChat />
       </div>
       
-      {/* Properties Panel - Collapsible */}
-      <PropertiesPanel isOpen={showProperties} onToggle={() => setShowProperties(!showProperties)} />
+      {/* Properties Panel - Always visible */}
+      <PropertiesPanel />
     </div>
   );
 };
 
 // Main app content (authenticated view) - Figma-style layout
 const AuthenticatedApp = () => {
-  const [showProperties, setShowProperties] = useState(true);
   const [showLayers, setShowLayers] = useState(false);
   
   return (
     <CanvasModeProvider>
       <CanvasProvider>
         <AppLayout 
-          showProperties={showProperties}
-          setShowProperties={setShowProperties}
           showLayers={showLayers}
           setShowLayers={setShowLayers}
         />

@@ -12,12 +12,16 @@
     "test:coverage": "vitest --coverage"
   },
   "dependencies": {
+    "@langchain/core": "^0.3.78",
+    "@langchain/openai": "^0.6.16",
     "firebase": "^12.4.0",
     "konva": "^10.0.2",
+    "langchain": "^0.3.36",
     "lucide-react": "^0.545.0",
     "react": "^19.2.0",
     "react-dom": "^19.2.0",
-    "react-konva": "^19.0.10"
+    "react-konva": "^19.0.10",
+    "zod": "^3.25.76"
   },
   "devDependencies": {
     "@tailwindcss/postcss": "^4.1.14",

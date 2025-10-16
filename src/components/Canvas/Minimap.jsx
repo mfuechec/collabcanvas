@@ -9,7 +9,7 @@ const CANVAS_WIDTH = 5000;
 const CANVAS_HEIGHT = 5000;
 const PADDING = 10; // Padding around canvas in minimap
 
-const Minimap = ({ propertiesPanelOpen = false }) => {
+const Minimap = () => {
   const { shapes, stageRef, canvasPosition, zoom, updateCanvasPosition } = useCanvas();
   const { theme } = useTheme();
   const canvasRef = useRef(null);
@@ -69,10 +69,18 @@ const Minimap = ({ propertiesPanelOpen = false }) => {
       ctx.fillStyle = shape.fill || '#cccccc';
       ctx.globalAlpha = shape.opacity || 1.0;
 
+      // Apply rotation if present
+      if (shape.rotation && shape.rotation !== 0) {
+        // Translate to shape position, rotate, then draw at origin
+        ctx.translate(x, y);
+        ctx.rotate((shape.rotation * Math.PI) / 180);
+        // Adjust drawing to account for translation
+      }
+
       // Draw based on shape type
       if (shape.type === 'circle') {
-        const centerX = x + width / 2;
-        const centerY = y + height / 2;
+        const centerX = shape.rotation ? width / 2 : x + width / 2;
+        const centerY = shape.rotation ? height / 2 : y + height / 2;
         const radius = Math.min(width, height) / 2;
         ctx.beginPath();
         ctx.arc(centerX, centerY, radius, 0, Math.PI * 2);
@@ -112,10 +120,14 @@ const Minimap = ({ propertiesPanelOpen = false }) => {
         ctx.fillStyle = shape.fill || '#000000';
         ctx.globalAlpha = 0.6;
         const indicatorSize = Math.max(2, Math.min(width, height) * 0.3); // Small indicator
-        ctx.fillRect(x, y, indicatorSize, indicatorSize);
+        const rectX = shape.rotation ? 0 : x;
+        const rectY = shape.rotation ? 0 : y;
+        ctx.fillRect(rectX, rectY, indicatorSize, indicatorSize);
       } else {
         // Rectangle (draw as rectangle)
-        ctx.fillRect(x, y, width, height);
+        const rectX = shape.rotation ? 0 : x;
+        const rectY = shape.rotation ? 0 : y;
+        ctx.fillRect(rectX, rectY, width, height);
       }
 
       ctx.restore();
@@ -208,8 +220,8 @@ const Minimap = ({ propertiesPanelOpen = false }) => {
 
   const containerStyle = {
     position: 'fixed',
-    top: 'calc(64px + 16px)', // Below the user profile/menu (48px height + 16px gap)
-    right: propertiesPanelOpen ? 'calc(280px + 16px)' : SPACING.lg, // Adjust when properties panel is open
+    top: SPACING.lg, // Top left corner
+    left: 'calc(64px + 16px)', // Just right of the 64px sidebar
     width: `${MINIMAP_WIDTH}px`,
     height: `${MINIMAP_HEIGHT}px`,
     backgroundColor: colors.sidebar,

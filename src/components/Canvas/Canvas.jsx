@@ -215,7 +215,8 @@ const Canvas = () => {
           fill: '#000000',
           width: 200, // Initial width for wrapping
           height: 32, // Approximate height for single line
-          opacity: 0.8 // Default opacity (single source of truth)
+          opacity: 0.8, // Default opacity (single source of truth)
+          rotation: 0 // Default rotation
         }).then((newShape) => {
           if (newShape) {
             selectShape(newShape.id);
@@ -313,7 +314,8 @@ const Canvas = () => {
             fill: '#cccccc',
             stroke: '#cccccc', // Same default color as fill
             strokeWidth: 2,
-            opacity: 0.8 // Default opacity (single source of truth)
+            opacity: 0.8, // Default opacity (single source of truth)
+            rotation: 0 // Default rotation
           };
           
           // For lines and pen, also include the points array
@@ -588,6 +590,7 @@ const Canvas = () => {
                   height={shape.height}
                   fill={shape.fill}
                   opacity={shape.opacity}
+                  rotation={shape.rotation} // Rotation in degrees
                   points={shape.points} // For lines
                   stroke={shape.stroke} // For lines and borders
                   strokeWidth={shape.strokeWidth} // For lines and borders
@@ -731,6 +734,7 @@ const Canvas = () => {
                   strokeWidth: 3,
                   dash: [8, 4],
                   opacity: 0.9,
+                  rotation: dragPreview.rotation || 0, // Apply rotation
                   shadowColor: userColor,
                   shadowBlur: 8,
                   shadowOpacity: 0.3,

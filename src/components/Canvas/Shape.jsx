@@ -12,6 +12,7 @@ const Shape = ({
   height, 
   fill,
   opacity = 1.0, // Default to full opacity if not provided
+  rotation = 0, // Default rotation
   points, // For lines: [x1, y1, x2, y2]
   stroke, // For lines and borders
   strokeWidth, // For lines and borders
@@ -131,7 +132,8 @@ const Shape = ({
         boundingBoxX = shapePos.x - width / 2;
         boundingBoxY = shapePos.y - height / 2;
       } else if (type === 'line' || type === 'pen') {
-        // Lines/pen are positioned at (0, 0), use stored bounding box
+        // Lines/pen are now positioned at their center with offsets for rotation
+        // Their visual top-left is at position - offset, which equals the bounding box
         boundingBoxX = x;
         boundingBoxY = y;
       } else {
@@ -157,6 +159,11 @@ const Shape = ({
         previewData.points = points;
       }
       
+      // Include rotation for accurate preview
+      if (rotation) {
+        previewData.rotation = rotation;
+      }
+      
       updateDragPreview(id, previewData);
     }
   };
@@ -166,14 +173,31 @@ const Shape = ({
     const shape = e.target;
     const newPos = shape.position();
     
-    // For lines/pen, newPos is the drag offset from (0, 0)
+    // For lines/pen with offsets, newPos is offset by the offset values
     // For circles, newPos is the center. For rectangles, it's top-left.
     // Convert to bounding box coordinates for boundary checking
     let boundingBoxX, boundingBoxY;
-    if (type === 'line' || type === 'pen') {
-      // Lines/pen: their position changed from (0, 0), so add offset to original bounding box
-      boundingBoxX = x + newPos.x;
-      boundingBoxY = y + newPos.y;
+    if (type === 'line' && points && points.length === 4) {
+      // Lines are positioned at center with offsetX/offsetY
+      // The visual top-left is at: newPos - offset = bounding box position
+      const centerX = (points[0] + points[2]) / 2;
+      const centerY = (points[1] + points[3]) / 2;
+      const minX = Math.min(points[0], points[2]);
+      const minY = Math.min(points[1], points[3]);
+      // Bounding box position = center position - offset from center to top-left
+      boundingBoxX = newPos.x - (centerX - minX);
+      boundingBoxY = newPos.y - (centerY - minY);
+    } else if (type === 'pen' && points && points.length >= 4) {
+      // Pen is positioned at center with offsetX/offsetY
+      const xCoords = points.filter((_, i) => i % 2 === 0);
+      const yCoords = points.filter((_, i) => i % 2 === 1);
+      const centerX = (Math.min(...xCoords) + Math.max(...xCoords)) / 2;
+      const centerY = (Math.min(...yCoords) + Math.max(...yCoords)) / 2;
+      const minX = Math.min(...xCoords);
+      const minY = Math.min(...yCoords);
+      // Bounding box position = center position - offset from center to top-left
+      boundingBoxX = newPos.x - (centerX - minX);
+      boundingBoxY = newPos.y - (centerY - minY);
     } else if (type === 'circle') {
       // Circle position is center, convert to bounding box top-left
       boundingBoxX = newPos.x - width / 2;
@@ -184,21 +208,40 @@ const Shape = ({
       boundingBoxY = newPos.y;
     }
     
-    // Constrain shape to canvas boundaries using bounding box
+    // Constrain shape to canvas boundaries using bounding box (with rotation)
     const constrainedBoundingBox = constrainToBounds(
       boundingBoxX, 
       boundingBoxY, 
       width, 
-      height
+      height,
+      rotation
     );
     
     // Convert back to shape-specific coordinates for Konva
     let constrainedPos;
-    if (type === 'line' || type === 'pen') {
-      // For lines/pen, calculate the constrained offset from original position
+    if (type === 'line' && points && points.length === 4) {
+      // For lines, convert bounding box back to center position
+      const centerX = (points[0] + points[2]) / 2;
+      const centerY = (points[1] + points[3]) / 2;
+      const minX = Math.min(points[0], points[2]);
+      const minY = Math.min(points[1], points[3]);
+      // Center position = bounding box + offset from top-left to center
       constrainedPos = {
-        x: constrainedBoundingBox.x - x,
-        y: constrainedBoundingBox.y - y
+        x: constrainedBoundingBox.x + (centerX - minX),
+        y: constrainedBoundingBox.y + (centerY - minY)
+      };
+    } else if (type === 'pen' && points && points.length >= 4) {
+      // For pen, convert bounding box back to center position
+      const xCoords = points.filter((_, i) => i % 2 === 0);
+      const yCoords = points.filter((_, i) => i % 2 === 1);
+      const centerX = (Math.min(...xCoords) + Math.max(...xCoords)) / 2;
+      const centerY = (Math.min(...yCoords) + Math.max(...yCoords)) / 2;
+      const minX = Math.min(...xCoords);
+      const minY = Math.min(...yCoords);
+      // Center position = bounding box + offset from top-left to center
+      constrainedPos = {
+        x: constrainedBoundingBox.x + (centerX - minX),
+        y: constrainedBoundingBox.y + (centerY - minY)
       };
     } else if (type === 'circle') {
       // Convert bounding box back to center for circle
@@ -255,6 +298,11 @@ const Shape = ({
           previewData.points = translatedPoints;
         }
         
+        // Include rotation for accurate preview
+        if (rotation) {
+          previewData.rotation = rotation;
+        }
+        
         updateDragPreview(id, previewData);
       }
       lastPreviewUpdate.current = now;
@@ -280,10 +328,26 @@ const Shape = ({
     
     // Convert to bounding box coordinates for storage
     let boundingBoxX, boundingBoxY;
-    if (type === 'line' || type === 'pen') {
-      // Lines/pen: finalPos is offset from (0, 0), add to original bounding box
-      boundingBoxX = x + finalPos.x;
-      boundingBoxY = y + finalPos.y;
+    if (type === 'line' && points && points.length === 4) {
+      // Lines are positioned at center with offsetX/offsetY
+      const centerX = (points[0] + points[2]) / 2;
+      const centerY = (points[1] + points[3]) / 2;
+      const minX = Math.min(points[0], points[2]);
+      const minY = Math.min(points[1], points[3]);
+      // Bounding box position = center position - offset from center to top-left
+      boundingBoxX = finalPos.x - (centerX - minX);
+      boundingBoxY = finalPos.y - (centerY - minY);
+    } else if (type === 'pen' && points && points.length >= 4) {
+      // Pen is positioned at center with offsetX/offsetY
+      const xCoords = points.filter((_, i) => i % 2 === 0);
+      const yCoords = points.filter((_, i) => i % 2 === 1);
+      const centerX = (Math.min(...xCoords) + Math.max(...xCoords)) / 2;
+      const centerY = (Math.min(...yCoords) + Math.max(...yCoords)) / 2;
+      const minX = Math.min(...xCoords);
+      const minY = Math.min(...yCoords);
+      // Bounding box position = center position - offset from center to top-left
+      boundingBoxX = finalPos.x - (centerX - minX);
+      boundingBoxY = finalPos.y - (centerY - minY);
     } else if (type === 'circle') {
       // Circle position is center, convert to bounding box top-left
       boundingBoxX = finalPos.x - width / 2;
@@ -294,12 +358,13 @@ const Shape = ({
       boundingBoxY = finalPos.y;
     }
     
-    // Ensure final bounding box position is within bounds
+    // Ensure final bounding box position is within bounds (with rotation)
     const constrainedBoundingBox = constrainToBounds(
       boundingBoxX, 
       boundingBoxY, 
       width, 
-      height
+      height,
+      rotation
     );
     
     // For non-line/pen shapes, update position immediately for smooth UX
@@ -318,7 +383,7 @@ const Shape = ({
       // Ensure shape is positioned correctly immediately
       shape.position(constrainedPos);
     } else if ((type === 'line' || type === 'pen') && points) {
-      // For lines/pen, optimistically update points AND reset position to prevent blink
+      // For lines/pen, optimistically update points AND position to prevent blink
       const deltaX = constrainedBoundingBox.x - x;
       const deltaY = constrainedBoundingBox.y - y;
       
@@ -332,8 +397,19 @@ const Shape = ({
       
       // Apply translated points immediately to Konva shape
       shape.points(translatedPoints);
-      // Reset position to (0, 0)
-      shape.position({ x: 0, y: 0 });
+      
+      // Calculate new center position for the shape
+      if (type === 'line' && translatedPoints.length === 4) {
+        const newCenterX = (translatedPoints[0] + translatedPoints[2]) / 2;
+        const newCenterY = (translatedPoints[1] + translatedPoints[3]) / 2;
+        shape.position({ x: newCenterX, y: newCenterY });
+      } else if (type === 'pen' && translatedPoints.length >= 4) {
+        const xCoords = translatedPoints.filter((_, i) => i % 2 === 0);
+        const yCoords = translatedPoints.filter((_, i) => i % 2 === 1);
+        const newCenterX = (Math.min(...xCoords) + Math.max(...xCoords)) / 2;
+        const newCenterY = (Math.min(...yCoords) + Math.max(...yCoords)) / 2;
+        shape.position({ x: newCenterX, y: newCenterY });
+      }
     }
     
     // 🚀 COLLABORATIVE: End drag preview broadcast to other users
@@ -503,6 +579,7 @@ const Shape = ({
     strokeWidth: visualStyles.strokeWidth,
     opacity: visualStyles.opacity,
     draggable: visualStyles.draggable,
+    rotation: rotation || 0, // Apply rotation
     shapeId: id,
     onDragStart: handleDragStart,
     onDragMove: handleDragMove,
@@ -530,12 +607,18 @@ const Shape = ({
   }
   
   if (type === 'line' && points && points.length === 4) {
-    // For lines, use points array (absolute coordinates) and position at (0, 0)
-    // Note: We don't pass x, y from commonProps because points are already absolute
+    // Calculate the center of the line for rotation
+    const centerX = (points[0] + points[2]) / 2;
+    const centerY = (points[1] + points[3]) / 2;
+    
+    // For lines, use points array (absolute coordinates)
+    // Position at center and use offset so rotation happens around center
     const lineProps = {
       ...commonProps,
-      x: 0, // Lines use absolute coordinates in points array
-      y: 0,
+      x: centerX,
+      y: centerY,
+      offsetX: centerX,
+      offsetY: centerY,
       fill: undefined, // Lines don't have fill
       stroke: stroke || visualStyles.stroke || '#cccccc', // Same default as other shapes
       strokeWidth: strokeWidth || visualStyles.strokeWidth || 2
@@ -550,12 +633,20 @@ const Shape = ({
   }
   
   if (type === 'pen' && points && points.length >= 4) {
-    // For pen (freehand), use points array (absolute coordinates) and position at (0, 0)
-    // Note: We don't pass x, y from commonProps because points are already absolute
+    // Calculate the center of the pen drawing for rotation
+    const xCoords = points.filter((_, i) => i % 2 === 0);
+    const yCoords = points.filter((_, i) => i % 2 === 1);
+    const centerX = (Math.min(...xCoords) + Math.max(...xCoords)) / 2;
+    const centerY = (Math.min(...yCoords) + Math.max(...yCoords)) / 2;
+    
+    // For pen (freehand), use points array (absolute coordinates)
+    // Position at center and use offset so rotation happens around center
     const penProps = {
       ...commonProps,
-      x: 0, // Pen strokes use absolute coordinates in points array
-      y: 0,
+      x: centerX,
+      y: centerY,
+      offsetX: centerX,
+      offsetY: centerY,
       fill: undefined, // Pen strokes don't have fill
       stroke: stroke || visualStyles.stroke || '#cccccc', // Same default as other shapes
       strokeWidth: strokeWidth || visualStyles.strokeWidth || 2,
