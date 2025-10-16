@@ -206,15 +206,21 @@ const Canvas = () => {
       
       // Text tool: create immediately on click, no drag
       if (currentShapeType === SHAPE_TYPES.TEXT) {
+        // ✅ Calculate fontSize based on zoom level for better readability
+        // Formula: 48 / zoom
+        // At 0.12 zoom (12%): ~400px (very readable when zoomed out)
+        // At 1.0 zoom (100%): 48px (normal)
+        // At 2.0 zoom (200%): 24px (smaller when zoomed in)
+        const defaultFontSize = Math.max(8, Math.min(500, Math.round(48 / zoom)));
+        
         addShape({
           type: 'text',
           x: constrainedPos.x,
           y: constrainedPos.y,
           text: 'Text',
-          fontSize: 24,
+          fontSize: defaultFontSize,
           fill: '#000000',
-          width: 200, // Initial width for wrapping
-          height: 32, // Approximate height for single line
+          // ✅ NO width/height - let text auto-size based on content
           opacity: 0.8, // Default opacity (single source of truth)
           rotation: 0 // Default rotation
         }).then((newShape) => {
@@ -238,7 +244,7 @@ const Canvas = () => {
         deselectAll();
       }
     }
-  }, [currentMode, CANVAS_MODES, isDrawing, startDrawing, screenToCanvasCoords, deselectAll]);
+  }, [currentMode, CANVAS_MODES, isDrawing, startDrawing, screenToCanvasCoords, deselectAll, currentShapeType, SHAPE_TYPES, addShape, selectShape, zoom]);
 
   // Handle mouse move for drawing preview and canvas panning
   const handleStageMouseMove = useCallback((e) => {
@@ -758,13 +764,15 @@ const Canvas = () => {
                   return <Line x={0} y={0} points={dragPreview.points} {...dragProps} fill={undefined} tension={0.5} lineCap="round" lineJoin="round" />;
                 }
                 
-                // Default to rectangle
+                // Default to rectangle - rotate around center
                 return (
                   <Rect
-                    x={dragPreview.x}
-                    y={dragPreview.y}
+                    x={dragPreview.x + dragPreview.width / 2}
+                    y={dragPreview.y + dragPreview.height / 2}
                     width={dragPreview.width}
                     height={dragPreview.height}
+                    offsetX={dragPreview.width / 2}
+                    offsetY={dragPreview.height / 2}
                     {...dragProps}
                   />
                 );

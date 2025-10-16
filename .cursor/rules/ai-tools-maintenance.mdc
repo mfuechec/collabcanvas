@@ -1,0 +1,330 @@
+Description: Guidelines for maintaining AI tools and their documentation in sync
+Globs: src/services/aiAgent.js, src/components/AI/AIChat.jsx, AI_TOOLS_AUDIT.md, AI_TOOLS_IMPROVEMENTS.md
+
+# AI Tools Maintenance Protocol
+
+## Model Routing Performance
+
+The AI uses **smart model routing** to optimize speed and cost:
+- **GPT-4o-mini**: Simple requests (2x faster, 10x cheaper)
+- **GPT-4o**: Complex requests (more capable)
+
+**Classification happens automatically** via `classifyRequestComplexity()` before planning.
+
+**When adding/modifying tools:**
+- No action needed - classification adapts automatically
+- But keep in mind: simpler tools = more likely to use GPT-4o-mini
+
+## Critical Files That Must Stay in Sync
+
+When modifying AI tools, **ALL** of the following must be updated together:
+
+### 1. Tool Implementation
+**File:** `src/services/aiAgent.js`
+- Tool function implementation (`const XxxTool = tool(...)`)
+- Zod schema definition
+- Tool description
+- `tools` array (add/remove tool)
+
+### 2. Planning Prompt
+**File:** `src/services/aiAgent.js`
+- `generateExecutionPlan()` function's `planningPrompt`
+- **"Available Tools with Parameters"** section (lines ~607-742)
+- Must list ALL tools with their complete parameter specs
+- Include usage examples for complex tools
+
+### 3. Action Handler
+**File:** `src/components/AI/AIChat.jsx`
+- `executeActions()` function's `switch` statement
+- Add `case 'tool_action_name':` handler
+- Implement the actual canvas operation
+- Handle edge cases and errors
+
+### 4. Documentation
+**File:** `AI_TOOLS_AUDIT.md`
+- Update tool inventory (total count, by category)
+- Add to appropriate category (Creation, Manipulation, Batch, etc.)
+- Document any architectural decisions
+- Update "Recent Improvements" section with date
+- Increment "Last Updated" date
+
+### 5. Implementation Notes
+**File:** `AI_TOOLS_IMPROVEMENTS.md` (when making significant changes)
+- Document the problem being solved
+- Explain the solution approach
+- Show before/after code examples
+- Include performance impact
+- Add testing recommendations
+
+---
+
+## Update Checklist
+
+When adding/modifying/removing an AI tool, **check off ALL items**:
+
+### Adding a New Tool
+- [ ] Create tool function in `aiAgent.js` with Zod schema
+- [ ] Add tool to `tools` array in `aiAgent.js`
+- [ ] Add tool to planning prompt (with full parameter specs)
+- [ ] Implement action handler in `AIChat.jsx`
+- [ ] Update `AI_TOOLS_AUDIT.md`:
+  - [ ] Increment total tool count (header + inventory)
+  - [ ] Add to appropriate category
+  - [ ] Update "Last Updated" date
+  - [ ] Add to "Recent Improvements" if significant
+- [ ] Test with actual AI commands
+- [ ] Document in `AI_TOOLS_IMPROVEMENTS.md` if major feature
+
+### Modifying an Existing Tool
+- [ ] Update tool schema in `aiAgent.js`
+- [ ] Update tool description if behavior changes
+- [ ] Update planning prompt parameter specs
+- [ ] Update action handler in `AIChat.jsx` if needed
+- [ ] Update `AI_TOOLS_AUDIT.md`:
+  - [ ] Mark tool as "✨ UPDATED" in inventory
+  - [ ] Add to "Recent Improvements"
+  - [ ] Update relevant issue sections (mark as ✅ FIXED)
+  - [ ] Update "Last Updated" date
+- [ ] Test edge cases
+- [ ] Document in `AI_TOOLS_IMPROVEMENTS.md` if significant
+
+### Removing a Tool
+- [ ] Remove from `tools` array in `aiAgent.js`
+- [ ] Remove from planning prompt
+- [ ] Remove action handler case in `AIChat.jsx`
+- [ ] Update `AI_TOOLS_AUDIT.md`:
+  - [ ] Decrement total tool count
+  - [ ] Remove from inventory (or mark as deprecated)
+  - [ ] Document reason in "Recent Improvements"
+  - [ ] Update "Last Updated" date
+- [ ] Document migration path in `AI_TOOLS_IMPROVEMENTS.md`
+
+---
+
+## Common Mistakes to Avoid
+
+### ❌ DON'T:
+1. **Add a tool without updating the planning prompt**
+   - Result: AI doesn't know about the tool and never uses it
+   
+2. **Update a tool schema without updating the planning prompt**
+   - Result: AI generates invalid parameters
+   
+3. **Add a tool without implementing the action handler**
+   - Result: Tool returns success but nothing happens
+   
+4. **Forget to update `AI_TOOLS_AUDIT.md`**
+   - Result: Documentation drifts out of sync with reality
+   
+5. **Update only the tool description, not the planning prompt**
+   - Result: AI gets conflicting information
+
+### ✅ DO:
+1. **Update all 5 locations in a single commit**
+2. **Test the tool with real AI commands before committing**
+3. **Update the "Last Updated" date in `AI_TOOLS_AUDIT.md`**
+4. **Document breaking changes in `AI_TOOLS_IMPROVEMENTS.md`**
+5. **Review the planning prompt for consistency**
+
+---
+
+## Example: Adding a New Tool
+
+```javascript
+// 1. TOOL IMPLEMENTATION (aiAgent.js)
+const myNewTool = tool(
+  async ({ param1, param2 }) => {
+    return JSON.stringify({
+      action: 'my_new_action',
+      data: { param1, param2 }
+    });
+  },
+  {
+    name: 'my_new_tool',
+    description: 'Does something useful. Use when...',
+    schema: z.object({
+      param1: z.string().describe('First parameter'),
+      param2: z.number().optional().describe('Optional second parameter'),
+    }),
+  }
+);
+
+// Add to tools array
+const tools = [
+  // ... existing tools
+  myNewTool, // ✅ ADD HERE
+];
+```
+
+```javascript
+// 2. PLANNING PROMPT UPDATE (aiAgent.js, ~line 607)
+**Available Tools with Parameters:**
+
+// ... existing tools ...
+
+19. **my_new_tool** - Does something useful
+   Args: { param1: string, param2: number (optional) }
+```
+
+```javascript
+// 3. ACTION HANDLER (AIChat.jsx)
+case 'my_new_action': {
+  const { param1, param2 } = data;
+  // Implement the actual operation
+  await someCanvasOperation(param1, param2);
+  break;
+}
+```
+
+```markdown
+<!-- 4. DOCUMENTATION (AI_TOOLS_AUDIT.md) -->
+**Total Tools:** 20  <!-- Increment -->
+**Last Updated:** [Current Date] - Added my_new_tool
+
+## 🎉 Recent Improvements ([Current Date])
+
+1. ✅ **Added `my_new_tool`** - Brief description
+
+### Utility Tools (2)  <!-- Increment category count -->
+19. `create_random_shapes` - Creates random shapes
+20. `my_new_tool` - Does something useful ✨ **NEW**
+```
+
+---
+
+## Performance Considerations
+
+When modifying batch tools or adding new batch operations:
+
+1. **Use Firebase `writeBatch()`** for multiple operations
+2. **Log performance metrics** with `performance.now()`
+3. **Limit batch sizes** (e.g., max 50-100 operations)
+4. **Add delays** (`setTimeout`) between rapid individual operations
+5. **Document performance impact** in `AI_TOOLS_IMPROVEMENTS.md`
+
+---
+
+## Testing Protocol
+
+Before committing tool changes:
+
+1. **Manual Testing:**
+   ```
+   "Create a red rectangle"
+   "[Test your specific tool command]"
+   "Delete all shapes"
+   ```
+
+2. **Edge Case Testing:**
+   - Missing required parameters (should fail gracefully)
+   - Invalid parameter values (should be caught by Zod)
+   - Empty arrays (for batch operations)
+   - Non-existent shape IDs
+
+3. **Performance Testing:**
+   - Time the operation with performance logs
+   - Compare to previous implementation
+   - Test with 50+ shapes for batch operations
+
+4. **Documentation Testing:**
+   - Verify AI_TOOLS_AUDIT.md reflects current state
+   - Check that tool count is accurate
+   - Ensure planning prompt includes all tools
+
+---
+
+## Architecture Principles
+
+### DRY (Don't Repeat Yourself)
+- Reuse existing tools when possible
+- Enhance existing tools rather than creating duplicates
+- Example: Enhanced `batch_update_shapes` for transforms instead of creating `batch_transform_shapes`
+
+### Single Responsibility
+- Each tool should do ONE thing well
+- Complex operations should use `batch_operations` to combine tools
+- Don't mix concerns (e.g., don't add deletion logic to creation tools)
+
+### Composability
+- Tools should be composable in the planning phase
+- AI should be able to combine multiple tools to solve complex problems
+- Avoid creating specialized tools for every possible combination
+
+### Performance First
+- Batch operations are always preferred for 2+ shapes (updated threshold!)
+- Minimize LLM calls by consolidating related operations
+- Use Plan-and-Execute pattern to reduce reasoning time
+- Emphasize batching in planning prompt (Rule #11)
+
+### Intelligent Defaults
+- Auto-detect shape types from properties when possible
+  - `x1, y1, x2, y2` → line
+  - `radius` → circle
+  - `text` → text
+- Use `!== undefined` instead of `||` for zero-capable properties (x, y, opacity)
+- Provide sensible defaults for optional parameters
+
+### Coordinate System Consistency
+- **AI receives**: Center coordinates (intuitive for users)
+- **Storage uses**: Top-left of bounding box (consistent across all shapes)
+- **Rendering**: Shape-specific (circles/rectangles/text use offsetX/offsetY for rotation)
+- **Always document** coordinate conversions in comments
+
+### Rotation Consistency
+- ALL shapes must rotate around their centerpoint
+- Use `offsetX` and `offsetY` in Konva for proper rotation axis
+- Rectangles: `x + width/2, y + height/2` with `offsetX: width/2, offsetY: height/2`
+- Circles: Already at center, just need `offsetX: 0, offsetY: 0`
+- Lines/Pen: Calculate center from points, use as position with offsets
+
+---
+
+## Red Flags
+
+### 🚨 These indicate synchronization issues:
+
+1. **AI says it doesn't have a tool you just added**
+   → Planning prompt not updated
+
+2. **AI generates a plan but nothing happens**
+   → Action handler not implemented
+
+3. **AI generates invalid parameters**
+   → Planning prompt doesn't match tool schema
+
+4. **Documentation says 18 tools but code has 19**
+   → `AI_TOOLS_AUDIT.md` not updated
+
+5. **Tool works but uses old parameter names**
+   → Planning prompt has stale information
+
+---
+
+## Quick Reference
+
+### Files to Update (In Order)
+1. `src/services/aiAgent.js` - Tool implementation + planning prompt
+2. `src/components/AI/AIChat.jsx` - Action handler
+3. `AI_TOOLS_AUDIT.md` - Documentation
+4. `AI_TOOLS_IMPROVEMENTS.md` - Implementation notes (if significant)
+
+### Key Line Numbers (Approximate)
+- Tool definitions: `aiAgent.js` lines 26-544
+- Tools array: `aiAgent.js` line 547
+- Planning prompt: `aiAgent.js` lines 607-742
+- Action handler: `AIChat.jsx` lines 85-310
+
+### Commit Message Format
+```
+feat(ai-tools): Add [tool_name] tool
+
+- Implemented [tool_name] with [parameters]
+- Updated planning prompt with tool specs
+- Added action handler in AIChat.jsx
+- Updated AI_TOOLS_AUDIT.md (tool count: X → X+1)
+- Tested with: "[example command]"
+```
+
+---
+
+**Remember:** If you modify AI tools and don't update ALL related files, the AI assistant will have incomplete or incorrect information, leading to broken functionality or confusing behavior. Always update all 5 locations together! 🔄

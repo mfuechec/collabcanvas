@@ -1,9 +1,9 @@
 import { useState, useRef, useEffect } from 'react';
 import { useCanvas } from '../../hooks/useCanvas';
-import { executeAICommand } from '../../services/aiAgent';
+import { executeAICommandWithPlanAndExecute } from '../../services/aiAgent';
 import { useTheme } from '../../contexts/ThemeContext';
-import { COLORS, TYPOGRAPHY, SPACING, SHADOWS, BORDER_RADIUS, LAYOUT } from '../../utils/designSystem';
-import { Send, Sparkles, X, Minimize2, Maximize2 } from 'lucide-react';
+import { COLORS, TYPOGRAPHY, SPACING, BORDER_RADIUS, LAYOUT } from '../../utils/designSystem';
+import { Send, Sparkles, Minimize2, Maximize2 } from 'lucide-react';
 import { clearAllShapes } from '../../utils/clearCanvas';
 
 const AIChat = () => {
@@ -15,246 +15,51 @@ const AIChat = () => {
   ]);
   const [input, setInput] = useState('');
   const [isLoading, setIsLoading] = useState(false);
-  const [isMinimized, setIsMinimized] = useState(true); // Default collapsed
+  const [isMinimized, setIsMinimized] = useState(true);
   const messagesEndRef = useRef(null);
   const { theme } = useTheme();
   const colors = COLORS[theme];
   
-  const { shapes, addShape, batchAddShapes, updateShape, batchUpdateShapes, deleteShape, batchDeleteShapes } = useCanvas();
+  const { shapes, executeSmartOperation } = useCanvas();
   
   // Auto-scroll to bottom when new messages arrive
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
   }, [messages]);
   
-  // Find shape by description
-  const findShapeByDescription = (description) => {
-    const lowerDesc = description.toLowerCase();
-    
-    // Try to find by exact text match first (for text shapes)
-    let match = shapes.find(s => 
-      s.type === 'text' && s.text && s.text.toLowerCase().includes(lowerDesc)
-    );
-    
-    if (match) return match;
-    
-    // Try to find by color
-    const colorMap = {
-      red: '#ff0000', '#ff0000': true, '#ef4444': true,
-      blue: '#0000ff', '#0000ff': true, '#3b82f6': true,
-      green: '#00ff00', '#00ff00': true, '#22c55e': true,
-      yellow: '#ffff00', '#ffff00': true,
-      purple: '#800080', '#800080': true,
-      black: '#000000', '#000000': true,
-      white: '#ffffff', '#ffffff': true,
-    };
-    
-    for (const [colorName, colorValue] of Object.entries(colorMap)) {
-      if (lowerDesc.includes(colorName)) {
-        match = shapes.find(s => 
-          s.fill && (
-            s.fill.toLowerCase() === (typeof colorValue === 'string' ? colorValue : colorName) ||
-            s.fill.toLowerCase().includes(colorName)
-          )
-        );
-        if (match) return match;
-      }
-    }
-    
-    // Try to find by type
-    if (lowerDesc.includes('circle')) {
-      match = shapes.find(s => s.type === 'circle');
-    } else if (lowerDesc.includes('rectangle') || lowerDesc.includes('square') || lowerDesc.includes('box')) {
-      match = shapes.find(s => s.type === 'rectangle');
-    } else if (lowerDesc.includes('text') || lowerDesc.includes('label')) {
-      match = shapes.find(s => s.type === 'text');
-    } else if (lowerDesc.includes('line')) {
-      match = shapes.find(s => s.type === 'line' || s.type === 'pen');
-    }
-    
-    return match || shapes[shapes.length - 1]; // Fallback to last created shape
-  };
-  
-  // Execute canvas actions from AI
+  // ⚡ SIMPLIFIED ACTION EXECUTOR - Delegates to smart service layer
   const executeActions = async (actions) => {
-    for (const { action, data } of actions) {
-      console.log('🎨 [AI] Executing action:', action, data);
+    console.log(`\n🎬 [AI-CHAT] Starting execution of ${actions.length} action(s)`);
+    
+    for (let i = 0; i < actions.length; i++) {
+      const { action, data } = actions[i];
+      const actionStart = performance.now();
+      
+      console.log(`\n▶️ [AI-CHAT] Action ${i + 1}/${actions.length}: ${action}`);
+      console.log(`   Data:`, JSON.stringify(data).substring(0, 200));
       
       try {
-        switch (action) {
-          case 'create_rectangle':
-          case 'create_circle':
-          case 'create_text':
-          case 'create_line':
-            await addShape(data);
-            break;
-            
-          case 'update_shape': {
-            // New tool for updating shape properties directly by ID
-            if (data.shapeId && data.updates) {
-              await updateShape(data.shapeId, data.updates);
-            }
-            break;
-          }
-          
-          case 'move_shape': {
-            // Use shapeId directly if provided, fallback to description
-            const shapeId = data.shapeId || findShapeByDescription(data.description)?.id;
-            if (shapeId) {
-              const updates = {};
-              if (data.x !== undefined) updates.x = data.x;
-              if (data.y !== undefined) updates.y = data.y;
-              await updateShape(shapeId, updates);
-            }
-            break;
-          }
-          
-          case 'resize_shape': {
-            // Use shapeId directly if provided, fallback to description
-            const shapeId = data.shapeId || findShapeByDescription(data.description)?.id;
-            if (shapeId) {
-              const updates = {};
-              if (data.width !== undefined) updates.width = data.width;
-              if (data.height !== undefined) updates.height = data.height;
-              await updateShape(shapeId, updates);
-            }
-            break;
-          }
-          
-          case 'rotate_shape': {
-            // Use shapeId directly if provided, fallback to description
-            const shapeId = data.shapeId || findShapeByDescription(data.description)?.id;
-            if (shapeId) {
-              await updateShape(shapeId, { rotation: data.rotation });
-            }
-            break;
-          }
-          
-          case 'delete_shape': {
-            // Use shapeId directly if provided, fallback to description
-            const shapeId = data.shapeId || findShapeByDescription(data.description)?.id;
-            if (shapeId) {
-              await deleteShape(shapeId);
-            }
-            break;
-          }
-          
-          case 'batch_update_shapes': {
-            // Update multiple shapes with the same properties in a SINGLE Firebase operation
-            if (data.shapeIds && data.updates && Array.isArray(data.shapeIds)) {
-              await batchUpdateShapes(data.shapeIds, data.updates);
-            }
-            break;
-          }
-          
-          case 'batch_move_shapes': {
-            // Move multiple shapes to the same position in a SINGLE Firebase operation
-            if (data.shapeIds && Array.isArray(data.shapeIds)) {
-              const updates = {};
-              if (data.x !== undefined) updates.x = data.x;
-              if (data.y !== undefined) updates.y = data.y;
-              await batchUpdateShapes(data.shapeIds, updates);
-            }
-            break;
-          }
-          
-          case 'batch_delete_shapes': {
-            // Delete multiple shapes at once in a SINGLE Firebase operation
-            if (data.shapeIds && Array.isArray(data.shapeIds)) {
-              await batchDeleteShapes(data.shapeIds);
-            }
-            break;
-          }
-          
-          case 'batch_create_shapes': {
-            // Create multiple shapes with different properties in a SINGLE Firebase operation
-            if (data.shapes && Array.isArray(data.shapes)) {
-              await batchAddShapes(data.shapes);
-            }
-            break;
-          }
-          
-          case 'create_grid': {
-            const { startX, startY, rows, cols, cellWidth, cellHeight, spacing, fill } = data;
-            for (let row = 0; row < rows; row++) {
-              for (let col = 0; col < cols; col++) {
-                const x = startX + col * (cellWidth + spacing);
-                const y = startY + row * (cellHeight + spacing);
-                await addShape({
-                  type: 'rectangle',
-                  x,
-                  y,
-                  width: cellWidth,
-                  height: cellHeight,
-                  fill,
-                  stroke: fill,
-                  strokeWidth: 2,
-                });
-                // Small delay to avoid overwhelming Firebase
-                await new Promise(resolve => setTimeout(resolve, 50));
-              }
-            }
-            break;
-          }
-          
-          case 'create_row': {
-            const { startX, startY, count, width, height, spacing, fill } = data;
-            for (let i = 0; i < count; i++) {
-              const x = startX + i * (width + spacing);
-              await addShape({
-                type: 'rectangle',
-                x,
-                y: startY,
-                width,
-                height,
-                fill,
-                stroke: fill,
-                strokeWidth: 2,
-              });
-              await new Promise(resolve => setTimeout(resolve, 50));
-            }
-            break;
-          }
-          
-          case 'create_circle_row': {
-            const { startX, startY, count, radius, spacing, fill } = data;
-            for (let i = 0; i < count; i++) {
-              // For circles, x and y are centers, so we space them by diameter + spacing
-              const x = startX + i * (radius * 2 + spacing);
-              await addShape({
-                type: 'circle',
-                x,
-                y: startY,
-                radius,
-                fill,
-                stroke: fill,
-                strokeWidth: 2,
-              });
-              await new Promise(resolve => setTimeout(resolve, 50));
-            }
-            break;
-          }
-          
-          case 'clear_canvas': {
-            await clearAllShapes();
-            break;
-          }
-          
-          case 'calculated_coordinates': {
-            // This action is for the AI to receive coordinates - no action needed in frontend
-            // The AI will use these coordinates in subsequent batch_create_shapes calls
-            console.log('📍 Coordinates calculated:', data.coordinates?.length, 'positions');
-            break;
-          }
-          
-          default:
-            console.warn('Unknown action:', action);
+        // Special case: clear_canvas uses utility function
+        if (action === 'clear_canvas') {
+          console.log(`   Route: clearAllShapes()`);
+          await clearAllShapes();
+        } else {
+          // All other actions go through smart service layer
+          console.log(`   Route: executeSmartOperation("${action}", data)`);
+          await executeSmartOperation(action, data);
         }
+        
+        const actionTime = performance.now() - actionStart;
+        console.log(`✅ [AI-CHAT] Action ${i + 1}/${actions.length} (${action}) completed in ${actionTime.toFixed(0)}ms`);
+        
       } catch (error) {
-        console.error('Error executing action:', action, error);
+        const actionTime = performance.now() - actionStart;
+        console.error(`❌ [AI-CHAT] Action ${i + 1}/${actions.length} (${action}) FAILED after ${actionTime.toFixed(0)}ms:`, error.message);
         throw error;
       }
     }
+    
+    console.log(`\n🏁 [AI-CHAT] Completed all ${actions.length} action(s)\n`);
   };
   
   const handleSubmit = async (e) => {
@@ -268,32 +73,46 @@ const AIChat = () => {
     setMessages(prev => [...prev, { role: 'user', content: userMessage }]);
     setIsLoading(true);
     
+    // ⏱️ PERFORMANCE: Start timing
+    const startTime = performance.now();
+    console.log(`\n🚀 [AI-PERF] User submitted: "${userMessage}" at ${new Date().toLocaleTimeString()}`);
+    
     try {
-      // Get AI response
+      // Build chat history
       const chatHistory = messages.map(m => ({
         role: m.role === 'user' ? 'human' : 'assistant',
         content: m.content,
       }));
       
-      console.log('🎨 [AIChat] Sending message to AI:', userMessage);
-      console.log('🎨 [AIChat] Current canvas shapes:', shapes.length);
-      const { response, actions } = await executeAICommand(userMessage, chatHistory, shapes);
-      console.log('🎨 [AIChat] Received response:', response);
-      console.log('🎨 [AIChat] Received actions:', actions);
+      // ✅ Call AI Agent - It handles smart context building internally
+      const aiStartTime = performance.now();
+      const { response, actions } = await executeAICommandWithPlanAndExecute(
+        userMessage, 
+        chatHistory, 
+        shapes  // Pass full shapes array - aiAgent.js builds smart context internally
+      );
+      const aiEndTime = performance.now();
+      
+      console.log(`⏱️ [AI-PERF] AI reasoning completed in ${(aiEndTime - aiStartTime).toFixed(0)}ms`);
+      console.log(`📦 [AI-PERF] Actions to execute: ${actions?.length || 0}`);
       
       // Execute canvas actions
       if (actions && actions.length > 0) {
-        console.log('🎨 [AIChat] Executing', actions.length, 'actions');
+        const fbStartTime = performance.now();
         await executeActions(actions);
-        console.log('🎨 [AIChat] Actions executed successfully');
-      } else {
-        console.warn('🎨 [AIChat] No actions to execute');
+        const fbEndTime = performance.now();
+        
+        console.log(`⏱️ [AI-PERF] Firebase operations completed in ${(fbEndTime - fbStartTime).toFixed(0)}ms`);
       }
+      
+      const totalTime = performance.now() - startTime;
+      console.log(`✅ [AI-PERF] Total request completed in ${totalTime.toFixed(0)}ms\n`);
       
       // Add AI response
       setMessages(prev => [...prev, { role: 'assistant', content: response }]);
     } catch (error) {
-      console.error('AI error:', error);
+      const errorTime = performance.now() - startTime;
+      console.error(`❌ [AI-PERF] Request failed after ${errorTime.toFixed(0)}ms:`, error.message);
       setMessages(prev => [
         ...prev,
         {
@@ -311,16 +130,16 @@ const AIChat = () => {
     position: 'fixed',
     bottom: 0,
     right: 0,
-    width: LAYOUT.rightSidebar.width, // Same width as Properties Panel (280px)
-    height: isMinimized ? 'auto' : '40vh', // 40% of viewport height when opened
-    backgroundColor: colors.sidebar, // Same as Properties Panel
+    width: LAYOUT.rightSidebar.width,
+    height: isMinimized ? 'auto' : '60vh',
+    backgroundColor: colors.sidebar,
     borderTop: `1px solid ${colors.border}`,
     borderLeft: `1px solid ${colors.border}`,
     display: 'flex',
     flexDirection: 'column',
-    zIndex: 11, // Above properties panel (which is z-index 10)
+    zIndex: 11,
     transition: 'all 0.3s ease',
-    opacity: 1, // Always 100% opaque
+    opacity: 1,
   };
   
   const headerStyle = {
@@ -375,10 +194,10 @@ const AIChat = () => {
   const inputStyle = {
     flex: 1,
     padding: `${SPACING.sm} ${SPACING.md}`,
-    backgroundColor: colors.bgSecondary,
+    backgroundColor: colors.background, // ✅ Use background color (dark: #1E1E1E, light: #FFFFFF)
     border: `1px solid ${colors.border}`,
     borderRadius: BORDER_RADIUS.md,
-    color: colors.textPrimary,
+    color: colors.textPrimary, // ✅ Text color (dark: white, light: black)
     fontFamily: TYPOGRAPHY.fontFamily.body,
     fontSize: TYPOGRAPHY.fontSize.sm,
     outline: 'none',
@@ -479,4 +298,3 @@ const AIChat = () => {
 };
 
 export default AIChat;
-

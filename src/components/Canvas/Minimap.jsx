@@ -69,18 +69,17 @@ const Minimap = () => {
       ctx.fillStyle = shape.fill || '#cccccc';
       ctx.globalAlpha = shape.opacity || 1.0;
 
-      // Apply rotation if present
+      // Apply rotation if present - ALL shapes now rotate around their center
       if (shape.rotation && shape.rotation !== 0) {
-        // Translate to shape position, rotate, then draw at origin
-        ctx.translate(x, y);
+        // Translate to shape center, rotate, then draw offset by half dimensions
+        ctx.translate(x + width / 2, y + height / 2);
         ctx.rotate((shape.rotation * Math.PI) / 180);
-        // Adjust drawing to account for translation
       }
 
       // Draw based on shape type
       if (shape.type === 'circle') {
-        const centerX = shape.rotation ? width / 2 : x + width / 2;
-        const centerY = shape.rotation ? height / 2 : y + height / 2;
+        const centerX = shape.rotation ? 0 : x + width / 2;
+        const centerY = shape.rotation ? 0 : y + height / 2;
         const radius = Math.min(width, height) / 2;
         ctx.beginPath();
         ctx.arc(centerX, centerY, radius, 0, Math.PI * 2);
@@ -116,17 +115,27 @@ const Minimap = () => {
         }
         ctx.stroke();
       } else if (shape.type === 'text') {
-        // For text, draw a small indicator instead of full size
+        // ✅ Render actual text using Canvas 2D API (matches Konva Text behavior)
         ctx.fillStyle = shape.fill || '#000000';
-        ctx.globalAlpha = 0.6;
-        const indicatorSize = Math.max(2, Math.min(width, height) * 0.3); // Small indicator
-        const rectX = shape.rotation ? 0 : x;
-        const rectY = shape.rotation ? 0 : y;
-        ctx.fillRect(rectX, rectY, indicatorSize, indicatorSize);
+        ctx.globalAlpha = shape.opacity || 1.0;
+        
+        // Scale font size for minimap
+        const fontSize = (shape.fontSize || 48) * scale;
+        ctx.font = `${fontSize}px Inter, system-ui, sans-serif`;
+        ctx.textAlign = 'left';
+        ctx.textBaseline = 'top';
+        
+        // Render actual text content
+        const textContent = shape.text || 'Text';
+        const textX = shape.rotation ? 0 : x; // If rotated, we're already at center
+        const textY = shape.rotation ? 0 : y;
+        
+        // For rotated text, we need to offset to match Konva's top-left positioning
+        ctx.fillText(textContent, textX, textY);
       } else {
-        // Rectangle (draw as rectangle)
-        const rectX = shape.rotation ? 0 : x;
-        const rectY = shape.rotation ? 0 : y;
+        // Rectangle (draw as rectangle) - rotate around center
+        const rectX = shape.rotation ? -width / 2 : x;
+        const rectY = shape.rotation ? -height / 2 : y;
         ctx.fillRect(rectX, rectY, width, height);
       }
 

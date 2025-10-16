@@ -235,18 +235,24 @@ const createShape = async (shapeData, canvasId = CANVAS_DOC_ID) => {
       await initializeCanvasDocument(canvasId);
       
       const now = Date.now();
-      const shapeId = `shape_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+      // ✅ FIX: Respect provided ID (for undo/redo), otherwise generate new one
+      const shapeId = shapeData.id || `shape_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+      
+      const shapeType = shapeData.type || 'rectangle';
       
       const newShape = {
         // Spread shapeData first, then apply defaults/overrides
         ...shapeData,
-        // Apply defaults for missing fields
-        type: shapeData.type || 'rectangle',
-        x: shapeData.x || 100,
-        y: shapeData.y || 100,
-        width: shapeData.width || 100,
-        height: shapeData.height || 100,
-        fill: shapeData.fill || '#cccccc',
+        // Apply defaults for missing fields (use !== undefined to allow 0)
+        type: shapeType,
+        x: shapeData.x !== undefined ? shapeData.x : 100,
+        y: shapeData.y !== undefined ? shapeData.y : 100,
+        // ✅ FIX: Text shapes don't need width/height (auto-sized)
+        ...(shapeType !== 'text' && {
+          width: shapeData.width || 100,
+          height: shapeData.height || 100,
+        }),
+        fill: shapeData.fill || (shapeType === 'text' ? '#000000' : '#cccccc'),
         opacity: shapeData.opacity !== undefined ? shapeData.opacity : 0.8,
         // System fields (always override)
         createdBy: userId,
@@ -256,7 +262,7 @@ const createShape = async (shapeData, canvasId = CANVAS_DOC_ID) => {
         isLocked: false
       };
       
-      console.log('📝 [PER-SHAPE] Creating shape:', shapeId);
+      console.log('📝 [PER-SHAPE] Creating shape:', shapeId, '- Storing to Firebase:', { type: newShape.type, x: newShape.x, y: newShape.y, width: newShape.width, height: newShape.height });
       
       // Write shape to its own document in subcollection
       const shapeRef = getShapeRef(shapeId, canvasId);
@@ -311,12 +317,14 @@ const batchCreateShapes = async (shapesData, canvasId = CANVAS_DOC_ID) => {
         return { id: shapeId, ...shape };
       });
       
-      console.log(`🚀 [WRITEBATCH] Creating ${newShapes.length} shapes in TRUE parallel operation`);
+      // ⏱️ PERFORMANCE: Time Firebase batch write
+      const fbStart = performance.now();
       
       // Execute all writes atomically (all succeed or all fail)
       await batch.commit();
       
-      console.log(`✅ [WRITEBATCH] Successfully batch created ${newShapes.length} shapes`);
+      const fbTime = performance.now() - fbStart;
+      console.log(`🔥 [FIREBASE] Batch created ${newShapes.length} shapes in ${fbTime.toFixed(0)}ms`);
       
       return newShapes;
     } catch (error) {
@@ -405,8 +413,6 @@ const batchUpdateShapes = async (shapeIds, updates, canvasId = CANVAS_DOC_ID) =>
     // Create batch operation
     const batch = writeBatch(db);
     
-    console.log(`🚀 [WRITEBATCH] Updating ${shapeIds.length} shapes in parallel`);
-    
     // Add all updates to batch
     for (const shapeId of shapeIds) {
       const shapeRef = getShapeRef(shapeId, canvasId);
@@ -420,10 +426,14 @@ const batchUpdateShapes = async (shapeIds, updates, canvasId = CANVAS_DOC_ID) =>
       });
     }
     
+    // ⏱️ PERFORMANCE: Time Firebase batch write
+    const fbStart = performance.now();
+    
     // Execute all updates atomically
     await batch.commit();
     
-    console.log(`✅ [WRITEBATCH] Successfully batch updated ${shapeIds.length} shapes`);
+    const fbTime = performance.now() - fbStart;
+    console.log(`🔥 [FIREBASE] Batch updated ${shapeIds.length} shapes in ${fbTime.toFixed(0)}ms`);
     
     return shapeIds;
   } catch (error) {
@@ -438,23 +448,160 @@ const batchDeleteShapes = async (shapeIds, canvasId = CANVAS_DOC_ID) => {
     // Create batch operation
     const batch = writeBatch(db);
     
-    console.log(`🚀 [WRITEBATCH] Deleting ${shapeIds.length} shapes in parallel`);
-    
     // Add all deletes to batch
     for (const shapeId of shapeIds) {
       const shapeRef = getShapeRef(shapeId, canvasId);
       batch.delete(shapeRef);
     }
     
+    // ⏱️ PERFORMANCE: Time Firebase batch write
+    const fbStart = performance.now();
+    
     // Execute all deletes atomically
     await batch.commit();
     
-    console.log(`✅ [WRITEBATCH] Successfully batch deleted ${shapeIds.length} shapes`);
+    const fbTime = performance.now() - fbStart;
+    console.log(`🔥 [FIREBASE] Batch deleted ${shapeIds.length} shapes in ${fbTime.toFixed(0)}ms`);
     
     return shapeIds;
   } catch (error) {
     throw handleCanvasError(error, 'batchDelete', { shapeIds, canvasId });
   }
+};
+
+// UNIFIED BATCH OPERATIONS: Mixed create/update/delete in a SINGLE atomic Firebase transaction
+const batchOperations = async (operations, canvasId = CANVAS_DOC_ID) => {
+  return withRetry(async () => {
+    try {
+      const userId = getCurrentUserId();
+      
+      // Ensure canvas document exists
+      await initializeCanvasDocument(canvasId);
+      
+      const now = Date.now();
+      
+      // Create batch operation (can handle up to 500 operations)
+      const batch = writeBatch(db);
+      
+      const results = {
+        created: [],
+        updated: [],
+        deleted: []
+      };
+      
+      // Process all operations and add to batch
+      for (let i = 0; i < operations.length; i++) {
+        const op = operations[i];
+        
+        if (op.type === 'create' && op.shape) {
+          // CREATE OPERATION
+          const shapeId = `shape_${Date.now()}_${Math.random().toString(36).substr(2, 9)}_${i}`;
+          
+          // ✅ FIX: Handle malformed AI output (when AI sends {tool: "create_rectangle", args: {...}})
+          let shapeData = op.shape;
+          if (op.shape.tool && op.shape.args) {
+            console.warn(`⚠️ [BATCH-OPS] Malformed shape data detected, extracting from args`);
+            shapeData = op.shape.args;
+          }
+          
+          // Detect shape type from properties if not explicitly provided
+          let shapeType = shapeData.type;
+          if (!shapeType) {
+            if (shapeData.x1 !== undefined && shapeData.y1 !== undefined && shapeData.x2 !== undefined && shapeData.y2 !== undefined) {
+              shapeType = 'line';
+            } else if (shapeData.radius !== undefined) {
+              shapeType = 'circle';
+            } else if (shapeData.text !== undefined) {
+              shapeType = 'text';
+            } else {
+              shapeType = 'rectangle';
+            }
+          }
+          
+          const shape = {
+            ...shapeData,
+            type: shapeType,
+            // Apply defaults based on shape type
+            ...(shapeType === 'line' ? {
+              // Lines: convert x1,y1,x2,y2 to points array
+              points: shapeData.points || [shapeData.x1 || 0, shapeData.y1 || 0, shapeData.x2 || 100, shapeData.y2 || 100],
+              stroke: shapeData.stroke || '#cccccc',
+              strokeWidth: shapeData.strokeWidth || 2,
+              x: 0,
+              y: 0
+            } : shapeType === 'circle' ? {
+              // Circles: use radius to calculate width/height
+              width: (shapeData.radius || 50) * 2,
+              height: (shapeData.radius || 50) * 2,
+              x: shapeData.x !== undefined ? shapeData.x : 100,
+              y: shapeData.y !== undefined ? shapeData.y : 100,
+              fill: shapeData.fill || '#cccccc'
+            } : {
+              // Rectangles and text: standard defaults
+              x: shapeData.x !== undefined ? shapeData.x : 100,
+              y: shapeData.y !== undefined ? shapeData.y : 100,
+              width: shapeData.width || 100,
+              height: shapeData.height || 100,
+              fill: shapeData.fill || '#cccccc'
+            }),
+            opacity: shapeData.opacity !== undefined ? shapeData.opacity : 0.8,
+            createdBy: userId,
+            createdAt: now + i,
+            lastModifiedBy: userId,
+            lastModifiedAt: now + i,
+            isLocked: false
+          };
+          
+          console.log(`📝 [BATCH-OPS] Creating ${shapeType}:`, shapeType === 'line' ? { points: shape.points, stroke: shape.stroke } : { x: shape.x, y: shape.y, width: shape.width, height: shape.height });
+          
+          const shapeRef = getShapeRef(shapeId, canvasId);
+          batch.set(shapeRef, shape);
+          results.created.push({ id: shapeId, ...shape });
+          
+        } else if (op.type === 'update' && op.shapeId && op.updates) {
+          // UPDATE OPERATION
+          const shapeRef = getShapeRef(op.shapeId, canvasId);
+          const updateData = {
+            ...op.updates,
+            lastModifiedBy: userId,
+            lastModifiedAt: now + i
+          };
+          batch.update(shapeRef, updateData);
+          results.updated.push(op.shapeId);
+          
+        } else if (op.type === 'delete' && op.shapeId) {
+          // DELETE OPERATION
+          const shapeRef = getShapeRef(op.shapeId, canvasId);
+          batch.delete(shapeRef);
+          
+          // Clear disconnect cleanup for this shape
+          clearDisconnectCleanup(op.shapeId).catch(err => 
+            console.warn('[BATCH-OPS] Failed to clear disconnect for shape:', op.shapeId, err)
+          );
+          
+          results.deleted.push(op.shapeId);
+        }
+      }
+      
+      // ⏱️ PERFORMANCE: Time Firebase batch write
+      const fbStart = performance.now();
+      
+      // Execute all operations atomically
+      await batch.commit();
+      
+      const fbTime = performance.now() - fbStart;
+      console.log(`🔥 [FIREBASE] Batch operations completed in ${fbTime.toFixed(0)}ms:`, {
+        created: results.created.length,
+        updated: results.updated.length,
+        deleted: results.deleted.length,
+        total: operations.length
+      });
+      
+      return results;
+    } catch (error) {
+      throw handleCanvasError(error, 'batchOperations', { operations, canvasId });
+    }
+  });
 };
 
 // Lock a shape (for collaborative editing)
@@ -633,7 +780,7 @@ const unlockShape = async (shapeId, canvasId = CANVAS_DOC_ID) => {
     const shapeDoc = await getDoc(shapeRef);
     
     if (!shapeDoc.exists()) {
-      console.warn('Shape not found for unlock (may have been deleted):', shapeId);
+      console.warn('[UNLOCK] Shape not found (may have been deleted):', shapeId);
       return; // Shape doesn't exist, nothing to unlock
     }
     
@@ -650,6 +797,11 @@ const unlockShape = async (shapeId, canvasId = CANVAS_DOC_ID) => {
     console.log('✅ [LOCKING-SERVICE] Shape unlocked successfully:', shapeId, 'by user:', userId);
     return true;
   } catch (error) {
+    // ✅ FIX: If shape was deleted between check and update, ignore error
+    if (error.code === 'not-found' || error.message?.includes('No document to update')) {
+      console.warn('[UNLOCK] Shape not found (may have been deleted):', shapeId);
+      return; // Shape was deleted, nothing to unlock
+    }
     console.error('Error unlocking shape:', error);
     throw new Error('Failed to unlock shape');
   }
@@ -701,6 +853,318 @@ const processDisconnectCleanup = async ({ shapeId, originalPosition, canvasId, u
 // Get current user ID for external use
 const getUserId = getCurrentUserId;
 
+// ========================================
+// SMART OPERATION EXECUTOR
+// ========================================
+
+/**
+ * Execute smart operation with automatic business logic handling
+ * This is the SINGLE ENTRY POINT for all AI-driven canvas operations
+ * 
+ * Handles:
+ * - Circle radius updates (auto-centering)
+ * - Relative transforms (deltaX, deltaY, scaleX, scaleY, deltaRotation)
+ * - Grid/row expansion (converts to batch operations)
+ * - Automatic batching and optimization
+ * 
+ * @param {string} action - The operation type
+ * @param {object} data - The operation data
+ * @param {string} canvasId - Canvas document ID
+ * @returns {Promise<any>} - Operation result
+ */
+export const executeSmartOperation = async (action, data, canvasId = CANVAS_DOC_ID) => {
+  // Generate unique execution ID for tracking duplicates
+  const executionId = Math.random().toString(36).substr(2, 6);
+  console.log(`🔷 [SMART-OP-${executionId}] START: ${action}`, { 
+    data, 
+    timestamp: new Date().toISOString(),
+    caller: new Error().stack.split('\n')[2]?.trim() // Get caller line
+  });
+  
+  try {
+    switch (action) {
+      // ========================================
+      // CREATE OPERATIONS
+      // ========================================
+      
+      case 'create_rectangle':
+      case 'create_circle':
+      case 'create_text':
+      case 'create_line': {
+        // Simple create - delegate to createShape
+        return await createShape(data, canvasId);
+      }
+      
+      // ========================================
+      // UPDATE OPERATIONS
+      // ========================================
+      
+      case 'update_shape': {
+        const { shapeId, radius, ...otherUpdates } = data;
+        
+        // ✅ SMART: Handle circle radius updates with auto-centering
+        if (radius !== undefined) {
+          console.log(`🔵 [SMART-OP] Circle radius update detected, auto-centering...`);
+          
+          // Fetch current shape to calculate position adjustment
+          const shapeRef = getShapeRef(shapeId, canvasId);
+          const shapeDoc = await getDoc(shapeRef);
+          
+          if (!shapeDoc.exists()) {
+            throw new Error(`Shape ${shapeId} not found`);
+          }
+          
+          const currentShape = shapeDoc.data();
+          
+          if (currentShape.type === 'circle') {
+            const oldRadius = Math.min(currentShape.width || 0, currentShape.height || 0) / 2;
+            const newRadius = radius;
+            const newDiameter = newRadius * 2;
+            
+            // Calculate position adjustment to keep center in same place
+            const radiusDiff = oldRadius - newRadius;
+            
+            const updates = {
+              ...otherUpdates,
+              x: currentShape.x + radiusDiff,
+              y: currentShape.y + radiusDiff,
+              width: newDiameter,
+              height: newDiameter,
+            };
+            
+            console.log(`🔵 [SMART-OP] Adjusted position: (${updates.x}, ${updates.y}) for radius ${newRadius}`);
+            return await updateShape(shapeId, updates, canvasId);
+          }
+        }
+        
+        // Standard update (no special handling needed)
+        return await updateShape(shapeId, { radius, ...otherUpdates }, canvasId);
+      }
+      
+      case 'move_shape': {
+        // Simple move - just update x/y
+        const { shapeId, x, y } = data;
+        const updates = {};
+        if (x !== undefined) updates.x = x;
+        if (y !== undefined) updates.y = y;
+        return await updateShape(shapeId, updates, canvasId);
+      }
+      
+      case 'resize_shape': {
+        // Simple resize - update width/height
+        const { shapeId, width, height } = data;
+        const updates = {};
+        if (width !== undefined) updates.width = width;
+        if (height !== undefined) updates.height = height;
+        return await updateShape(shapeId, updates, canvasId);
+      }
+      
+      case 'rotate_shape': {
+        // Simple rotation
+        const { shapeId, rotation } = data;
+        return await updateShape(shapeId, { rotation }, canvasId);
+      }
+      
+      // ========================================
+      // DELETE OPERATIONS
+      // ========================================
+      
+      case 'delete_shape': {
+        const { shapeId } = data;
+        return await deleteShape(shapeId, canvasId);
+      }
+      
+      // ========================================
+      // BATCH OPERATIONS
+      // ========================================
+      
+      case 'batch_update_shapes': {
+        let { shapeIds, updates, deltaX, deltaY, deltaRotation, scaleX, scaleY } = data;
+        
+        // ✅ FIX: Convert object to array if needed (JSON parsing can convert arrays to objects)
+        if (shapeIds && typeof shapeIds === 'object' && !Array.isArray(shapeIds)) {
+          console.log(`🔧 [SMART-OP] Converting shapeIds object to array`);
+          shapeIds = Object.values(shapeIds);
+        }
+        
+        // ✅ SMART: Handle relative transforms
+        const hasRelativeTransforms = deltaX !== undefined || deltaY !== undefined || 
+                                       deltaRotation !== undefined || scaleX !== undefined || scaleY !== undefined;
+        
+        if (hasRelativeTransforms) {
+          console.log(`🔄 [SMART-OP] Relative transforms detected, fetching current shapes...`);
+          
+          // Fetch current shapes
+          const shapeRefs = shapeIds.map(id => getShapeRef(id, canvasId));
+          const shapeDocs = await Promise.all(shapeRefs.map(ref => getDoc(ref)));
+          const currentShapes = shapeDocs
+            .filter(doc => doc.exists())
+            .map(doc => ({ id: doc.id, ...doc.data() }));
+          
+          // Build update operations with calculated absolute values
+          const operations = currentShapes.map(shape => {
+            const shapeUpdates = {};
+            
+            // Relative position
+            if (deltaX !== undefined) shapeUpdates.x = (shape.x || 0) + deltaX;
+            if (deltaY !== undefined) shapeUpdates.y = (shape.y || 0) + deltaY;
+            
+            // Relative rotation
+            if (deltaRotation !== undefined) {
+              const currentRotation = shape.rotation || 0;
+              shapeUpdates.rotation = (currentRotation + deltaRotation) % 360;
+            }
+            
+            // Relative scale
+            if (scaleX !== undefined) shapeUpdates.width = (shape.width || 100) * scaleX;
+            if (scaleY !== undefined) shapeUpdates.height = (shape.height || 100) * scaleY;
+            
+            return {
+              type: 'update',
+              shapeId: shape.id,
+              updates: shapeUpdates
+            };
+          });
+          
+          console.log(`🔄 [SMART-OP] Executing ${operations.length} relative transform operations`);
+          return await batchOperations(operations, canvasId);
+        }
+        
+        // Absolute updates - simple batch
+        if (updates && Object.keys(updates).length > 0) {
+          return await batchUpdateShapes(shapeIds, updates, canvasId);
+        }
+        
+        console.warn(`⚠️ [SMART-OP] batch_update_shapes called with no updates`);
+        return { updated: [] };
+      }
+      
+      case 'batch_operations': {
+        // Direct pass-through to batch operations
+        let { operations } = data;
+        
+        // ✅ FIX: Convert object to array if needed (JSON parsing can convert arrays to objects)
+        if (operations && typeof operations === 'object' && !Array.isArray(operations)) {
+          console.log(`🔧 [SMART-OP] Converting operations object to array`);
+          operations = Object.values(operations);
+        }
+        
+        return await batchOperations(operations, canvasId);
+      }
+      
+      // ========================================
+      // GRID/PATTERN OPERATIONS
+      // ========================================
+      
+      case 'create_grid': {
+        console.log(`📐 [SMART-OP] Expanding grid into batch operations...`);
+        const { startX = 500, startY = 500, rows, cols, cellWidth = 80, cellHeight = 80, spacing = 10, fill = '#3B82F6' } = data;
+        
+        const operations = [];
+        for (let row = 0; row < rows; row++) {
+          for (let col = 0; col < cols; col++) {
+            const x = startX + col * (cellWidth + spacing);
+            const y = startY + row * (cellHeight + spacing);
+            operations.push({
+              type: 'create',
+              shape: {
+                type: 'rectangle',
+                x,
+                y,
+                width: cellWidth,
+                height: cellHeight,
+                fill,
+                opacity: 0.8
+              }
+            });
+          }
+        }
+        
+        console.log(`📐 [SMART-OP] Created ${operations.length} shapes for ${rows}x${cols} grid`);
+        return await batchOperations(operations, canvasId);
+      }
+      
+      case 'create_row': {
+        console.log(`📐 [SMART-OP] Expanding row into batch operations...`);
+        const { startX = 500, startY = 2500, count, width = 80, height = 80, spacing = 20, fill = '#3B82F6' } = data;
+        
+        const operations = [];
+        for (let i = 0; i < count; i++) {
+          const x = startX + i * (width + spacing);
+          operations.push({
+            type: 'create',
+            shape: {
+              type: 'rectangle',
+              x,
+              y: startY,
+              width,
+              height,
+              fill,
+              opacity: 0.8
+            }
+          });
+        }
+        
+        console.log(`📐 [SMART-OP] Created ${operations.length} rectangles for row`);
+        return await batchOperations(operations, canvasId);
+      }
+      
+      case 'create_circle_row': {
+        console.log(`📐 [SMART-OP] Expanding circle row into batch operations...`);
+        const { startX = 500, startY = 2500, count, radius = 40, spacing = 20, fill = '#3B82F6' } = data;
+        
+        const operations = [];
+        for (let i = 0; i < count; i++) {
+          // Circles are stored as top-left of bounding box
+          const diameter = radius * 2;
+          const centerX = startX + i * (diameter + spacing);
+          const topLeftX = centerX - radius;
+          const topLeftY = startY - radius;
+          
+          operations.push({
+            type: 'create',
+            shape: {
+              type: 'circle',
+              x: topLeftX,
+              y: topLeftY,
+              width: diameter,
+              height: diameter,
+              fill,
+              opacity: 0.8
+            }
+          });
+        }
+        
+        console.log(`📐 [SMART-OP] Created ${operations.length} circles for row`);
+        return await batchOperations(operations, canvasId);
+      }
+      
+      // ========================================
+      // UTILITY OPERATIONS
+      // ========================================
+      
+      case 'clear_canvas': {
+        // This is handled by clearAllShapes utility
+        console.log(`🗑️ [SMART-OP] Clear canvas requested - delegate to clearAllShapes`);
+        return { message: 'Clear canvas should be handled by clearAllShapes utility' };
+      }
+      
+      case 'calculated_coordinates': {
+        // No-op - this is for AI to receive coordinate calculations
+        return { message: 'Coordinates calculated' };
+      }
+      
+      default:
+        throw new Error(`Unknown action: ${action}`);
+    }
+  } catch (error) {
+    console.error(`❌ [SMART-OP-${executionId}] ERROR: ${action}:`, error.message);
+    throw handleCanvasError(error, 'executeSmartOperation', { action, data });
+  } finally {
+    console.log(`🔶 [SMART-OP-${executionId}] END: ${action}`);
+  }
+};
+
 export {
   subscribeToShapes,
   createShape,
@@ -709,6 +1173,8 @@ export {
   batchUpdateShapes,
   deleteShape,
   batchDeleteShapes,
+  batchOperations,
+  // executeSmartOperation is exported inline (line 857)
   lockShape,
   unlockShape,
   setupDisconnectCleanup,

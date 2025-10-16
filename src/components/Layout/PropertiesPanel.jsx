@@ -22,7 +22,7 @@ const PropertiesPanel = () => {
     opacity: 100,
     strokeWidth: 2,
     text: '',
-    fontSize: 24,
+    fontSize: 48,
     rotation: 0,
   });
   
@@ -38,7 +38,7 @@ const PropertiesPanel = () => {
         opacity: Math.round((selectedShape.opacity || 1) * 100),
         strokeWidth: selectedShape.strokeWidth || 2,
         text: selectedShape.text || 'Text',
-        fontSize: selectedShape.fontSize || 24,
+        fontSize: selectedShape.fontSize || 48,
         rotation: Math.round(selectedShape.rotation || 0),
       });
     }
@@ -238,11 +238,8 @@ const PropertiesPanel = () => {
   const handleTextChange = (text) => {
     if (!selectedShape) return;
     setLocalValues(prev => ({ ...prev, text }));
-  };
-  
-  const handleTextBlur = () => {
-    if (!selectedShape) return;
-    updateShape(selectedShape.id, { text: localValues.text });
+    // ✅ Instant update - sync to Firebase immediately (like font size)
+    updateShape(selectedShape.id, { text });
   };
   
   const handleFontSizeChange = (fontSize) => {
@@ -374,34 +371,36 @@ const PropertiesPanel = () => {
               </div>
             </div>
             
-            {/* Size Section */}
-            <div style={sectionStyle}>
-              <div style={labelStyle}>Size</div>
-              <div style={rowStyle}>
-                <div>
-                  <label style={{ fontSize: '11px', color: colors.textSecondary, display: 'block', marginBottom: '4px' }}>W</label>
-                  <input
-                    type="text"
-                    value={localValues.width}
-                    onChange={(e) => handleInputChange('width', e.target.value)}
-                    onBlur={() => handleInputBlur('width')}
-                    onKeyDown={(e) => e.key === 'Enter' && e.target.blur()}
-                    style={inputStyle}
-                  />
-                </div>
-                <div>
-                  <label style={{ fontSize: '11px', color: colors.textSecondary, display: 'block', marginBottom: '4px' }}>H</label>
-                  <input
-                    type="text"
-                    value={localValues.height}
-                    onChange={(e) => handleInputChange('height', e.target.value)}
-                    onBlur={() => handleInputBlur('height')}
-                    onKeyDown={(e) => e.key === 'Enter' && e.target.blur()}
-                    style={inputStyle}
-                  />
+            {/* Size Section - Hidden for text (auto-sized) */}
+            {selectedShape.type !== 'text' && (
+              <div style={sectionStyle}>
+                <div style={labelStyle}>Size</div>
+                <div style={rowStyle}>
+                  <div>
+                    <label style={{ fontSize: '11px', color: colors.textSecondary, display: 'block', marginBottom: '4px' }}>W</label>
+                    <input
+                      type="text"
+                      value={localValues.width}
+                      onChange={(e) => handleInputChange('width', e.target.value)}
+                      onBlur={() => handleInputBlur('width')}
+                      onKeyDown={(e) => e.key === 'Enter' && e.target.blur()}
+                      style={inputStyle}
+                    />
+                  </div>
+                  <div>
+                    <label style={{ fontSize: '11px', color: colors.textSecondary, display: 'block', marginBottom: '4px' }}>H</label>
+                    <input
+                      type="text"
+                      value={localValues.height}
+                      onChange={(e) => handleInputChange('height', e.target.value)}
+                      onBlur={() => handleInputBlur('height')}
+                      onKeyDown={(e) => e.key === 'Enter' && e.target.blur()}
+                      style={inputStyle}
+                    />
+                  </div>
                 </div>
               </div>
-            </div>
+            )}
             
             {/* Fill Section */}
             <div style={sectionStyle}>
@@ -553,7 +552,6 @@ const PropertiesPanel = () => {
                   <textarea
                     value={localValues.text}
                     onChange={(e) => handleTextChange(e.target.value)}
-                    onBlur={handleTextBlur}
                     style={{
                       ...inputStyle,
                       minHeight: '80px',
@@ -569,7 +567,7 @@ const PropertiesPanel = () => {
                     <input
                       type="range"
                       min="8"
-                      max="72"
+                      max="500"
                       value={localValues.fontSize}
                       onChange={(e) => handleFontSizeChange(parseInt(e.target.value))}
                       style={{
@@ -581,7 +579,7 @@ const PropertiesPanel = () => {
                       fontSize: '12px',
                       fontFamily: TYPOGRAPHY.fontFamily.mono,
                       color: colors.textSecondary,
-                      minWidth: '40px',
+                      minWidth: '50px',
                       textAlign: 'right',
                     }}>
                       {localValues.fontSize}px

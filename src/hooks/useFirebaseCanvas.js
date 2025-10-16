@@ -9,6 +9,8 @@ import {
   batchUpdateShapes as batchUpdateShapesService,
   deleteShape as deleteShapeService,
   batchDeleteShapes as batchDeleteShapesService,
+  batchOperations as batchOperationsService,
+  executeSmartOperation as executeSmartOperationService,
   lockShape as lockShapeService,
   unlockShape as unlockShapeService,
   setupDisconnectCleanup,
@@ -207,6 +209,32 @@ export const useFirebaseCanvas = (canvasId = 'global-canvas-v1') => {
     }
   }, [canvasId]);
 
+  // UNIFIED: Batch operations for mixed create/update/delete in a single atomic Firebase transaction
+  const batchOperations = useCallback(async (operations) => {
+    try {
+      setError(null);
+      const results = await batchOperationsService(operations, canvasId);
+      
+      return results;
+    } catch (err) {
+      console.error('Failed to execute batch operations:', err);
+      setError(err.message);
+      throw err;
+    }
+  }, [canvasId]);
+  
+  // SMART OPERATION EXECUTOR: Single entry point for AI-driven operations with auto-logic
+  const executeSmartOperation = useCallback(async (action, data) => {
+    try {
+      setError(null);
+      return await executeSmartOperationService(action, data, canvasId);
+    } catch (err) {
+      console.error('Failed to execute smart operation:', err);
+      setError(err.message);
+      throw err;
+    }
+  }, [canvasId]);
+
   // Lock a shape with automatic timeout, drag state checking, disconnect cleanup, and cancellation support
   const lockShape = useCallback(async (shapeId, timeoutMs = 2000, isDraggingCallback = null, originalPosition = null, cancelToken = null) => {
     try {
@@ -389,6 +417,8 @@ export const useFirebaseCanvas = (canvasId = 'global-canvas-v1') => {
     batchUpdateShapes,
     deleteShape,
     batchDeleteShapes,
+    batchOperations, // UNIFIED: Mixed create/update/delete in single atomic transaction
+    executeSmartOperation, // SMART: Single entry point for AI with auto-logic (circle centering, relative transforms, grid expansion, etc.)
     
     // Locking operations
     lockShape,

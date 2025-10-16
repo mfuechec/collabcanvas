@@ -1,5 +1,14 @@
 // Utility to clear all shapes from Firebase canvas and add test data
-import { doc, updateDoc, getDoc, serverTimestamp } from 'firebase/firestore';
+import { 
+  doc, 
+  updateDoc, 
+  getDoc, 
+  serverTimestamp, 
+  collection, 
+  query, 
+  getDocs, 
+  writeBatch 
+} from 'firebase/firestore';
 import { db } from '../services/firebase';
 import { getUserId } from '../services/canvas';
 import { 
@@ -14,23 +23,35 @@ const CANVAS_COLLECTION = 'canvas';
 const CANVAS_DOC_ID = 'global-canvas-v1';
 
 /**
- * Clear all shapes from the Firebase canvas
+ * Clear all shapes from the Firebase canvas (per-shape architecture)
  * @returns {Promise<void>}
  */
 export const clearAllShapes = async () => {
   try {
-    const canvasRef = doc(db, CANVAS_COLLECTION, CANVAS_DOC_ID);
-    const userId = getUserId();
+    console.log('Clearing all shapes from Firebase (per-shape architecture)...');
     
-    console.log('Clearing all shapes from Firebase...');
+    // Query all shapes from the subcollection
+    const shapesCollectionRef = collection(db, CANVAS_COLLECTION, CANVAS_DOC_ID, 'shapes');
+    const shapesSnapshot = await getDocs(query(shapesCollectionRef));
     
-    await updateDoc(canvasRef, {
-      shapes: [], // Clear all shapes
-      lastUpdated: serverTimestamp(),
-      lastModifiedBy: userId
+    if (shapesSnapshot.empty) {
+      console.log('✅ Canvas is already empty');
+      return true;
+    }
+    
+    // Create batch to delete all shapes
+    const batch = writeBatch(db);
+    let deleteCount = 0;
+    
+    shapesSnapshot.forEach((doc) => {
+      batch.delete(doc.ref);
+      deleteCount++;
     });
     
-    console.log('✅ All shapes cleared successfully');
+    // Execute batch delete
+    await batch.commit();
+    
+    console.log(`✅ All ${deleteCount} shapes cleared successfully`);
     return true;
   } catch (error) {
     console.error('❌ Failed to clear shapes:', error);

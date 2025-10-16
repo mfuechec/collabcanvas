@@ -47,6 +47,8 @@ export const CanvasProvider = ({ children }) => {
     batchUpdateShapes: batchUpdateShapesFirebase,
     deleteShape: deleteShapeFirebase,
     batchDeleteShapes: batchDeleteShapesFirebase,
+    batchOperations: batchOperationsFirebase,
+    executeSmartOperation, // NEW: Smart service layer executor
     lockShape,
     unlockShape,
     clearLockTimeout,
@@ -559,6 +561,8 @@ export const CanvasProvider = ({ children }) => {
     canRedo: redoStack.length > 0,
 
     // Firebase-specific methods
+    batchOperations: batchOperationsFirebase,
+    executeSmartOperation, // Smart service layer executor
     lockShape,
     unlockShape,
     clearLockTimeout,
