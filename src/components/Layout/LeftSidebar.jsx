@@ -2,13 +2,14 @@ import { useTheme } from '../../contexts/ThemeContext';
 import { useCanvasMode } from '../../contexts/CanvasModeContext';
 import { useCanvas } from '../../hooks/useCanvas';
 import { COLORS, LAYOUT, SPACING, BORDER_RADIUS, TOOLS, TRANSITIONS, SHADOWS } from '../../utils/designSystem';
+import { ZOOM_STEP } from '../../utils/constants';
 import Tooltip from '../UI/Tooltip';
 import './LeftSidebar.css';
 
 const LeftSidebar = ({ onToggleLayers, layersOpen }) => {
   const { theme } = useTheme();
   const { currentMode, currentShapeType, setMode, CANVAS_MODES, SHAPE_TYPES } = useCanvasMode();
-  const { deleteShape, duplicateShape, selectedShapeId, deselectAll, undo, redo, canUndo, canRedo } = useCanvas();
+  const { deleteShape, duplicateShape, selectedShapeId, deselectAll, undo, redo, canUndo, canRedo, zoom, updateZoom } = useCanvas();
   
   const colors = COLORS[theme];
   
@@ -295,10 +296,7 @@ const LeftSidebar = ({ onToggleLayers, layersOpen }) => {
               fontSize: '16px',
               fontWeight: 600,
             }}
-            onClick={() => {
-              // This will be wired up later
-              console.log('Zoom out');
-            }}
+            onClick={() => updateZoom(zoom - ZOOM_STEP)}
             className="tool-button"
           >
             −
@@ -312,7 +310,7 @@ const LeftSidebar = ({ onToggleLayers, layersOpen }) => {
           fontWeight: 500,
           fontFamily: 'monospace',
         }}>
-          100%
+          {Math.round(zoom * 100)}%
         </div>
         
         {/* Zoom In Button */}
@@ -332,10 +330,7 @@ const LeftSidebar = ({ onToggleLayers, layersOpen }) => {
               fontSize: '16px',
               fontWeight: 600,
             }}
-            onClick={() => {
-              // This will be wired up later
-              console.log('Zoom in');
-            }}
+            onClick={() => updateZoom(zoom + ZOOM_STEP)}
             className="tool-button"
           >
             +

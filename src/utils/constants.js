@@ -9,10 +9,10 @@ export const CANVAS_HEIGHT = 5000;
 export const MIN_ZOOM = 0.05; // Allow zooming out further to see entire canvas
 export const MAX_ZOOM = 3.0;
 export const ZOOM_STEP = 0.1;
-export const DEFAULT_ZOOM = 0.12; // 12% zoom level to show entire canvas with more context
+export const DEFAULT_ZOOM = 0.25; // 25% zoom level
 
 // Default Canvas Position (centered to show entire canvas)
-// At 0.12 zoom, 5000px canvas becomes 600px, easily fits in viewport with context
+// At 0.25 zoom, 5000px canvas becomes 1250px, easily fits in viewport with context
 export const DEFAULT_CANVAS_X = 0; // Will be calculated dynamically
 export const DEFAULT_CANVAS_Y = 0; // Will be calculated dynamically
 
