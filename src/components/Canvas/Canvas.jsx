@@ -766,11 +766,40 @@ const Canvas = () => {
                   const radius = Math.min(dragPreview.width, dragPreview.height) / 2;
                   return <Circle x={centerX} y={centerY} radius={radius} {...dragProps} />;
                 } else if (dragPreview.type === 'line' && dragPreview.points && dragPreview.points.length === 4) {
-                  // For line drag preview, render with translated points
-                  return <Line x={0} y={0} points={dragPreview.points} {...dragProps} fill={undefined} />;
+                  // For line drag preview, match actual line rendering with center position and offsets
+                  const centerX = (dragPreview.points[0] + dragPreview.points[2]) / 2;
+                  const centerY = (dragPreview.points[1] + dragPreview.points[3]) / 2;
+                  return <Line 
+                    points={dragPreview.points} 
+                    x={centerX}
+                    y={centerY}
+                    offsetX={centerX}
+                    offsetY={centerY}
+                    stroke={dragPreview.stroke || dragProps.stroke}
+                    strokeWidth={dragPreview.strokeWidth || 2}
+                    {...dragProps} 
+                    fill={undefined} 
+                  />;
                 } else if (dragPreview.type === 'pen' && dragPreview.points && dragPreview.points.length >= 4) {
-                  // For pen drag preview, render with translated points
-                  return <Line x={0} y={0} points={dragPreview.points} {...dragProps} fill={undefined} tension={0.5} lineCap="round" lineJoin="round" />;
+                  // For pen drag preview, match actual pen rendering with center position and offsets
+                  const xCoords = dragPreview.points.filter((_, i) => i % 2 === 0);
+                  const yCoords = dragPreview.points.filter((_, i) => i % 2 === 1);
+                  const centerX = (Math.min(...xCoords) + Math.max(...xCoords)) / 2;
+                  const centerY = (Math.min(...yCoords) + Math.max(...yCoords)) / 2;
+                  return <Line 
+                    points={dragPreview.points} 
+                    x={centerX}
+                    y={centerY}
+                    offsetX={centerX}
+                    offsetY={centerY}
+                    stroke={dragPreview.stroke || dragProps.stroke}
+                    strokeWidth={dragPreview.strokeWidth || 2}
+                    tension={0.5} 
+                    lineCap="round" 
+                    lineJoin="round" 
+                    {...dragProps} 
+                    fill={undefined} 
+                  />;
                 }
                 
                 // Default to rectangle - rotate around center
@@ -887,11 +916,26 @@ const Canvas = () => {
         const stage = stageRef.current;
         if (!stage) return null;
         
+        // Calculate center position based on shape type
+        let centerX, centerY;
+        if (dragPreview.type === 'line' && dragPreview.points && dragPreview.points.length === 4) {
+          centerX = (dragPreview.points[0] + dragPreview.points[2]) / 2;
+          centerY = (dragPreview.points[1] + dragPreview.points[3]) / 2;
+        } else if (dragPreview.type === 'pen' && dragPreview.points && dragPreview.points.length >= 4) {
+          const xCoords = dragPreview.points.filter((_, i) => i % 2 === 0);
+          const yCoords = dragPreview.points.filter((_, i) => i % 2 === 1);
+          centerX = (Math.min(...xCoords) + Math.max(...xCoords)) / 2;
+          centerY = (Math.min(...yCoords) + Math.max(...yCoords)) / 2;
+        } else {
+          centerX = dragPreview.x + (dragPreview.width || 0) / 2;
+          centerY = dragPreview.y + (dragPreview.height || 0) / 2;
+        }
+        
         // Convert canvas coordinates to screen coordinates for the label
         const transform = stage.getAbsoluteTransform();
         const screenCoords = transform.point({ 
-          x: dragPreview.x + dragPreview.width / 2, // Center of shape
-          y: dragPreview.y - 10 // Position above the shape
+          x: centerX,
+          y: centerY - 10 // Position above the shape
         });
         
         const userColor = dragPreview.userColor || '#ef4444';

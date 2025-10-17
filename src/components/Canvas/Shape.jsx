@@ -170,7 +170,6 @@ const Shape = ({
     
     // 🚀 COLLABORATIVE: Start broadcasting drag preview to other users
     if (updateDragPreview && getCurrentUserId()) {
-      console.log('📡 [COLLAB] Starting drag preview broadcast for shape:', id);
       
       // Get the Konva shape node
       const shapeNode = e.target;
@@ -178,17 +177,43 @@ const Shape = ({
       
       // Convert to bounding box coordinates for consistent broadcasting
       let boundingBoxX, boundingBoxY;
-      if (type === 'circle') {
+      if (type === 'text') {
+        // Text position is center, convert to bounding box top-left
+        // Get actual text dimensions from the shape
+        const actualWidth = shapeNode.width();
+        const actualHeight = shapeNode.height();
+        boundingBoxX = shapePos.x - actualWidth / 2;
+        boundingBoxY = shapePos.y - actualHeight / 2;
+      } else if (type === 'circle') {
         // Circle position is center, convert to bounding box top-left
         boundingBoxX = shapePos.x - width / 2;
         boundingBoxY = shapePos.y - height / 2;
-      } else if (type === 'line' || type === 'pen') {
-        // Lines/pen are now positioned at their center with offsets for rotation
-        // Their visual top-left is at position - offset, which equals the bounding box
-        boundingBoxX = x;
-        boundingBoxY = y;
+      } else if (type === 'rectangle') {
+        // Rectangle position is center, convert to bounding box top-left
+        boundingBoxX = shapePos.x - width / 2;
+        boundingBoxY = shapePos.y - height / 2;
+      } else if (type === 'line' && points && points.length === 4) {
+        // Lines are positioned at center with offsetX/offsetY
+        const centerX = (points[0] + points[2]) / 2;
+        const centerY = (points[1] + points[3]) / 2;
+        const minX = Math.min(points[0], points[2]);
+        const minY = Math.min(points[1], points[3]);
+        // Bounding box position = center position - offset from center to top-left
+        boundingBoxX = shapePos.x - (centerX - minX);
+        boundingBoxY = shapePos.y - (centerY - minY);
+      } else if (type === 'pen' && points && points.length >= 4) {
+        // Pen is positioned at center with offsetX/offsetY
+        const xCoords = points.filter((_, i) => i % 2 === 0);
+        const yCoords = points.filter((_, i) => i % 2 === 1);
+        const centerX = (Math.min(...xCoords) + Math.max(...xCoords)) / 2;
+        const centerY = (Math.min(...yCoords) + Math.max(...yCoords)) / 2;
+        const minX = Math.min(...xCoords);
+        const minY = Math.min(...yCoords);
+        // Bounding box position = center position - offset from center to top-left
+        boundingBoxX = shapePos.x - (centerX - minX);
+        boundingBoxY = shapePos.y - (centerY - minY);
       } else {
-        // Rectangle position is already top-left
+        // Fallback: assume top-left positioning
         boundingBoxX = shapePos.x;
         boundingBoxY = shapePos.y;
       }
@@ -199,15 +224,20 @@ const Shape = ({
         type, // Include type so preview renders correctly
         x: boundingBoxX,
         y: boundingBoxY,
-        width,
-        height,
-        fill,
         isDragging: true
       };
       
-      // For lines/pen, include the points array (no translation needed at drag start)
-      if ((type === 'line' || type === 'pen') && points) {
-        previewData.points = points;
+      // Add shape-specific properties
+      if (type === 'line' || type === 'pen') {
+        // Lines use stroke, not fill, and have points instead of width/height
+        if (points) previewData.points = points;
+        if (stroke) previewData.stroke = stroke;
+        if (strokeWidth) previewData.strokeWidth = strokeWidth;
+      } else {
+        // Other shapes use width/height and fill
+        if (width) previewData.width = width;
+        if (height) previewData.height = height;
+        if (fill) previewData.fill = fill;
       }
       
       // Include rotation for accurate preview
@@ -335,7 +365,6 @@ const Shape = ({
     const now = Date.now();
     if (!lastPreviewUpdate.current || now - lastPreviewUpdate.current > 50) {
       if (updateDragPreview && getCurrentUserId()) {
-        console.log('📡 [COLLAB] Broadcasting drag position (bounding box):', constrainedBoundingBox.x, constrainedBoundingBox.y);
         
         // Send bounding box position to other users via Firebase
         const previewData = {
@@ -343,24 +372,31 @@ const Shape = ({
           type, // Include shape type for correct preview rendering
           x: constrainedBoundingBox.x,
           y: constrainedBoundingBox.y,
-          width,
-          height,
-          fill,
           isDragging: true
         };
         
-        // For lines/pen, translate points based on drag offset
-        if ((type === 'line' || type === 'pen') && points) {
-          const deltaX = constrainedBoundingBox.x - x;
-          const deltaY = constrainedBoundingBox.y - y;
-          const translatedPoints = points.map((coord, index) => {
-            if (index % 2 === 0) {
-              return coord + deltaX; // X coordinate
-            } else {
-              return coord + deltaY; // Y coordinate
-            }
-          });
-          previewData.points = translatedPoints;
+        // Add shape-specific properties
+        if (type === 'line' || type === 'pen') {
+          // Lines use stroke and points
+          if (points) {
+            const deltaX = constrainedBoundingBox.x - x;
+            const deltaY = constrainedBoundingBox.y - y;
+            const translatedPoints = points.map((coord, index) => {
+              if (index % 2 === 0) {
+                return coord + deltaX; // X coordinate
+              } else {
+                return coord + deltaY; // Y coordinate
+              }
+            });
+            previewData.points = translatedPoints;
+          }
+          if (stroke) previewData.stroke = stroke;
+          if (strokeWidth) previewData.strokeWidth = strokeWidth;
+        } else {
+          // Other shapes use width/height and fill
+          if (width) previewData.width = width;
+          if (height) previewData.height = height;
+          if (fill) previewData.fill = fill;
         }
         
         // Include rotation for accurate preview
@@ -485,19 +521,23 @@ const Shape = ({
         const newCenterX = (translatedPoints[0] + translatedPoints[2]) / 2;
         const newCenterY = (translatedPoints[1] + translatedPoints[3]) / 2;
         shape.position({ x: newCenterX, y: newCenterY });
+        // Also update offsets to match new center (prevents blink on re-render)
+        shape.offsetX(newCenterX);
+        shape.offsetY(newCenterY);
       } else if (type === 'pen' && translatedPoints.length >= 4) {
         const xCoords = translatedPoints.filter((_, i) => i % 2 === 0);
         const yCoords = translatedPoints.filter((_, i) => i % 2 === 1);
         const newCenterX = (Math.min(...xCoords) + Math.max(...xCoords)) / 2;
         const newCenterY = (Math.min(...yCoords) + Math.max(...yCoords)) / 2;
         shape.position({ x: newCenterX, y: newCenterY });
+        // Also update offsets to match new center (prevents blink on re-render)
+        shape.offsetX(newCenterX);
+        shape.offsetY(newCenterY);
       }
     }
     
     // 🚀 COLLABORATIVE: End drag preview broadcast to other users
     if (clearDragPreview && getCurrentUserId()) {
-      console.log('📡 [COLLAB] Clearing drag preview for shape:', id);
-      
       // Clear drag preview immediately - Firestore latency (~500ms) is acceptable
       clearDragPreview(id);
     }
@@ -511,11 +551,8 @@ const Shape = ({
         const deltaX = constrainedBoundingBox.x - x;
         const deltaY = constrainedBoundingBox.y - y;
         
-        // For lines and pen strokes, update the points array as well
-        const updates = {
-          x: constrainedBoundingBox.x,
-          y: constrainedBoundingBox.y
-        };
+        // Calculate updates based on shape type
+        const updates = {};
         
         if ((type === 'line' || type === 'pen') && points && points.length >= 4) {
           // Translate all points by the offset
@@ -529,8 +566,26 @@ const Shape = ({
             }
           });
           updates.points = updatedPoints;
-          // Note: We already applied the optimistic update above (line 332-334)
-          // so no need to reset position here
+          
+          // Also update x,y to keep them in sync with the new bounding box
+          // This ensures stored x,y matches the points' bounding box
+          if (type === 'pen') {
+            const xCoords = updatedPoints.filter((_, i) => i % 2 === 0);
+            const yCoords = updatedPoints.filter((_, i) => i % 2 === 1);
+            updates.x = Math.min(...xCoords);
+            updates.y = Math.min(...yCoords);
+            updates.width = Math.max(...xCoords) - updates.x;
+            updates.height = Math.max(...yCoords) - updates.y;
+          } else if (type === 'line') {
+            updates.x = Math.min(updatedPoints[0], updatedPoints[2]);
+            updates.y = Math.min(updatedPoints[1], updatedPoints[3]);
+            updates.width = Math.abs(updatedPoints[2] - updatedPoints[0]);
+            updates.height = Math.abs(updatedPoints[3] - updatedPoints[1]);
+          }
+        } else {
+          // For all other shapes, update x/y coordinates
+          updates.x = constrainedBoundingBox.x;
+          updates.y = constrainedBoundingBox.y;
         }
         
         // Update position using bounding box coordinates (and points for lines/pen)

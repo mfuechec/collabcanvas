@@ -39,9 +39,14 @@ export const updateDragPreview = async (shapeId, dragData, displayName, userColo
     const userId = getCurrentUserId();
     const dragPreviewRef = ref(rtdb, `${DRAG_PREVIEWS_PATH}/${CANVAS_SESSION_ID}/${userId}`);
     
+    // Filter out undefined and null values (Firebase doesn't allow them)
+    const cleanDragData = Object.fromEntries(
+      Object.entries(dragData).filter(([_, v]) => v !== undefined && v !== null)
+    );
+    
     const preview = {
       shapeId,
-      ...dragData,
+      ...cleanDragData,
       displayName: displayName || 'Anonymous',
       userColor: userColor || generateUserColor(userId),
       lastUpdated: serverTimestamp(),

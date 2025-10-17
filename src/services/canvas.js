@@ -261,7 +261,8 @@ const createShape = async (shapeData, canvasId = CANVAS_DOC_ID) => {
           height: shapeData.height || 100,
         }),
         fill: shapeData.fill || (shapeType === 'text' ? '#000000' : '#cccccc'),
-        opacity: shapeData.opacity !== undefined ? shapeData.opacity : 0.8,
+        // Opacity: use 0.8 default, but never allow 0 (invisible)
+        opacity: (shapeData.opacity !== undefined && shapeData.opacity > 0) ? shapeData.opacity : 0.8,
         // Z-index for layer ordering (use createdAt as default if not specified)
         zIndex: shapeData.zIndex !== undefined ? shapeData.zIndex : now,
         // System fields (always override)
@@ -903,11 +904,32 @@ export const executeSmartOperation = async (action, data, canvasId = CANVAS_DOC_
       // ========================================
       
       case 'create_rectangle':
-      case 'create_text':
-      case 'create_line': {
+      case 'create_text': {
         // Simple create - delegate to createShape
         result = await createShape(data, canvasId);
         console.log(`✅ [SMART-OP-${executionId}] Create completed, returning result`);
+        return result;
+      }
+      
+      case 'create_line': {
+        // Convert x1,y1,x2,y2 to line shape format
+        const { x1, y1, x2, y2, stroke, strokeWidth, ...rest } = data;
+        const minX = Math.min(x1, x2);
+        const minY = Math.min(y1, y2);
+        const lineShape = {
+          ...rest,
+          type: 'line',
+          x: minX,
+          y: minY,
+          width: Math.abs(x2 - x1),
+          height: Math.abs(y2 - y1),
+          points: [x1, y1, x2, y2],
+          stroke,
+          strokeWidth,
+          fill: stroke // Lines use stroke as fill
+        };
+        result = await createShape(lineShape, canvasId);
+        console.log(`✅ [SMART-OP-${executionId}] Line created, returning result`);
         return result;
       }
       
@@ -1183,6 +1205,33 @@ export const executeSmartOperation = async (action, data, canvasId = CANVAS_DOC_
         // This is handled by clearAllShapes utility
         console.log(`🗑️ [SMART-OP] Clear canvas requested - delegate to clearAllShapes`);
         return { message: 'Clear canvas should be handled by clearAllShapes utility' };
+      }
+      
+      case 'add_random_shapes': {
+        // Generate random shapes and delegate to batch_operations
+        console.log(`🎲 [SMART-OP] Generating ${data.count} random shapes`);
+        
+        // Import the random shapes utility
+        const { generateRandomShapes } = await import('../utils/randomShapes.js');
+        
+        const options = {};
+        if (data.types && data.types.length > 0) {
+          options.types = data.types;
+        }
+        if (data.balanced !== null && data.balanced !== undefined) {
+          options.balanced = data.balanced;
+        }
+        
+        const shapes = generateRandomShapes(data.count, options);
+        
+        // Convert to batch operations format
+        const operations = shapes.map(shape => ({
+          type: 'create',
+          shape
+        }));
+        
+        console.log(`📐 [SMART-OP] Created ${operations.length} random shapes, delegating to batch_operations`);
+        return await batchOperations(operations, canvasId);
       }
       
       case 'calculated_coordinates': {

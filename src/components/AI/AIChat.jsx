@@ -1,6 +1,6 @@
 import { useState, useRef, useEffect } from 'react';
 import { useCanvas } from '../../hooks/useCanvas';
-import { executeAICommandWithPlanAndExecute } from '../../services/aiAgent';
+import { executeAICommandWithPlanAndExecute } from '../../services/ai';
 import { useTheme } from '../../contexts/ThemeContext';
 import { COLORS, TYPOGRAPHY, SPACING, BORDER_RADIUS, LAYOUT } from '../../utils/designSystem';
 import { Send, Sparkles, Minimize2, Maximize2 } from 'lucide-react';
