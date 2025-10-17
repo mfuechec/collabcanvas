@@ -109,7 +109,7 @@ const AppLayout = ({ showLayers, setShowLayers }) => {
   
   // Calculate canvas margin based on open panels
   const leftMargin = 60 + (showLayers ? 320 : 0);
-  const rightMargin = 280; // Properties panel always open
+  const rightMargin = selectedShapeId ? 280 : 0; // Properties panel only when shape selected
   
   return (
     <div className="h-screen flex overflow-hidden" style={{ position: 'relative' }}>
@@ -137,12 +137,12 @@ const AppLayout = ({ showLayers, setShowLayers }) => {
         <Canvas />
         
         {/* Floating overlay panels */}
-        <FloatingUserMenu propertiesPanelOpen={true} />
+        <FloatingUserMenu propertiesPanelOpen={!!selectedShapeId} />
         <Minimap />
         <AIChat />
       </div>
       
-      {/* Properties Panel - Always visible */}
+      {/* Properties Panel - Shows when shape selected */}
       <PropertiesPanel />
     </div>
   );

@@ -137,7 +137,7 @@ const AIChat = () => {
     borderLeft: `1px solid ${colors.border}`,
     display: 'flex',
     flexDirection: 'column',
-    zIndex: 11,
+    zIndex: 40,
     transition: 'all 0.3s ease',
     opacity: 1,
   };

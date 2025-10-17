@@ -41,7 +41,7 @@ const SortableLayerItem = ({ shape, isSelected, colors, selectShape, getShapeIco
     display: 'flex',
     alignItems: 'center',
     gap: SPACING.sm,
-    cursor: isDragging ? 'grabbing' : 'grab',
+    cursor: 'pointer',
     backgroundColor: isSelected ? colors.accent + '20' : 'transparent',
     borderLeft: isSelected ? `2px solid ${colors.accent}` : '2px solid transparent',
     transition: isDragging ? 'none' : 'background-color 150ms ease',
@@ -54,14 +54,35 @@ const SortableLayerItem = ({ shape, isSelected, colors, selectShape, getShapeIco
       ref={setNodeRef}
       style={{ ...layerItemStyle, ...style }}
       {...attributes}
-      {...listeners}
       onClick={(e) => {
-        // Only select if not dragging
-        if (!isDragging) {
-          selectShape(shape.id);
-        }
+        selectShape(shape.id);
       }}
     >
+      {/* Drag Handle */}
+      <div 
+        {...listeners}
+        style={{ 
+          flexShrink: 0, 
+          cursor: isDragging ? 'grabbing' : 'grab',
+          display: 'flex',
+          alignItems: 'center',
+          padding: '2px',
+          opacity: 0.5,
+          transition: 'opacity 150ms ease'
+        }}
+        onMouseEnter={(e) => e.currentTarget.style.opacity = '1'}
+        onMouseLeave={(e) => e.currentTarget.style.opacity = '0.5'}
+      >
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+          <circle cx="9" cy="5" r="1"/>
+          <circle cx="9" cy="12" r="1"/>
+          <circle cx="9" cy="19" r="1"/>
+          <circle cx="15" cy="5" r="1"/>
+          <circle cx="15" cy="12" r="1"/>
+          <circle cx="15" cy="19" r="1"/>
+        </svg>
+      </div>
+      
       {/* Shape Icon */}
       <div style={{ flexShrink: 0, display: 'flex', opacity: 0.7 }}>
         {getShapeIcon()}
@@ -115,43 +136,50 @@ const LayersPanel = ({ isOpen, onToggle }) => {
     );
   }, [shapes, searchQuery]);
   
-  // Sort shapes by z-index or creation time (newest first for display, which is top layer)
+  // Sort shapes by z-index (highest first = top layer shown first in panel)
   const sortedShapes = useMemo(() => {
-    // Reverse to show top layers first in the panel
-    return [...filteredShapes].reverse();
+    return [...filteredShapes].sort((a, b) => {
+      const aIndex = a.zIndex !== undefined ? a.zIndex : a.createdAt || 0;
+      const bIndex = b.zIndex !== undefined ? b.zIndex : b.createdAt || 0;
+      return bIndex - aIndex; // Higher zIndex = shown first (descending order)
+    });
   }, [filteredShapes]);
 
   // Handle drag end - reorder shapes
   const handleDragEnd = async (event) => {
     const { active, over } = event;
     
-    if (!over || active.id === over.id) return;
+    if (!over || active.id === over.id) {
+      return;
+    }
 
     const oldIndex = sortedShapes.findIndex(s => s.id === active.id);
     const newIndex = sortedShapes.findIndex(s => s.id === over.id);
 
-    if (oldIndex === -1 || newIndex === -1) return;
+    if (oldIndex === -1 || newIndex === -1) {
+      console.error('Could not find shape indices for reordering');
+      return;
+    }
 
-    // Reorder the array
+    // Reorder the array (sortedShapes is already top-to-bottom order)
     const newOrder = arrayMove(sortedShapes, oldIndex, newIndex);
     
-    // Reverse back to get actual z-index order (bottom to top)
-    const actualOrder = [...newOrder].reverse();
-    
     // Update z-index for all shapes based on new order
-    // Lower index = lower z-index (rendered first/bottom)
+    // Use timestamp-based values to ensure they're larger than any createdAt timestamps
+    const baseZIndex = Date.now();
     const updates = {};
-    actualOrder.forEach((shape, index) => {
-      updates[shape.id] = { zIndex: index };
+    newOrder.forEach((shape, index) => {
+      // Top layer (index 0) gets highest zIndex
+      const zIndex = baseZIndex + (newOrder.length - 1 - index);
+      updates[shape.id] = { zIndex };
     });
 
     // Batch update all shapes with new z-index
     try {
       const shapeIds = Object.keys(updates);
       await batchUpdateShapes(shapeIds, (shapeId) => updates[shapeId]);
-      console.log('✅ [LAYERS] Reordered shapes');
     } catch (error) {
-      console.error('❌ [LAYERS] Failed to reorder:', error);
+      console.error('Failed to reorder shapes:', error);
     }
   };
   

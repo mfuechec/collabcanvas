@@ -243,8 +243,8 @@ const Minimap = () => {
 
   const containerStyle = {
     position: 'fixed',
-    top: SPACING.lg, // Top left corner
-    left: 'calc(64px + 16px)', // Just right of the 64px sidebar
+    bottom: '75px', // Above the AI Assistant
+    right: '38px', // Centered in ~400px properties panel (200px center - 100px half-width)
     width: `${MINIMAP_WIDTH}px`,
     height: `${MINIMAP_HEIGHT}px`,
     backgroundColor: colors.sidebar,

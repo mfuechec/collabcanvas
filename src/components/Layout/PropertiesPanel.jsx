@@ -322,6 +322,11 @@ const PropertiesPanel = () => {
     marginBottom: SPACING.md,
   };
   
+  // Don't render panel if nothing is selected
+  if (!selectedShape) {
+    return null;
+  }
+  
   return (
     <div style={panelStyle}>
       {/* Header */}
@@ -331,30 +336,7 @@ const PropertiesPanel = () => {
       
       {/* Content */}
       <div style={{ flex: 1 }}>
-        {!selectedShape ? (
-          // Nothing selected state
-          <div style={{
-            ...sectionStyle,
-            display: 'flex',
-            flexDirection: 'column',
-            alignItems: 'center',
-            justifyContent: 'center',
-            padding: SPACING.xxl,
-            textAlign: 'center',
-            color: colors.textSecondary,
-            fontSize: '13px',
-          }}>
-            <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" style={{ marginBottom: SPACING.lg, opacity: 0.5 }}>
-              <rect x="3" y="3" width="7" height="7"/>
-              <rect x="14" y="3" width="7" height="7"/>
-              <rect x="14" y="14" width="7" height="7"/>
-              <rect x="3" y="14" width="7" height="7"/>
-            </svg>
-            <p style={{ marginBottom: SPACING.sm, fontWeight: 500 }}>No selection</p>
-            <p style={{ fontSize: '12px', opacity: 0.8 }}>Select a shape to view its properties</p>
-          </div>
-        ) : (
-          <>
+        <>
             {/* Position Section */}
             <div style={sectionStyle}>
               <div style={labelStyle}>Position</div>
@@ -602,7 +584,6 @@ const PropertiesPanel = () => {
               </>
             )}
           </>
-        )}
       </div>
     </div>
   );

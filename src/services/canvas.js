@@ -262,6 +262,8 @@ const createShape = async (shapeData, canvasId = CANVAS_DOC_ID) => {
         }),
         fill: shapeData.fill || (shapeType === 'text' ? '#000000' : '#cccccc'),
         opacity: shapeData.opacity !== undefined ? shapeData.opacity : 0.8,
+        // Z-index for layer ordering (use createdAt as default if not specified)
+        zIndex: shapeData.zIndex !== undefined ? shapeData.zIndex : now,
         // System fields (always override)
         createdBy: userId,
         createdAt: now,
@@ -311,6 +313,7 @@ const batchCreateShapes = async (shapesData, canvasId = CANVAS_DOC_ID) => {
           height: shapeData.height || 100,
           fill: shapeData.fill || '#cccccc',
           opacity: shapeData.opacity !== undefined ? shapeData.opacity : 0.8,
+          zIndex: shapeData.zIndex !== undefined ? shapeData.zIndex : now + index,
           createdBy: userId,
           createdAt: now + index,
           lastModifiedBy: userId,
@@ -440,17 +443,12 @@ const batchUpdateShapes = async (shapeIds, updates, canvasId = CANVAS_DOC_ID) =>
       });
     }
     
-    // ⏱️ PERFORMANCE: Time Firebase batch write
-    const fbStart = performance.now();
-    
     // Execute all updates atomically
     await batch.commit();
     
-    const fbTime = performance.now() - fbStart;
-    console.log(`🔥 [FIREBASE] Batch updated ${shapeIds.length} shapes in ${fbTime.toFixed(0)}ms`);
-    
     return shapeIds;
   } catch (error) {
+    console.error('❌ [FIREBASE] Batch update error:', error);
     throw handleCanvasError(error, 'batchUpdate', { shapeIds, updates, canvasId });
   }
 };
@@ -559,6 +557,7 @@ const batchOperations = async (operations, canvasId = CANVAS_DOC_ID) => {
               fill: shapeData.fill || '#cccccc'
             }),
             opacity: shapeData.opacity !== undefined ? shapeData.opacity : 0.8,
+            zIndex: shapeData.zIndex !== undefined ? shapeData.zIndex : now + i,
             createdBy: userId,
             createdAt: now + i,
             lastModifiedBy: userId,

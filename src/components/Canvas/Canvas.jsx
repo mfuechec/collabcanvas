@@ -89,9 +89,17 @@ const Canvas = () => {
 
   // 🚀 PERFORMANCE: Viewport culling DISABLED - showing all shapes
   const { visibleShapes, cullingStats } = useMemo(() => {
-    // Return all shapes without culling
+    // Sort shapes by z-index (lower z-index renders first/bottom)
+    // If no z-index, use creation time (older shapes have lower implicit z-index)
+    const sortedShapes = [...shapes].sort((a, b) => {
+      const aIndex = a.zIndex !== undefined ? a.zIndex : a.createdAt || 0;
+      const bIndex = b.zIndex !== undefined ? b.zIndex : b.createdAt || 0;
+      return aIndex - bIndex;
+    });
+    
+    
     return { 
-      visibleShapes: shapes, 
+      visibleShapes: sortedShapes, 
       cullingStats: { total: shapes.length, visible: shapes.length, culled: 0, mode: 'disabled' }
     };
   }, [shapes]);
