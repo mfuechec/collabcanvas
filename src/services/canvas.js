@@ -878,11 +878,11 @@ export const executeSmartOperation = async (action, data, canvasId = CANVAS_DOC_
   const executionId = Math.random().toString(36).substr(2, 6);
   console.log(`🔷 [SMART-OP-${executionId}] START: ${action}`, { 
     data, 
-    timestamp: new Date().toISOString(),
-    caller: new Error().stack.split('\n')[2]?.trim() // Get caller line
+    timestamp: new Date().toISOString()
   });
   
   try {
+    let result;
     switch (action) {
       // ========================================
       // CREATE OPERATIONS
@@ -893,7 +893,9 @@ export const executeSmartOperation = async (action, data, canvasId = CANVAS_DOC_
       case 'create_text':
       case 'create_line': {
         // Simple create - delegate to createShape
-        return await createShape(data, canvasId);
+        result = await createShape(data, canvasId);
+        console.log(`✅ [SMART-OP-${executionId}] Create completed, returning result`);
+        return result;
       }
       
       // ========================================
