@@ -93,12 +93,25 @@ const PropertiesPanel = () => {
     const cos = Math.cos(radians);
     const sin = Math.sin(radians);
     
+    // For text shapes, estimate dimensions based on text content
+    // Text auto-sizes, so we need to approximate width/height
+    let shapeWidth = shape.width;
+    let shapeHeight = shape.height;
+    
+    if (shape.type === 'text') {
+      // Rough estimation: 0.6 * fontSize per character for width
+      const text = shape.text || 'Text';
+      const fontSize = shape.fontSize || 48;
+      shapeWidth = text.length * fontSize * 0.6;
+      shapeHeight = fontSize * 1.2; // Height is roughly 1.2x fontSize
+    }
+    
     // Four corners of the unrotated rectangle (relative to top-left)
     const corners = [
       { x: 0, y: 0 },
-      { x: shape.width, y: 0 },
-      { x: shape.width, y: shape.height },
-      { x: 0, y: shape.height }
+      { x: shapeWidth, y: 0 },
+      { x: shapeWidth, y: shapeHeight },
+      { x: 0, y: shapeHeight }
     ];
     
     // Rotate each corner and find the bounding box

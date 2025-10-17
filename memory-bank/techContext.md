@@ -22,8 +22,14 @@
 ### AI Integration
 - **LangChain 0.3.36** - AI orchestration framework
 - **@langchain/openai 0.6.16** - OpenAI integration
-- **OpenAI GPT-4o** - Language model (via API)
+- **OpenAI GPT-4o** - Language model for AI assistant (via API)
+- **Claude 3.5 Haiku** - Selected for background code analysis (not yet implemented)
 - **Zod 3.25.76** - Schema validation for AI tools
+
+**Model Selection Rationale**:
+- **GPT-4o**: Canvas AI assistant - Complex reasoning, tool calling
+- **Claude 3.5 Haiku**: Background DRY agent - Code analysis, cost-effective ($1/$5 per M tokens), 200K context
+- **Embeddings (planned)**: OpenAI text-embedding-3-small - Fast pre-filtering ($0.02/M tokens)
 
 ### Styling
 - **Tailwind CSS 4.1.14** - Utility-first CSS
@@ -36,6 +42,17 @@
 - **@testing-library/react 16.3.0** - Component testing utilities
 - **ESLint** - Code linting
 - **dotenv 17.2.3** - Environment variables
+
+### Code Quality Tools
+- **Cursor Rules** - Modern `.cursor/rules/*.mdc` structure
+  - `general-dry-rules.mdc` - Auto-applies to all coding
+  - `dry-enforcement.mdc` - Background agent analysis (683 lines)
+  - `ai-tools-maintenance.mdc` - AI tools sync protocol
+- **Background DRY Agent** (Designed, not yet implemented)
+  - Claude 3.5 Haiku for semantic code analysis
+  - Automated duplication detection
+  - Impact-driven prioritization
+  - Generates `DRY_OPPORTUNITIES.md` reports
 
 ### Utilities
 - **lucide-react 0.545.0** - Icon library

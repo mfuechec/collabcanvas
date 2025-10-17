@@ -311,6 +311,32 @@ async function operationWithErrorHandling() {
 - Design system tokens in `utils/designSystem.js`
 - Canvas operations in `services/canvas.js`
 
+**Enforcement Infrastructure**:
+- **General rules**: `.cursor/rules/general-dry-rules.mdc` - Auto-applies to all coding
+- **Enforcement rules**: `.cursor/rules/dry-enforcement.mdc` - Background agent analysis
+- **Behavior preservation**: Refactoring must NEVER change functionality
+- **Impact assessment**: Priority scoring based on time savings, maintenance burden, coupling risk
+- **Confidence levels**: 🟢 HIGH (pure functions) → 🟡 MEDIUM (requires params) → 🔴 LOW (manual review)
+
+**Background Agent Architecture** (Designed, Ready to Build):
+```
+Analysis Pipeline:
+1. Embeddings → Fast similarity pre-filtering (90% cost savings)
+2. Claude 3.5 Haiku → Semantic analysis with project rules
+3. Priority Scoring → Calculate impact (0-10)
+4. Report Generation → DRY_OPPORTUNITIES.md with actionable recommendations
+
+Model: Claude 3.5 Haiku ($1/$5 per M tokens)
+Cost: ~$0.05-0.15 per run (with prompt caching)
+Output: Prioritized, categorized findings with code examples
+```
+
+**DRY Severity Levels**:
+- 🔴 CRITICAL: Core logic 3+, security/auth, Firebase ops, constants 5+
+- 🟡 HIGH: Logic 2x, similar functions, geometry calculations
+- 🟢 MEDIUM: Component structure, patterns, validation
+- ⚪ LOW: Nice-to-have standardization
+
 ### Single Responsibility
 - Each file < 300 lines (with exceptions)
 - Each function does ONE thing

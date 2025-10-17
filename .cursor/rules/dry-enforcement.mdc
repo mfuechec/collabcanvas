@@ -1,0 +1,682 @@
+Description: Detailed rules for background DRY analysis agent only. NOT for regular coding assistance - use general-dry-rules.mdc for that.
+Globs: src/**/*.{js,jsx,ts,tsx}
+
+# DRY Enforcement Rules for Background Agent
+
+## ⚠️ CRITICAL: Behavior Preservation
+
+### Non-Negotiable Rule: NO LOSS OF FUNCTIONALITY
+
+When suggesting DRY refactorings, the agent MUST ensure:
+
+1. **100% Behavior Preservation**
+   - Refactored code must produce IDENTICAL outputs for all inputs
+   - All edge cases must be preserved
+   - Error handling must remain the same
+   - Side effects must remain the same (order, timing, etc.)
+
+2. **Verify Before Recommending**
+   Agent should check:
+   - Are there subtle differences in the "duplicated" code?
+   - Do different call sites pass different parameters?
+   - Are there different error handling patterns?
+   - Are there timing/order dependencies?
+
+3. **Flag Uncertain Refactorings**
+   If agent is unsure whether behavior will be preserved, mark as:
+   ```
+   ⚠️ VERIFY: This refactoring may have subtle behavior differences
+   Action: Review manually before implementing
+   ```
+
+### When NOT to Refactor (False Duplication)
+
+#### ❌ Don't Unify If:
+
+**Different Domains:**
+```javascript
+// These LOOK similar but serve different purposes
+function createCanvasShape(type, props) {
+  return { ...props, id: generateId(), canvasId: currentCanvas };
+}
+
+function createPreviewShape(type, props) {
+  return { ...props, id: tempId(), isPreview: true };
+}
+// ❌ BAD: Merging these would lose semantic meaning
+// ✅ GOOD: Keep separate - they have different purposes
+```
+
+**Different Error Handling:**
+```javascript
+// Component A - Silent failure acceptable
+try { updateShape(id, props) } catch { /* ignore */ }
+
+// Component B - Must show error to user
+try { updateShape(id, props) } catch (err) { showError(err) }
+
+// ❌ BAD: Can't extract - different error behaviors needed
+```
+
+**Different Timing:**
+```javascript
+// Immediate update
+onDragMove = () => { updatePosition(x, y); }
+
+// Debounced update
+onDragMove = debounce(() => { updatePosition(x, y); }, 100)
+
+// ❌ BAD: Extracting would require complex parameter passing
+// ✅ GOOD: Keep inline - timing is part of the behavior
+```
+
+**Different State Dependencies:**
+```javascript
+// Uses local state
+const handleClick = () => { setCount(count + 1); }
+
+// Uses context state
+const handleClick = () => { dispatch({ type: 'INCREMENT' }); }
+
+// ❌ BAD: These can't be unified without changing architecture
+```
+
+### Refactoring Safety Checklist
+
+Agent must verify ALL of these before suggesting extraction:
+
+- [ ] **Parameters match**: All call sites pass same types of arguments
+- [ ] **Return values match**: All call sites expect same return type
+- [ ] **Side effects match**: All versions have same side effects (or none)
+- [ ] **Error handling matches**: All versions handle errors the same way
+- [ ] **Dependencies match**: All versions use same external dependencies
+- [ ] **Timing matches**: No debouncing/throttling differences
+- [ ] **State matches**: All versions access/modify state the same way
+- [ ] **Edge cases handled**: Check for `null`, `undefined`, `0`, `''`, `[]`, `{}`
+
+### If ANY Checkbox Fails → Report as:
+
+```markdown
+### [Title of Duplication]
+⚠️ **CAUTION: Potential behavior differences detected**
+
+**Similarity**: 85% similar code
+**Differences**: 
+- Component A handles null gracefully, Component B throws
+- Component A uses debounced updates, Component B updates immediately
+
+**Recommendation**: 
+Option 1: Keep separate (different behaviors are intentional)
+Option 2: Extract with parameters to preserve both behaviors
+
+**Risk**: HIGH - Behavior differences may be intentional
+**Action Required**: Manual review before refactoring
+```
+
+---
+
+## Duplication Severity Levels
+
+### 🔴 CRITICAL (Fix Immediately)
+- Core logic duplicated 3+ times
+- Security/auth logic duplicated
+- Firebase/database operations duplicated
+- Shape creation/manipulation in components (should be in utils)
+- Constants hardcoded 5+ times
+- Data transformation logic repeated
+- Coordinate conversion calculations duplicated
+
+### 🟡 HIGH (Fix Soon)
+- Logic duplicated 2 times
+- Similar functions with different names
+- Calculations duplicated (geometry, coordinates)
+- Event handlers with similar logic
+- State update patterns repeated
+- Validation logic duplicated
+
+### 🟢 MEDIUM (Refactor When Convenient)
+- Similar component structure (could be composed)
+- Repeated prop patterns
+- Similar validation logic
+- CSS/styling patterns
+- Import patterns that could be simplified
+
+### ⚪ LOW (Nice to Have)
+- Similar variable names that could be standardized
+- Code comments duplicated (may indicate pattern)
+- Minor helper functions
+
+---
+
+## Duplication Detection Thresholds
+
+### Exact Duplication
+- **5+ lines identical** → HIGH priority
+- **10+ lines identical** → CRITICAL priority
+- **3+ files with same pattern** → CRITICAL
+- **Same function exists with different names** → CRITICAL
+
+### Semantic Duplication
+- **Functions with same purpose, different implementation** → HIGH
+- **Similar function names** (e.g., `createRect`, `makeRectangle`, `newRect`) → MEDIUM
+- **Same parameters, different order** → MEDIUM
+- **Same logic flow with different variable names** → HIGH
+
+### Structural Duplication
+- **Components with >70% similar JSX structure** → MEDIUM
+- **Hooks with same state management pattern** → HIGH
+- **Event handlers with same logic** → HIGH
+- **Context usage patterns repeated** → MEDIUM
+
+### Constant Duplication
+- **Magic numbers repeated 3+ times** → HIGH
+- **Same string literal 5+ times** → MEDIUM
+- **Color values hardcoded 2+ times** → HIGH (should use design system)
+- **Canvas dimensions hardcoded** → CRITICAL (should be constants)
+
+---
+
+## Project-Specific Duplication Patterns
+
+### Firebase/Firestore Operations
+- ❌ `db.collection('canvases').doc(id).get()` repeated
+- ✅ Extract to `services/canvas.js`: `getCanvas(id)`
+- Watch for: `onSnapshot`, `updateDoc`, `deleteDoc`, `addDoc`, `setDoc`, `writeBatch` patterns
+- Watch for: Collection paths hardcoded (should be constants)
+- Watch for: Error handling in Firebase calls (should be unified)
+
+### Konva Shape Rendering
+- ❌ Shape transformation logic in components
+- ✅ Extract to `utils/shapeTransforms.js`
+- Watch for: `offsetX/offsetY` calculations, rotation logic, coordinate conversions
+- Watch for: Shape property calculations (center, bounds, etc.)
+- Watch for: Drag/transform event handlers
+
+### React Context Usage
+- ❌ `const { shapes } = useContext(CanvasContext)` in many components
+- ✅ Create `hooks/useShapes.js` wrapper
+- Watch for: Repeated context imports, useContext calls
+- Watch for: Context value destructuring patterns
+- Watch for: Context methods called similarly across components
+
+### State Management Patterns
+- ❌ `setShapes(prev => prev.map(s => ...))` in multiple places
+- ✅ Extract to custom hook or util function
+- Watch for: Array manipulations on shapes, filters, finds
+- Watch for: Shape updates with spread operators
+- Watch for: Undo/redo state management
+
+### Event Handler Patterns
+- ❌ Similar `onDragStart`, `onDragMove`, `onDragEnd` logic
+- ✅ Extract to `hooks/useDragHandlers.js`
+- Watch for: Mouse event calculations, boundary checks
+- Watch for: preventDefault/stopPropagation patterns
+- Watch for: Coordinate transformations in handlers
+
+### AI Tool Patterns
+- ❌ Shape finding/filtering logic in multiple tools
+- ✅ Extract to `utils/shapeMatching.js`
+- Watch for: Shape queries, color filtering, position searches
+- Watch for: Natural language parsing patterns
+- Watch for: Tool parameter validation
+
+### Coordinate System Patterns
+- ❌ Canvas coordinate conversions duplicated
+- ✅ Extract to `utils/coordinates.js`
+- Watch for: Screen to canvas conversions
+- Watch for: Canvas to minimap conversions
+- Watch for: Center point calculations
+- Watch for: Bounding box calculations
+
+### Real-time Collaboration Patterns
+- ❌ Cursor/presence update logic repeated
+- ✅ Extract to `services/presence.js` or `hooks/usePresence.js`
+- Watch for: User position updates
+- Watch for: Cursor rendering logic
+- Watch for: Presence state synchronization
+
+---
+
+## Acceptable Duplication (Don't Flag These)
+
+### Component-Specific Logic
+- Different components may have similar JSX if they serve different purposes
+- Don't unify if it would create tight coupling
+- Example: `Canvas.jsx` and `Minimap.jsx` may have similar rendering but different scales
+
+### Test Code
+- Test setup code can be repetitive - that's OK
+- Mock data can be duplicated across tests
+- Test assertions may look similar but test different things
+
+### Configuration Files
+- Firebase config, Vite config, etc. - structured duplication is expected
+- Package.json scripts may have similar patterns
+
+### Type Definitions
+- TypeScript interfaces may share properties - don't force inheritance if semantically different
+- Props interfaces can be similar without needing unification
+
+### Short Snippets
+- 2-3 line patterns (e.g., `console.log`, `return null`) - too small to extract
+- Simple null checks or early returns
+- Standard React patterns (useState, useEffect with same deps)
+
+### Domain-Specific Language
+- If duplication makes code MORE readable, it's acceptable
+- Example: Explicit shape creation in different contexts for clarity
+- Example: Canvas vs. Preview vs. Minimap - similar but intentionally separate
+
+### Intentional Variations
+- Canvas rendering vs. Minimap rendering (different coordinate systems)
+- Preview shapes vs. Real shapes (different lifecycles)
+- Local updates vs. Firestore updates (different timing)
+- Cursor tracking vs. Shape tracking (different data models)
+
+---
+
+## Refactoring Impact Assessment
+
+When suggesting a refactoring, estimate:
+
+### Time Savings
+- **High**: Saves 15+ minutes per future change (affects 5+ files)
+- **Medium**: Saves 5-15 minutes per future change (affects 2-4 files)
+- **Low**: Saves <5 minutes per future change (affects 1-2 files)
+
+### Maintenance Burden
+- **High**: Bug in one place requires fixes in 5+ places
+- **Medium**: Bug requires fixes in 2-4 places
+- **Low**: Isolated duplication, low change frequency
+
+### Code Volume Reduction
+- **High**: Would remove 50+ lines of duplicated code
+- **Medium**: Would remove 20-50 lines
+- **Low**: Would remove <20 lines
+
+### Coupling Risk
+- **Low Risk**: Pure functions, no side effects, no shared state
+- **Medium Risk**: Shared hooks or utilities with minimal dependencies
+- **High Risk**: Shared stateful logic, side effects, or tight coupling
+
+### Example Output Format:
+```
+Priority Score: 9/10
+- Time Savings: HIGH (affects 6 files, 20 min saved per change)
+- Maintenance Burden: HIGH (security bug would need 6 fixes)
+- Code Reduction: HIGH (150 lines removed)
+- Coupling Risk: LOW (pure function)
+= RECOMMENDATION: REFACTOR IMMEDIATELY
+```
+
+---
+
+## Ignore Patterns
+
+### Don't Analyze for Duplication:
+- `**/*.test.{js,jsx}` - Test files can be repetitive
+- `**/*.spec.{js,jsx}` - Spec files
+- `**/dist/**` - Generated code
+- `**/build/**` - Build output
+- `**/node_modules/**` - Dependencies
+- `vite.config.js`, `tailwind.config.js`, `postcss.config.js` - Config files
+- `*.md` - Documentation
+- `playwright.config.js` - Test configuration
+
+### Analyze with Caution:
+- `src/components/Auth/*` - Auth flows often have similar logic by design
+- `src/services/firebase.js` - Firebase setup may look repetitive but is necessary
+- `src/utils/constants.js` - Constants file should have repetitive structure
+- `src/utils/designSystem.js` - Design tokens are intentionally structured
+
+### High-Priority Analysis:
+- `src/components/Canvas/*` - Core functionality, watch closely
+- `src/hooks/*` - Custom hooks should be DRY
+- `src/services/{canvas,cursors,presence,dragPreviews,drawingPreviews}.js` - Business logic
+- `src/components/AI/AIChat.jsx` - AI tool handlers
+- `src/contexts/*` - Context providers and state management
+
+---
+
+## Refactoring Confidence Levels
+
+Agent should rate each suggestion:
+
+### 🟢 HIGH CONFIDENCE (Recommend)
+- Pure functions
+- Identical logic 3+ times
+- No side effects
+- Simple parameters
+- Deterministic outputs
+- Example: Math calculations, data transformations, validation functions
+
+**Output Format:**
+```
+Confidence: 🟢 HIGH
+Behavior Risk: ✅ LOW (pure function, deterministic)
+Breaking Change Risk: ✅ LOW (no API changes needed)
+Test Coverage: ⚠️ Add tests to verify behavior
+```
+
+### 🟡 MEDIUM CONFIDENCE (Suggest with Caution)
+- Similar logic with variations
+- Requires parameters/options
+- Some side effects but manageable
+- May need interface design
+- Example: Shape creation with different defaults, event handlers with options
+
+**Output Format:**
+```
+Confidence: 🟡 MEDIUM
+Behavior Risk: ⚠️ MEDIUM (requires careful parameterization)
+Breaking Change Risk: ⚠️ MEDIUM (API changes needed)
+Test Coverage: ⚠️ REQUIRED - Must test all variations
+Action: Review parameter design before implementing
+```
+
+### 🔴 LOW CONFIDENCE (Flag for Review)
+- Complex differences
+- Different error handling
+- Different state dependencies
+- Timing/async differences
+- Context-specific behavior
+- Example: Event handlers with context-specific logic, stateful operations
+
+**Output Format:**
+```
+Confidence: 🔴 LOW
+Behavior Risk: ⚠️ HIGH (subtle differences detected)
+Breaking Change Risk: ⚠️ HIGH (architectural changes may be needed)
+Test Coverage: ⚠️ CRITICAL - Extensive testing required
+Action: MANUAL REVIEW REQUIRED - Do not implement without thorough analysis
+```
+
+---
+
+## Refactoring Implementation Guidelines
+
+### Extract vs. Parameterize
+
+#### Extract (Simple)
+When code is truly identical:
+
+```javascript
+// Before - duplicated 5x across files
+const center = { x: shape.x + shape.width / 2, y: shape.y + shape.height / 2 };
+
+// After - extracted to utils/geometry.js
+import { getShapeCenter } from '@/utils/geometry';
+const center = getShapeCenter(shape);
+```
+
+✅ **Safe**: Pure function, deterministic, no edge cases
+Confidence: 🟢 HIGH
+
+#### Parameterize (Complex)
+When code is similar but has variations:
+
+```javascript
+// Before - similar but different
+// Component A
+const newShape = { ...props, fill: '#000', createdBy: userId };
+
+// Component B  
+const newShape = { ...props, fill: color, createdBy: userId, isPreview: true };
+
+// After - parameterized in utils/shapeFactory.js
+function createShape(props, options = {}) {
+  const { 
+    fill = '#000', 
+    isPreview = false,
+    includeMetadata = true 
+  } = options;
+  
+  return {
+    ...props,
+    fill,
+    ...(isPreview && { isPreview: true }),
+    ...(includeMetadata && { createdBy: userId })
+  };
+}
+```
+
+⚠️ **Moderate Risk**: Requires careful parameter design
+Confidence: 🟡 MEDIUM
+
+#### Don't Extract
+When variations are too complex or domain-specific:
+
+```javascript
+// Component A - Auth flow
+if (!user) return <Login />;
+
+// Component B - Canvas flow  
+if (!canvas) return <CreateCanvas />;
+
+// ❌ Don't create: function renderFallback(item, FallbackComponent)
+// These are semantically different, keep separate
+```
+
+🔴 **High Risk**: Over-abstraction would hurt readability
+Confidence: 🔴 LOW - DO NOT EXTRACT
+
+---
+
+## Output Format for Agent Reports
+
+For each duplication found, report in this exact structure:
+
+```markdown
+## [Category]: [Brief Description]
+
+### Severity: 🔴 CRITICAL | 🟡 HIGH | 🟢 MEDIUM | ⚪ LOW
+
+**Locations** (X occurrences):
+1. `src/components/Canvas/Canvas.jsx:145-160`
+2. `src/hooks/useCanvas.js:89-104`
+3. `src/services/canvas.js:234-249`
+
+**Pattern Detected:**
+\`\`\`javascript
+// Common code snippet (max 20 lines)
+const center = {
+  x: shape.x + shape.width / 2,
+  y: shape.y + shape.height / 2
+};
+\`\`\`
+
+**Differences:**
+- File 1: Adds `rotation` calculation
+- File 2: No rotation handling
+- File 3: Includes error handling
+
+**Recommendation:**
+Extract to: `utils/geometry.js`
+
+\`\`\`javascript
+export function getShapeCenter(shape, options = {}) {
+  const { includeRotation = false } = options;
+  const center = {
+    x: shape.x + shape.width / 2,
+    y: shape.y + shape.height / 2
+  };
+  
+  if (includeRotation && shape.rotation) {
+    // Apply rotation transformation
+  }
+  
+  return center;
+}
+\`\`\`
+
+**Usage:**
+\`\`\`javascript
+// In Canvas.jsx
+import { getShapeCenter } from '@/utils/geometry';
+const center = getShapeCenter(shape, { includeRotation: true });
+\`\`\`
+
+**Impact Assessment:**
+- Time Savings: HIGH (20 min per future change)
+- Maintenance Burden: HIGH (affects 3 files)
+- Code Reduction: MEDIUM (45 lines removed)
+- Coupling Risk: LOW (pure function)
+
+**Priority Score**: 9/10
+
+**Confidence**: 🟢 HIGH
+**Behavior Risk**: ✅ LOW (pure function, well-defined inputs/outputs)
+**Breaking Change Risk**: ✅ LOW (additive change only)
+
+**Effort Estimate**: S (15 minutes)
+- Create `utils/geometry.js` function (5 min)
+- Replace 3 call sites (5 min)
+- Add unit tests (5 min)
+
+**Testing Requirements**:
+- [ ] Test with rectangle shapes
+- [ ] Test with circle shapes (no width/height)
+- [ ] Test with rotation
+- [ ] Test edge cases (0 dimensions, negative values)
+
+**Action**: RECOMMEND IMPLEMENTATION
+```
+
+---
+
+## Target DRY Metrics (Success Criteria)
+
+### Ideal State:
+- ✅ No function/logic block >5 lines duplicated 2+ times
+- ✅ All constants defined in `src/utils/constants.js` or `src/utils/designSystem.js`
+- ✅ All shape operations use `src/utils/shapeFactory.js` or similar
+- ✅ All geometry calculations in `src/utils/geometry.js`
+- ✅ All coordinate conversions in `src/utils/coordinates.js`
+- ✅ Each React hook used in 2+ components
+- ✅ No inline styles with same values 3+ times
+- ✅ All Firebase operations abstracted in services
+- ✅ All AI tool helpers in `src/utils/`
+
+### Acceptable Threshold:
+- <5 instances of HIGH severity semantic duplication across entire codebase
+- <10 instances of MEDIUM severity duplication (3-5 lines)
+- 0 CRITICAL duplications (security, data operations, core logic)
+
+### Red Flags (Immediate Action Required):
+- Same function exists with 2+ different names
+- Database queries duplicated in components (should be in services)
+- Shape creation logic in components (should be in utils)
+- Constants hardcoded 5+ times
+- Security/auth logic duplicated
+- Error handling patterns inconsistent
+
+---
+
+## Agent Behavior Guidelines
+
+1. **Prioritize by severity**: Report CRITICAL first, then HIGH, MEDIUM, LOW
+2. **Group related findings**: Batch similar duplications by category
+3. **Provide code snippets**: Show what's duplicated (max 20 lines each)
+4. **Suggest specific destinations**: Don't say "extract", say "extract to utils/geometry.js"
+5. **Calculate effort**: Estimate refactoring time (S=<15min, M=15-45min, L=>45min)
+6. **Avoid false positives**: Use "Acceptable Duplication" guidelines rigorously
+7. **Focus on impact**: Prioritize high-impact refactorings over cosmetic ones
+8. **Flag uncertainties**: If unsure, mark as "MANUAL REVIEW REQUIRED"
+9. **Include tests**: Always recommend adding tests for refactored code
+10. **Preserve behavior**: NEVER suggest refactorings that could change behavior
+11. **Context awareness**: Consider the project architecture (React, Firebase, Konva)
+12. **Actionable recommendations**: Provide specific code examples, not vague suggestions
+
+---
+
+## Red Flags - Agent Must Not Suggest:
+
+🚩 **"It's close enough"** - NO! Must be EXACT or don't refactor
+🚩 **"We can add parameters later"** - NO! Plan parameters upfront
+🚩 **"Users won't notice"** - NO! Behavioral changes are bugs
+🚩 **"The tests will catch it"** - NO! Tests might be incomplete
+🚩 **Over-abstraction** - Creating generic functions that serve no real purpose
+🚩 **Premature optimization** - Extracting before pattern is clear
+🚩 **Breaking encapsulation** - Extracting component-private logic
+
+---
+
+## Green Lights - Safe to Extract:
+
+✅ **Truly identical logic** - Same inputs, outputs, edge cases
+✅ **Pure functions** - No side effects, deterministic
+✅ **Well-tested** - Existing tests verify behavior
+✅ **Simple extractions** - No complex conditional logic needed
+✅ **Single responsibility** - Function does one thing clearly
+✅ **Multiple uses** - Used 3+ times across different contexts
+✅ **Clear boundaries** - Obvious where function starts/ends
+✅ **Stable API** - Function signature unlikely to change
+
+---
+
+## Report Structure
+
+Generate reports in this order:
+
+1. **Executive Summary**
+   - Total findings by severity
+   - High-priority items count
+   - Estimated total time savings
+
+2. **Critical Findings** (🔴)
+   - Must be addressed immediately
+   - Sorted by priority score (10→1)
+
+3. **High Priority Findings** (🟡)
+   - Should be addressed soon
+   - Sorted by priority score
+
+4. **Medium Priority Findings** (🟢)
+   - Address when convenient
+   - Grouped by category
+
+5. **Low Priority Findings** (⚪)
+   - Nice to have
+   - Summarized, not detailed
+
+6. **Manual Review Required**
+   - Findings that need human judgment
+   - Flagged with uncertainties
+
+7. **Appendix**
+   - Methodology
+   - Files analyzed
+   - Files ignored
+   - Success criteria progress
+
+---
+
+## Example Priority Calculation
+
+```
+Priority Score = (
+  Time Savings (0-3) +
+  Maintenance Burden (0-3) +
+  Code Reduction (0-2) +
+  (5 - Coupling Risk (1-5))
+) / 1.1
+
+Where:
+- Time Savings: 0=Low, 1=Medium, 2=High, 3=Critical
+- Maintenance Burden: 0=Low, 1=Medium, 2=High, 3=Critical  
+- Code Reduction: 0=Low, 1=Medium, 2=High
+- Coupling Risk: 1=Low, 3=Medium, 5=High (inverted for score)
+
+Result: 0-10 (10 = highest priority)
+```
+
+Example:
+- Time Savings: HIGH (2)
+- Maintenance Burden: HIGH (2)
+- Code Reduction: HIGH (2)
+- Coupling Risk: LOW (1)
+- Score: (2 + 2 + 2 + (5-1)) / 1.1 = 9.1 → **9/10**
+
+---
+
+**Remember**: The goal is clean, maintainable code that preserves all functionality. When in doubt, flag for manual review rather than suggesting potentially breaking changes.

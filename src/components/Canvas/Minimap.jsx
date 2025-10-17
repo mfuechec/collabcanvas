@@ -62,8 +62,19 @@ const Minimap = () => {
       // Scale shape coordinates and add offset
       const x = (shape.x * scale) + offsetX;
       const y = (shape.y * scale) + offsetY;
-      const width = shape.width * scale;
-      const height = shape.height * scale;
+      
+      // Calculate dimensions - text shapes need estimation since they auto-size
+      let width, height;
+      if (shape.type === 'text') {
+        // Estimate text dimensions using same formula as PropertiesPanel
+        const textContent = shape.text || 'Text';
+        const fontSize = shape.fontSize || 48;
+        width = (textContent.length * fontSize * 0.6) * scale;
+        height = (fontSize * 1.2) * scale;
+      } else {
+        width = shape.width * scale;
+        height = shape.height * scale;
+      }
 
       // Set fill color
       ctx.fillStyle = shape.fill || '#cccccc';
@@ -127,10 +138,13 @@ const Minimap = () => {
         
         // Render actual text content
         const textContent = shape.text || 'Text';
-        const textX = shape.rotation ? 0 : x; // If rotated, we're already at center
-        const textY = shape.rotation ? 0 : y;
         
-        // For rotated text, we need to offset to match Konva's top-left positioning
+        // Text rotates from centerpoint now (like other shapes)
+        // If rotated, we're already at center, so offset by half dimensions
+        // If not rotated, position at top-left
+        const textX = shape.rotation ? -width / 2 : x;
+        const textY = shape.rotation ? -height / 2 : y;
+        
         ctx.fillText(textContent, textX, textY);
       } else {
         // Rectangle (draw as rectangle) - rotate around center

@@ -9,11 +9,17 @@
     "preview": "vite preview",
     "test": "vitest",
     "test:ui": "vitest --ui",
-    "test:coverage": "vitest --coverage"
+    "test:coverage": "vitest --coverage",
+    "dry-check": "node scripts/dry-agent.js",
+    "dry-check:verbose": "node scripts/dry-agent.js --verbose",
+    "dry-check:incremental": "node scripts/dry-agent.js --incremental"
   },
   "dependencies": {
+    "@langchain/anthropic": "^0.3.32",
     "@langchain/core": "^0.3.78",
     "@langchain/openai": "^0.6.16",
+    "dotenv": "^17.2.3",
+    "fast-glob": "^3.3.3",
     "firebase": "^12.4.0",
     "konva": "^10.0.2",
     "langchain": "^0.3.36",

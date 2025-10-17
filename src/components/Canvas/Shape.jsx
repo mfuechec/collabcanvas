@@ -1,5 +1,5 @@
 import { Rect, Circle, Line, Text } from 'react-konva';
-import { useRef, useEffect, useMemo } from 'react';
+import { useRef, useEffect, useMemo, useState, useCallback } from 'react';
 import { useCanvas } from '../../hooks/useCanvas';
 import { useCanvasMode } from '../../contexts/CanvasModeContext';
 
@@ -68,6 +68,43 @@ const Shape = ({
   
   // 🚀 PERFORMANCE: Throttle drag preview updates
   const lastPreviewUpdate = useRef(0);
+
+  // 🎯 TEXT CENTERPOINT: Track actual measured dimensions for text shapes
+  // Text auto-sizes, so we measure after Konva renders to get accurate dimensions
+  const [textDimensions, setTextDimensions] = useState(null);
+  
+  // Callback ref to measure text dimensions immediately after Konva creates the node
+  const textRef = useCallback((node) => {
+    if (node && type === 'text') {
+      // Measure actual dimensions from Konva
+      const actualWidth = node.width();
+      const actualHeight = node.height();
+      
+      // Only update if dimensions changed (avoid infinite loops)
+      setTextDimensions(prev => {
+        if (!prev || prev.width !== actualWidth || prev.height !== actualHeight) {
+          return { width: actualWidth, height: actualHeight };
+        }
+        return prev;
+      });
+      
+      // Apply centerpoint offset immediately
+      node.offsetX(actualWidth / 2);
+      node.offsetY(actualHeight / 2);
+      
+      // Position at center (stored top-left + half dimensions)
+      node.x(x + actualWidth / 2);
+      node.y(y + actualHeight / 2);
+    }
+  }, [type, x, y]); // Re-measure if position changes
+  
+  // Re-measure text when content or fontSize changes
+  useEffect(() => {
+    if (type === 'text') {
+      // Reset dimensions to trigger re-measurement
+      setTextDimensions(null);
+    }
+  }, [type, text, fontSize]);
 
   // Handle shape click for selection
   const handleClick = (e) => {
@@ -214,9 +251,10 @@ const Shape = ({
       boundingBoxX = newPos.x - (centerX - minX);
       boundingBoxY = newPos.y - (centerY - minY);
     } else if (type === 'text') {
-      // ✅ Text is positioned at top-left (no offsetX/offsetY), so Konva position IS bounding box
-      boundingBoxX = newPos.x;
-      boundingBoxY = newPos.y;
+      // Text is now positioned at center with offsetX/offsetY (like rectangles)
+      // Convert center to bounding box top-left
+      boundingBoxX = newPos.x - actualWidth / 2;
+      boundingBoxY = newPos.y - actualHeight / 2;
     } else {
       // Circle and rectangle use center position
       // Convert center to bounding box top-left
@@ -262,10 +300,11 @@ const Shape = ({
         y: constrainedBoundingBox.y + (centerY - minY)
       };
     } else if (type === 'text') {
-      // ✅ Text is at top-left, so constrained bounding box IS the final position
+      // Text uses center position with offsetX/offsetY (like rectangles)
+      // Convert bounding box back to center
       constrainedPos = {
-        x: constrainedBoundingBox.x,
-        y: constrainedBoundingBox.y
+        x: constrainedBoundingBox.x + actualWidth / 2,
+        y: constrainedBoundingBox.y + actualHeight / 2
       };
     } else {
       // Circle and rectangle use center position
@@ -382,9 +421,10 @@ const Shape = ({
       boundingBoxX = finalPos.x - actualWidth / 2;
       boundingBoxY = finalPos.y - actualHeight / 2;
     } else if (type === 'text') {
-      // ✅ Text is positioned at top-left (no offsetX/offsetY), so Konva position IS bounding box
-      boundingBoxX = finalPos.x;
-      boundingBoxY = finalPos.y;
+      // Text is now positioned at center with offsetX/offsetY (like rectangles)
+      // Convert center to bounding box top-left
+      boundingBoxX = finalPos.x - actualWidth / 2;
+      boundingBoxY = finalPos.y - actualHeight / 2;
     } else {
       // Rectangle rotates around center, so position is center
       // Convert center to bounding box top-left
@@ -404,10 +444,11 @@ const Shape = ({
     
     // For non-line/pen shapes, update position immediately for smooth UX
     if (type === 'text') {
-      // ✅ Text is at top-left, so constrained bounding box IS the final position
+      // Text uses center position with offsetX/offsetY (like rectangles)
+      // Convert bounding box back to center
       const constrainedPos = {
-        x: constrainedBoundingBox.x,
-        y: constrainedBoundingBox.y
+        x: constrainedBoundingBox.x + actualWidth / 2,
+        y: constrainedBoundingBox.y + actualHeight / 2
       };
       shape.position(constrainedPos);
     } else if (type !== 'line' && type !== 'pen') {
@@ -703,11 +744,13 @@ const Shape = ({
   }
   
   if (type === 'text') {
-    // ✅ FIX: Text auto-sizes based on content, no fixed width/height
-    // For rotation, we need to calculate the center after Konva measures the text
-    // Use a ref to get actual text dimensions
+    // ✅ Text auto-sizes, then we measure and position at centerpoint
+    // The callback ref (textRef) handles measurement and centerpoint positioning
     const textProps = {
       ...commonProps,
+      ref: textRef, // Callback ref measures dimensions and applies centerpoint offset
+      x, // Initial position (callback ref will reposition to center)
+      y,
       text: text || 'Text',
       fontSize: fontSize || 48,
       fontFamily: 'Inter, system-ui, sans-serif',
@@ -715,17 +758,11 @@ const Shape = ({
       // NO width - let text auto-size
       // NO wrap - single line text
       align: 'left',
-      // Rotate around text's own center
-      // offsetX/offsetY will be set after measuring
+      // offsetX/offsetY will be set by callback ref after measurement
     };
     
-    // For text, we need to measure it to get actual width/height for centering
-    // Konva will auto-calculate this, but for rotation we use a simple approach:
-    // Just use x,y as the position and let the text rotate from its top-left
     return (
       <Text
-        x={x}
-        y={y}
         {...textProps}
       />
     );
