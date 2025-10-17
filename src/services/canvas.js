@@ -744,6 +744,7 @@ const monitorDisconnectCleanup = (callback) => {
             });
             
             // Remove the cleanup event after processing
+            // Database rules now allow any authenticated user to write (so online users can clean up after disconnected users)
             const eventRef = ref(rtdb, `${DISCONNECT_CLEANUP_PATH}/${CANVAS_SESSION_ID}/${userId}/${shapeId}`);
             set(eventRef, null).catch(error => {
               console.error('Failed to clear cleanup event:', error);
