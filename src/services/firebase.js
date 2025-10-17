@@ -63,6 +63,33 @@ try {
   });
   
   console.log('Firebase initialized successfully with offline persistence');
+  
+  // 🔇 Filter benign Firestore connection termination errors
+  // These 400 errors occur when the client tries to close a connection that the server already terminated
+  // This is normal behavior and doesn't affect functionality
+  if (typeof window !== 'undefined') {
+    const originalConsoleError = console.error;
+    console.error = (...args) => {
+      // Check if this is a Firestore connection termination error
+      const errorString = args.join(' ');
+      
+      // Suppress these specific benign errors:
+      // 1. Firestore Write channel termination (400 Bad Request)
+      // 2. React DevTools semver validation (cosmetic only)
+      if (
+        (errorString.includes('Firestore/Write/channel') && 
+         errorString.includes('TYPE=terminate') && 
+         errorString.includes('400')) ||
+        errorString.includes('Invalid argument not valid semver')
+      ) {
+        // Silently ignore these specific errors
+        return;
+      }
+      
+      // Log all other errors normally
+      originalConsoleError.apply(console, args);
+    };
+  }
 } catch (error) {
   console.error('Firebase initialization failed:', error);
   
