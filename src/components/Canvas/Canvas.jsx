@@ -666,8 +666,8 @@ const Canvas = () => {
                 const userColor = preview.userColor || '#ef4444'; // Default to red if no color
                 const fillColor = `${userColor}33`; // Add transparency (20%)
                 
+                const previewKey = `preview-${userId}`;
                 const collaborativeProps = {
-                  key: `preview-${userId}`,
                   fill: fillColor,
                   stroke: userColor,
                   strokeWidth: 2,
@@ -692,7 +692,7 @@ const Canvas = () => {
                   // Only render if radius is meaningful
                   if (radius < 1) return null;
                   
-                  return <Circle x={centerX} y={centerY} radius={radius} {...collaborativeProps} />;
+                  return <Circle key={previewKey} x={centerX} y={centerY} radius={radius} {...collaborativeProps} />;
                 } else if (preview.type === 'line') {
                   // For lines: draw straight line
                   const linePoints = [
@@ -709,10 +709,10 @@ const Canvas = () => {
                   // Only render if line has meaningful length
                   if (distance < 1) return null;
                   
-                  return <Line points={linePoints} {...collaborativeProps} fill={undefined} />;
+                  return <Line key={previewKey} points={linePoints} {...collaborativeProps} fill={undefined} />;
                 } else if (preview.type === 'pen' && preview.points && preview.points.length >= 2) {
                   // For pen: draw freehand path (need at least 1 point = 2 values)
-                  return <Line points={preview.points} {...collaborativeProps} fill={undefined} tension={0.5} lineCap="round" lineJoin="round" />;
+                  return <Line key={previewKey} points={preview.points} {...collaborativeProps} fill={undefined} tension={0.5} lineCap="round" lineJoin="round" />;
                 }
                 
                 // For rectangles: standard bounding box
@@ -724,7 +724,7 @@ const Canvas = () => {
                 // Only render if the preview has meaningful dimensions
                 if (width < 1 || height < 1) return null;
                 
-                return <Rect x={x} y={y} width={width} height={height} {...collaborativeProps} />;
+                return <Rect key={previewKey} x={x} y={y} width={width} height={height} {...collaborativeProps} />;
               })}
 
               {/* Other Users' Drag Previews */}
