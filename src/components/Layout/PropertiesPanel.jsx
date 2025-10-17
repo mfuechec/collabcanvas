@@ -24,6 +24,7 @@ const PropertiesPanel = () => {
     text: '',
     fontSize: 48,
     rotation: 0,
+    cornerRadius: 0,
   });
   
   // Update local values when selection changes
@@ -40,6 +41,7 @@ const PropertiesPanel = () => {
         text: selectedShape.text || 'Text',
         fontSize: selectedShape.fontSize || 48,
         rotation: Math.round(selectedShape.rotation || 0),
+        cornerRadius: Math.round(selectedShape.cornerRadius || 0),
       });
     }
   }, [selectedShape]);
@@ -263,7 +265,7 @@ const PropertiesPanel = () => {
   
   const panelStyle = {
     width: LAYOUT.rightSidebar.width,
-    height: '100vh',
+    height: '65vh',
     backgroundColor: colors.sidebar,
     borderLeft: `1px solid ${colors.border}`,
     position: 'fixed',
@@ -276,7 +278,7 @@ const PropertiesPanel = () => {
   };
   
   const headerStyle = {
-    padding: `${SPACING.md} ${SPACING.lg}`, // Reduce top/bottom padding
+    padding: `${SPACING.sm} ${SPACING.md}`, // Reduced padding for compact layout
     borderBottom: `1px solid ${colors.border}`,
     fontFamily: TYPOGRAPHY.fontFamily.base,
     fontSize: TYPOGRAPHY.fontSize.sidebarLabel,
@@ -290,22 +292,22 @@ const PropertiesPanel = () => {
   };
   
   const sectionStyle = {
-    padding: SPACING.lg,
+    padding: `${SPACING.sm} ${SPACING.md}`, // Reduced padding for compact layout
     borderBottom: `1px solid ${colors.border}`,
   };
   
   const labelStyle = {
-    fontSize: '11px',
+    fontSize: '10px',
     fontWeight: 600,
     color: colors.textSecondary,
-    marginBottom: SPACING.xs,
+    marginBottom: '4px', // Reduced margin
     textTransform: 'uppercase',
     letterSpacing: '0.5px',
   };
   
   const inputStyle = {
     width: '100%',
-    padding: `${SPACING.xs} ${SPACING.sm}`,
+    padding: '6px 8px', // Reduced padding for compact layout
     backgroundColor: colors.background,
     border: `1px solid ${colors.border}`,
     borderRadius: BORDER_RADIUS.button,
@@ -318,8 +320,8 @@ const PropertiesPanel = () => {
   const rowStyle = {
     display: 'grid',
     gridTemplateColumns: '1fr 1fr',
-    gap: SPACING.sm,
-    marginBottom: SPACING.md,
+    gap: '8px', // Reduced gap for compact layout
+    marginBottom: '8px', // Reduced margin
   };
   
   // Don't render panel if nothing is selected
@@ -332,6 +334,16 @@ const PropertiesPanel = () => {
       {/* Header */}
       <div style={headerStyle}>
         <span>Properties</span>
+        {selectedShape.isLocked && selectedShape.lockedBy !== selectedShape.createdBy && (
+          <span style={{ 
+            fontSize: '10px', 
+            color: colors.warning || '#f59e0b',
+            fontWeight: 'normal',
+            textTransform: 'none'
+          }}>
+            🔒 Locked
+          </span>
+        )}
       </div>
       
       {/* Content */}
@@ -400,7 +412,7 @@ const PropertiesPanel = () => {
             {/* Fill Section */}
             <div style={sectionStyle}>
               <div style={labelStyle}>Fill</div>
-              <div style={{ display: 'flex', alignItems: 'center', gap: SPACING.sm }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
                 <input
                   type="color"
                   value={localValues.fill}
@@ -428,7 +440,7 @@ const PropertiesPanel = () => {
             {/* Opacity Section */}
             <div style={sectionStyle}>
               <div style={labelStyle}>Opacity</div>
-              <div style={{ display: 'flex', alignItems: 'center', gap: SPACING.sm }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
                 <input
                   type="range"
                   min="0"
@@ -441,10 +453,10 @@ const PropertiesPanel = () => {
                   }}
                 />
                 <span style={{
-                  fontSize: '12px',
+                  fontSize: '11px',
                   fontFamily: TYPOGRAPHY.fontFamily.mono,
                   color: colors.textSecondary,
-                  minWidth: '40px',
+                  minWidth: '35px',
                   textAlign: 'right',
                 }}>
                   {localValues.opacity}%
@@ -455,7 +467,7 @@ const PropertiesPanel = () => {
             {/* Rotation Section */}
             <div style={sectionStyle}>
               <div style={labelStyle}>Rotation</div>
-              <div style={{ display: 'flex', alignItems: 'center', gap: SPACING.sm }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
                 <input
                   type="range"
                   min="0"
@@ -497,11 +509,12 @@ const PropertiesPanel = () => {
                   }}
                   style={{
                     ...inputStyle,
-                    width: '60px',
+                    width: '50px',
+                    fontSize: '11px',
                   }}
                 />
                 <span style={{
-                  fontSize: '12px',
+                  fontSize: '11px',
                   fontFamily: TYPOGRAPHY.fontFamily.mono,
                   color: colors.textSecondary,
                 }}>
@@ -510,11 +523,69 @@ const PropertiesPanel = () => {
               </div>
             </div>
             
+            {/* Corner Radius Section - Only for rectangles */}
+            {selectedShape.type === 'rectangle' && (
+              <div style={sectionStyle}>
+                <div style={labelStyle}>Corner Radius</div>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                  <input
+                    type="range"
+                    min="0"
+                    max="50"
+                    value={localValues.cornerRadius}
+                    onChange={(e) => {
+                      const value = parseInt(e.target.value);
+                      handleInputChange('cornerRadius', value);
+                      updateShape(selectedShape.id, { cornerRadius: value }).catch(error => {
+                        console.warn('Failed to update corner radius:', error.message);
+                        // Revert local value on error
+                        handleInputChange('cornerRadius', selectedShape.cornerRadius || 0);
+                      });
+                    }}
+                    style={{
+                      flex: 1,
+                      accentColor: colors.accent,
+                    }}
+                  />
+                  <input
+                    type="number"
+                    min="0"
+                    max="50"
+                    value={localValues.cornerRadius}
+                    onChange={(e) => handleInputChange('cornerRadius', e.target.value)}
+                    onBlur={() => {
+                      let value = parseInt(localValues.cornerRadius);
+                      if (isNaN(value)) value = 0;
+                      value = Math.max(0, Math.min(50, value)); // Clamp to 0-50
+                      handleInputChange('cornerRadius', value);
+                      updateShape(selectedShape.id, { cornerRadius: value }).catch(error => {
+                        console.warn('Failed to update corner radius:', error.message);
+                        // Revert local value on error
+                        handleInputChange('cornerRadius', selectedShape.cornerRadius || 0);
+                      });
+                    }}
+                    style={{
+                      ...inputStyle,
+                      width: '50px',
+                      fontSize: '11px',
+                    }}
+                  />
+                  <span style={{
+                    fontSize: '11px',
+                    fontFamily: TYPOGRAPHY.fontFamily.mono,
+                    color: colors.textSecondary,
+                  }}>
+                    px
+                  </span>
+                </div>
+              </div>
+            )}
+            
             {/* Stroke Width Section - Only for lines/pen */}
             {(selectedShape.type === 'line' || selectedShape.type === 'pen') && (
               <div style={sectionStyle}>
                 <div style={labelStyle}>Stroke Width</div>
-                <div style={{ display: 'flex', alignItems: 'center', gap: SPACING.sm }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
                   <input
                     type="range"
                     min="1"
@@ -527,10 +598,10 @@ const PropertiesPanel = () => {
                     }}
                   />
                   <span style={{
-                    fontSize: '12px',
+                    fontSize: '11px',
                     fontFamily: TYPOGRAPHY.fontFamily.mono,
                     color: colors.textSecondary,
-                    minWidth: '40px',
+                    minWidth: '35px',
                     textAlign: 'right',
                   }}>
                     {localValues.strokeWidth}px
@@ -558,7 +629,7 @@ const PropertiesPanel = () => {
                 
                 <div style={sectionStyle}>
                   <div style={labelStyle}>Font Size</div>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: SPACING.sm }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
                     <input
                       type="range"
                       min="8"
@@ -571,10 +642,10 @@ const PropertiesPanel = () => {
                       }}
                     />
                     <span style={{
-                      fontSize: '12px',
+                      fontSize: '11px',
                       fontFamily: TYPOGRAPHY.fontFamily.mono,
                       color: colors.textSecondary,
-                      minWidth: '50px',
+                      minWidth: '45px',
                       textAlign: 'right',
                     }}>
                       {localValues.fontSize}px

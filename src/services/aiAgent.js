@@ -2,6 +2,92 @@ import { ChatOpenAI } from '@langchain/openai';
 import { z } from 'zod';
 import { tool } from '@langchain/core/tools';
 import { CANVAS_WIDTH, CANVAS_HEIGHT } from '../utils/constants';
+import { executeSmartOperation } from './canvas';
+
+// ========================================
+// STYLE INFERENCE FROM USER'S SHAPES
+// ========================================
+
+/**
+ * Analyze user's existing shapes to infer their design style
+ * @param {Array} userShapes - Shapes created by the current user
+ * @returns {string} Style guide based on user's patterns
+ */
+function inferUserStyle(userShapes) {
+  if (!userShapes || userShapes.length === 0) {
+    return '';
+  }
+  
+  // Analyze colors
+  const colors = userShapes
+    .map(s => s.fill)
+    .filter(Boolean)
+    .reduce((acc, color) => {
+      acc[color] = (acc[color] || 0) + 1;
+      return acc;
+    }, {});
+  
+  const topColors = Object.entries(colors)
+    .sort((a, b) => b[1] - a[1])
+    .slice(0, 3)
+    .map(([color]) => color);
+  
+  // Analyze spacing (distances between shapes)
+  const spacings = [];
+  for (let i = 0; i < userShapes.length - 1; i++) {
+    const dx = Math.abs(userShapes[i + 1].x - userShapes[i].x);
+    const dy = Math.abs(userShapes[i + 1].y - userShapes[i].y);
+    if (dx > 0 && dx < 200) spacings.push(dx);
+    if (dy > 0 && dy < 200) spacings.push(dy);
+  }
+  const avgSpacing = spacings.length > 0 ? Math.round(spacings.reduce((a, b) => a + b, 0) / spacings.length) : null;
+  
+  // Analyze sizes
+  const sizes = userShapes
+    .filter(s => s.width && s.height)
+    .map(s => ({ w: s.width, h: s.height }));
+  const avgWidth = sizes.length > 0 ? Math.round(sizes.reduce((a, b) => a + b.w, 0) / sizes.length) : null;
+  const avgHeight = sizes.length > 0 ? Math.round(sizes.reduce((a, b) => a + b.h, 0) / sizes.length) : null;
+  
+  // Analyze font sizes
+  const fontSizes = userShapes
+    .filter(s => s.fontSize)
+    .map(s => s.fontSize);
+  const topFontSize = fontSizes.length > 0 
+    ? fontSizes.reduce((acc, size) => {
+        acc[size] = (acc[size] || 0) + 1;
+        return acc;
+      }, {})
+    : {};
+  const preferredFontSize = Object.entries(topFontSize).sort((a, b) => b[1] - a[1])[0]?.[0];
+  
+  // Build style guide (only if user has created at least 3 shapes)
+  if (userShapes.length < 3) {
+    return ''; // Not enough data to infer style
+  }
+  
+  let styleGuide = `\n**USER'S EXISTING STYLE (Optional - use if creating similar content):**\n`;
+  
+  if (topColors.length > 0) {
+    styleGuide += `- Colors you've used: ${topColors.join(', ')}\n`;
+  }
+  
+  if (avgSpacing) {
+    styleGuide += `- Your typical spacing: ~${avgSpacing}px\n`;
+  }
+  
+  if (avgWidth && avgHeight) {
+    styleGuide += `- Your common dimensions: ${avgWidth}x${avgHeight}px\n`;
+  }
+  
+  if (preferredFontSize) {
+    styleGuide += `- Your preferred font size: ${preferredFontSize}px\n`;
+  }
+  
+  styleGuide += `\n⚠️ **IMPORTANT**: These are just suggestions based on the user's past work. For professional UI requests (login screens, dashboards, etc.), ALWAYS follow the Design System and UI Pattern examples above instead!`;
+  
+  return styleGuide;
+}
 
 // Get API key from environment
 const OPENAI_API_KEY = import.meta.env.VITE_OPENAI_API_KEY;
@@ -56,18 +142,23 @@ function checkSingleCommandHeuristic(command) {
   };
   if (trivialCommands[lowerCmd]) return trivialCommands[lowerCmd];
   
-  // Move all
-  if (/^(move|shift)\s+(everything|all|all shapes)\s+(up|down|left|right)(\s+by\s+(\d+))?$/i.test(lowerCmd)) {
+  // Move all - allow "move up" or "move everything up"
+  if (/^(move|shift)\s+((everything|all|all shapes)\s+)?(up|down|left|right)(\s+by\s+(\d+))?$/i.test(lowerCmd)) {
     return 'direct_move_all';
   }
   
-  // Rotate all
-  if (/^(rotate|turn|spin)\s+(everything|all|all shapes)(\s+by)?\s+(\d+)\s*(degrees?|°)?$/i.test(lowerCmd)) {
+  // Rotate all - allow "rotate 45" or "rotate everything 45"
+  if (/^(rotate|turn|spin)\s+((everything|all|all shapes)\s+)?(\s+by)?\s*(\d+)\s*(degrees?|°)?$/i.test(lowerCmd)) {
     return 'direct_rotate_all';
   }
   
-  // Scale all
-  if (/^((make|scale)\s+(everything|all|all shapes)\s+(bigger|smaller|larger|double|twice(\s+as\s+(big|large))?(\s+the\s+size)?|triple|half|halve|(\d+(\.\d+)?)\s*(times|x))|(double|triple|halve)\s+(everything|all|all shapes))$/i.test(lowerCmd)) {
+  // Scale all - allow "double", "triple", "halve" alone or with "everything/all"
+  if (/^(double|triple|halve|half)(\s+(everything|all|all shapes))?$/i.test(lowerCmd)) {
+    return 'direct_scale_all';
+  }
+  
+  // Scale all - longer forms
+  if (/^(make|scale)\s+(everything|all|all shapes)\s+(bigger|smaller|larger|double|twice|triple|half|halve|(\d+(\.\d+)?)\s*(times|x))$/i.test(lowerCmd)) {
     return 'direct_scale_all';
   }
   
@@ -581,26 +672,27 @@ function buildSmartContext(userQuery, canvasShapes, includeHeader = true) {
 // - Shape.jsx handles rendering by calculating centers/positions from bounding boxes
 
 const createRectangleTool = tool(
-  async ({ x, y, width, height, fill }) => {
+  async ({ x, y, width, height, fill, cornerRadius }) => {
     // Convert center coordinates to top-left corner for storage
     // Rectangle storage: x, y = top-left of bounding box
     const topLeftX = x - (width / 2);
     const topLeftY = y - (height / 2);
-    console.log(`📐 [CREATE_RECTANGLE] AI provided center: (${x}, ${y}), converting to top-left: (${topLeftX}, ${topLeftY}), size: ${width}x${height}`);
+    console.log(`📐 [CREATE_RECTANGLE] AI provided center: (${x}, ${y}), converting to top-left: (${topLeftX}, ${topLeftY}), size: ${width}x${height}${cornerRadius ? `, cornerRadius: ${cornerRadius}` : ''}`);
     return JSON.stringify({
       action: 'create_rectangle',
-      data: { x: topLeftX, y: topLeftY, width, height, fill, type: 'rectangle' }
+      data: { x: topLeftX, y: topLeftY, width, height, fill, cornerRadius, type: 'rectangle' }
     });
   },
   {
     name: 'create_rectangle',
-    description: 'Creates a rectangle on the canvas. Use this when the user asks to create or add a rectangle, box, or square.',
+    description: 'Creates a rectangle on the canvas. Use this when the user asks to create or add a rectangle, box, or square. Use cornerRadius for rounded corners (modern UI elements like cards, buttons, inputs).',
     schema: z.object({
       x: z.number().min(0).max(CANVAS_WIDTH).describe('Center X position (0 to 5000). Use 2500 for canvas center.'),
       y: z.number().min(0).max(CANVAS_HEIGHT).describe('Center Y position (0 to 5000). Use 2500 for canvas center.'),
       width: z.number().min(10).max(1000).describe('Width in pixels (10-1000)'),
       height: z.number().min(10).max(1000).describe('Height in pixels (10-1000)'),
       fill: z.string().describe('Fill color (hex code like #FF0000 for red, #0000FF for blue, #00FF00 for green)'),
+      cornerRadius: z.number().min(0).max(50).optional().describe('Border radius for rounded corners (0-50). Use 8-12 for buttons/cards, 4-6 for inputs.'),
     }),
   }
 );
@@ -944,6 +1036,7 @@ const batchOperationsTool = tool(
           stroke: z.string().optional(),
           strokeWidth: z.number().optional(),
           opacity: z.number().min(0).max(1).optional(),
+          cornerRadius: z.number().min(0).max(50).optional().describe('Border radius for rectangles (0-50)'),
           x1: z.number().optional(),
           y1: z.number().optional(),
           x2: z.number().optional(),
@@ -961,6 +1054,7 @@ const batchOperationsTool = tool(
           text: z.string().optional(),
           rotation: z.number().optional(),
           opacity: z.number().min(0).max(1).optional(),
+          cornerRadius: z.number().min(0).max(50).optional(),
         }).optional().describe('Properties to update for UPDATE operations'),
       })).min(1).max(50).describe('Array of operations to execute (max 50)'),
     }),
@@ -997,13 +1091,34 @@ const tools = [
 // ========================================
 
 /**
+ * Sanitize JSON string to fix common LLM mistakes
+ */
+function sanitizeJSON(jsonString) {
+  let cleaned = jsonString;
+  
+  // Remove JavaScript-style comments
+  cleaned = cleaned.replace(/\/\*[\s\S]*?\*\//g, ''); // Block comments
+  cleaned = cleaned.replace(/\/\/.*/g, ''); // Line comments
+  
+  // Remove trailing commas before closing braces/brackets
+  cleaned = cleaned.replace(/,(\s*[}\]])/g, '$1');
+  
+  // Fix common unquoted property names (basic cases)
+  // This is a simple heuristic - won't catch all cases but helps with common mistakes
+  cleaned = cleaned.replace(/(\{|,)\s*([a-zA-Z_][a-zA-Z0-9_]*)\s*:/g, '$1"$2":');
+  
+  return cleaned.trim();
+}
+
+/**
  * Generate an execution plan for a user command
  * This makes ONE LLM call to create a structured plan
  * @param {string} userMessage - The user's command
  * @param {Array} canvasShapes - Current canvas shapes
  * @param {string} complexity - Pre-classified complexity ('simple', 'complex', or 'direct_*')
+ * @param {string} userStyleGuide - Inferred style preferences from user's shapes
  */
-async function generateExecutionPlan(userMessage, canvasShapes, complexity) {
+async function generateExecutionPlan(userMessage, canvasShapes, complexity, userStyleGuide = '') {
   const planningPrompt = `You are a planning assistant for a canvas design tool. Given a user request, create an execution plan using the available tools.
 
 **Canvas Information:**
@@ -1054,31 +1169,179 @@ async function generateExecutionPlan(userMessage, canvasShapes, complexity) {
     Examples: Move all 100px right: {{deltaX: 100}}, Double all sizes: {{scaleX: 2, scaleY: 2}}, Rotate all 45°: {{deltaRotation: 45}}, Make all 50% transparent: {{updates: {{opacity: 0.5}}}}
 
 14. **batch_operations** - Execute mixed operations (create/update/delete) in a single call
-    Args: {{ operations: [{{type: 'create', shape: {{x, y, width, height, fill, ...}}}}, {{type: 'update', shapeId: 'shape_...', updates: {{...}}}}, {{type: 'delete', shapeId: 'shape_...'}}] }}
+    Args: {{ operations: [{{type: 'create', shape: {{...}}}}, {{type: 'update', shapeId: 'shape_...', updates: {{...}}}}, {{type: 'delete', shapeId: 'shape_...'}}] }}
     CRITICAL: 
     - ONLY valid types: 'create', 'update', 'delete' (NO 'rotate', 'move', 'resize', etc.!)
     - For rotating/moving ALL shapes → Use batch_update_shapes instead (MUCH FASTER!)
-    - For CREATE operations, "shape" must contain DIRECT shape properties (x, y, width, fill), NOT tool references!
+    - For CREATE operations, specify shape properties:
+      * Circles: use 'radius' parameter (e.g., {{type:'circle', x:100, y:100, radius:50, fill:'#FF0000'}})
+      * Rectangles: use 'width' and 'height' (e.g., {{type:'rectangle', x:100, y:100, width:100, height:80, fill:'#FF0000'}})
+      * Include 'type' field to ensure correct shape creation
     Use for: Creating 3+ shapes, deleting 3+ shapes, mixed operations (create+delete, etc.), or updating SOME shapes (max 50)
     Examples: 
-    - Create+Delete: [{{type:'create', shape:{{x:100, y:100, width:50, height:50, fill:'#FF0000'}}}}, {{type:'delete', shapeId:'shape_123'}}]
+    - Create circle+rectangle: [{{type:'create', shape:{{type:'circle', x:100, y:100, radius:50, fill:'#0000FF'}}}}, {{type:'create', shape:{{type:'rectangle', x:200, y:100, width:100, height:80, fill:'#FF0000'}}}}]
     - Update some: [{{type:'update', shapeId:'shape_1', updates:{{rotation:90}}}}, {{type:'update', shapeId:'shape_2', updates:{{rotation:45}}}}]
 
 15. **clear_canvas** - Clear all shapes from canvas
     Args: {{}} (no arguments needed)
 
-**Output Format** (JSON only, no other text):
-{{
-  "plan": [
-    {{
-      "step": 1,
-      "tool": "tool_name",
-      "args": {{ ...all required parameters with actual values... }},
-      "description": "Brief description"
-    }}
-  ],
-  "reasoning": "For actions: explain the plan. For questions: answer directly to user."
-}}
+**Design System & UI Best Practices:**
+
+**Professional Color Palette:**
+- Primary: #0D99FF (bright blue) - Use for primary actions, highlights
+- Success: #10B981 (green) - Use for positive actions
+- Warning: #F59E0B (orange) - Use for warnings
+- Error: #EF4444 (red) - Use for errors, destructive actions
+- Neutral Dark: #1E1E1E (charcoal) - Use for text, borders
+- Neutral Medium: #666666 (gray) - Use for secondary text
+- Neutral Light: #F5F5F5 (off-white) - Use for backgrounds
+- White: #FFFFFF - Use for cards, panels
+
+**Spacing Standards (always use multiples of 8):**
+- Tight: 8px - Between related items
+- Normal: 16px - Between sections
+- Comfortable: 24px - Between major groups
+- Spacious: 32px - Between major sections
+
+**Typography Hierarchy:**
+- Heading: fontSize 48-64, bold
+- Subheading: fontSize 32, semibold
+- Body: fontSize 24, regular
+- Label: fontSize 16-18, medium
+- Caption: fontSize 14, regular
+
+**CRITICAL POSITIONING RULES:**
+
+**Standard Screen Sizes (USE THESE!):**
+- Desktop/Web Screen: 800x600 (ALWAYS use this for desktop UIs)
+  - Background: 800x600
+  - Main card inside: 720x520 (40px margin all sides)
+- Mobile Screen: 375x812 (standard iPhone size)
+  - Background: 375x812
+  - Content margins: 32px sides, 40px top/bottom
+
+**Multiple Screens (Side-by-Side):**
+- When creating a SECOND screen, position it ~900-1000px to the RIGHT of the first screen
+- Example: First screen at x=2100 (center), second screen at x=3000 (center)
+- ALWAYS use the SAME Y coordinate for both screens (keep them aligned!)
+- Leave ~100-200px gap between screens for visual separation
+- ALWAYS use SAME screen dimensions (800x600 for desktop, 375x812 for mobile)
+
+**Component Construction Algorithms:**
+
+**Forms/Input Fields:**
+- Container: rectangle (width: content-based, height: 44-52px, cornerRadius: 6-8px)
+- Background: #F5F5F5 or #FFFFFF
+- Border: overlay with #E5E5E5, opacity 0.3
+- Label: above input, 8px gap, fontSize 12-14, color #666666
+- Input text: inside container, 16px left padding, fontSize 15-16
+- Vertical stacking: input + 24px gap + next input
+
+**Buttons:**
+- Primary action: fill #0D99FF, white text (#FFFFFF), cornerRadius 8px
+- Secondary: fill #F5F5F5, dark text (#1E1E1E), cornerRadius 6px
+- Dimensions: height 44-52px, width auto (text + 32px horizontal padding)
+- Position: typically below last input + 32px gap
+
+**Cards:**
+- Background: #FFFFFF, cornerRadius 12-16px
+- Border: overlay #E5E5E5, opacity 0.2-0.3
+- Shadow: 2-4 darker layers below, offset 2-4px, opacity 0.04-0.08 each
+- Internal padding: 24-32px from edges
+- Content: title at top + 24px, body below, button at bottom - 32px
+
+**Lists/Rows:**
+- Item height: 60-80px (mobile) or 80-120px (desktop)
+- Separator: 1px line, #E5E5E5, opacity 0.5
+- Avatar/icon: left side, 40-48px circle
+- Text: to right of avatar, 16px gap, vertically centered
+- Metadata: right side or below primary text
+
+**Layout Math (Apply These Formulas):**
+
+**Centering elements:**
+- Horizontal: x = containerCenterX - (elementWidth / 2)
+- Vertical: y = containerCenterY - (elementHeight / 2)
+- Text centering: estimate textWidth ≈ text.length × fontSize × 0.6
+
+**Vertical stacking (forms, lists):**
+- First element: y = containerTop + topPadding
+- Each subsequent: y = previousY + previousHeight + gap
+- Last element check: y + height ≤ containerBottom - bottomPadding
+
+**Horizontal arrangement (buttons, cards):**
+- First element: x = startX
+- Each subsequent: x = previousX + previousWidth + gap
+- Total width: (elementWidth × count) + (gap × (count - 1))
+
+**Grid layouts:**
+- Cell X: startX + (col × (cellWidth + gap))
+- Cell Y: startY + (row × (cellHeight + gap))
+- Total dimensions: check fits within container
+
+**Multi-screen layouts:**
+- Second screen X: firstScreenCenterX + firstScreenWidth/2 + gap + secondScreenWidth/2
+- Same Y coordinate (keep aligned)
+- Recommended gap between screens: 100-200px
+
+**UI Generation Process (Follow These Steps):**
+
+1. **Analyze Request**
+   - What type of UI? (form, dashboard, list, card layout, etc.)
+   - What components needed? (title, inputs, buttons, cards, etc.)
+   - Desktop or mobile? (determines container size: 800×600 or 375×812)
+
+2. **Calculate Space Requirements**
+   - Component heights: title(48-64) + inputs(48×count) + buttons(48×count)
+   - Gaps: between sections(24-32) + between items(16-24)
+   - Total height needed: sum all components + all gaps
+   - Choose container size that fits
+
+3. **Position Container**
+   - Center on canvas: x = 2500 - (width/2), y = 2500 - (height/2)
+   - For multiple screens: offset horizontally, keep same Y
+
+4. **Build Component Hierarchy**
+   - Background layer first (full size)
+   - Main card (with 40px padding from edges)
+   - Title section (top of card + 24-32px)
+   - Content sections (stacked vertically with consistent gaps)
+   - Action buttons (bottom section - 32px from edge)
+   - Helper text (below actions)
+
+5. **Apply Visual Depth**
+   - Shadows: duplicate shapes below, offset down, lower opacity
+   - Borders: overlay shapes, edge color, low opacity
+   - Rounded corners: use cornerRadius parameter
+
+6. **Validate Before Returning**
+   - All elements fit within their containers?
+   - Spacing is consistent (multiples of 8)?
+   - Text is properly positioned (not cut off)?
+   - Hierarchy is clear (size/color/weight)?
+
+**CRITICAL: Validate Your Plan Before Returning**
+
+Check these conditions:
+1. ✓ Content boundaries: For every element at (x,y) with (width,height):
+   - x + width ≤ parent container right edge
+   - y + height ≤ parent container bottom edge
+
+2. ✓ Spacing consistency: 
+   - Same type of gaps = same pixel value
+   - All spacing is multiple of 8 (8, 16, 24, 32, 40, 48)
+
+3. ✓ Visual hierarchy:
+   - Most important element = largest fontSize
+   - Primary actions = brightest/most prominent color
+   - Secondary info = smaller, grayed out
+
+4. ✓ Alignment:
+   - Related items align on same axis (left edge, center, or right edge)
+   - Form inputs all same width
+   - Buttons in same section have same height
+
+If any check fails, recalculate positions/sizes before returning plan.
 
 **Example - Informational Query:**
 User: "What is the radius of the blue circle?"
@@ -1111,10 +1374,10 @@ User: "Create 5 random shapes"
       "args": {{
         "operations": [
           {{"type": "create", "shape": {{"type": "rectangle", "x": 450, "y": 1200, "width": 80, "height": 120, "fill": "#FF0000"}}}},
-          {{"type": "create", "shape": {{"type": "circle", "x": 2100, "y": 800, "width": 100, "height": 100, "fill": "#00FF00"}}}},
+          {{"type": "create", "shape": {{"type": "circle", "x": 2100, "y": 800, "radius": 50, "fill": "#00FF00"}}}},
           {{"type": "create", "shape": {{"type": "text", "x": 3500, "y": 2800, "text": "Hello", "fontSize": 32, "fill": "#0000FF"}}}},
           {{"type": "create", "shape": {{"type": "rectangle", "x": 1500, "y": 3900, "width": 150, "height": 60, "fill": "#FFFF00"}}}},
-          {{"type": "create", "shape": {{"type": "circle", "x": 4200, "y": 500, "width": 140, "height": 140, "fill": "#FF00FF"}}}}
+          {{"type": "create", "shape": {{"type": "circle", "x": 4200, "y": 500, "radius": 70, "fill": "#FF00FF"}}}}
         ]
       }},
       "description": "Create 5 varied shapes at different positions"
@@ -1182,8 +1445,8 @@ Assume canvas has shape IDs: shape_1, shape_2, shape_3
     - **Sizes**: Vary dimensions (rectangles: 50-150 width/height, circles: 25-100 radius, text: 16-48 fontSize)
     - **Colors**: Mix colors (#FF0000, #00FF00, #0000FF, #FFFF00, #FF00FF, #00FFFF, #FFA500, #800080)
     - **Types**: For "random shapes", mix rectangles, circles, and text
-    - **Boundaries**: CRITICAL - Keep ALL shapes within canvas (0-5000). For rectangles at (x,y) with width W and height H, ensure x+W≤5000 and y+H≤5000. For circles at (x,y) with radius R stored as width/height 2R, ensure x+2R≤5000 and y+2R≤5000
-
+    - **Boundaries**: CRITICAL - Keep ALL shapes within canvas (0-5000). For rectangles at (x,y) with width W and height H, ensure x+W≤5000 and y+H≤5000. For circles with radius R, ensure x-R≥0 and x+R≤5000 and y-R≥0 and y+R≤5000
+${userStyleGuide ? `\n${userStyleGuide}\n` : ''}
 **Current Canvas State:**
 ${buildSmartContext(userMessage, canvasShapes, false)}
 
@@ -1198,92 +1461,127 @@ ${buildSmartContext(userMessage, canvasShapes, false)}
   // Route to appropriate model based on pre-classified complexity
   // GPT-4o for creative/complex tasks (faster and better at spatial reasoning)
   // GPT-4o-mini for simple tasks (cheaper and sufficient)
-  const selectedModel = (complexity === 'creative' || complexity === 'complex') ? gpt4o : gpt4oMini;
-  const modelName = (complexity === 'creative' || complexity === 'complex') ? 'GPT-4o' : 'GPT-4o-mini';
+  const complexityStr = typeof complexity === 'string' ? complexity : 'complex';
+  const selectedModel = (complexityStr === 'creative' || complexityStr === 'complex') ? gpt4o : gpt4oMini;
+  const modelName = (complexityStr === 'creative' || complexityStr === 'complex') ? 'GPT-4o' : 'GPT-4o-mini';
   
-  console.log(`🤖 [ROUTING] ${complexity.toUpperCase()} task → Using ${modelName}`);
+  console.log(`🤖 [ROUTING] ${complexityStr.toUpperCase()} task → Using ${modelName}`);
   
   const response = await selectedModel.invoke([{ role: 'user', content: planningPrompt }]);
+  
+  // Debug: Log raw response
+  console.log('🔍 [DEBUG] Raw AI response:', response.content);
   
   // Parse JSON from response
   const jsonMatch = response.content.match(/\{[\s\S]*\}/);
   if (!jsonMatch) {
-    throw new Error('Failed to generate valid execution plan');
+    console.error('❌ [DEBUG] No JSON found in response');
+    throw new Error('I had trouble understanding that request. Could you try rephrasing it?');
   }
   
-  // ✅ FIX: Strip JavaScript-style comments from JSON (AI sometimes adds them)
-  // Remove single-line comments: // ...
-  // Remove multi-line comments: /* ... */
-  let jsonString = jsonMatch[0];
-  jsonString = jsonString.replace(/\/\/.*$/gm, '');  // Remove // comments
-  jsonString = jsonString.replace(/\/\*[\s\S]*?\*\//g, '');  // Remove /* */ comments
-  jsonString = jsonString.replace(/,(\s*[}\]])/g, '$1');  // Remove trailing commas
+  console.log('🔍 [DEBUG] Extracted JSON string:', jsonMatch[0]);
   
-  const plan = JSON.parse(jsonString);
-  return plan;
-}
-
-/**
- * Execute a plan by running tools sequentially
- * No additional LLM calls - pure execution
- */
-async function executePlan(plan, canvasShapes = []) {
-  const stepOutputs = new Map();
-  const actions = [];
-  
-  console.log(`⚙️ [EXECUTION] Executing ${plan.plan.length} step(s)...`);
-  
-  for (const step of plan.plan) {
-    const stepStart = performance.now();
-    console.log(`  ${step.step}. ${step.tool} - ${step.description}`);
-    console.log(`     └─ Args:`, JSON.stringify(step.args));
+  // Try to parse with sanitization
+  try {
+    const sanitized = sanitizeJSON(jsonMatch[0]);
+    console.log('🧹 [DEBUG] Sanitized JSON:', sanitized);
+    return JSON.parse(sanitized);
+  } catch (firstError) {
+    console.warn('⚠️ [RETRY] First parse attempt failed, retrying with explicit instructions...', firstError.message);
     
-    // Resolve references to previous step outputs
-    const resolvedArgs = resolveStepReferences(step.args, stepOutputs);
-    
-    // Find the tool
-    const tool = tools.find(t => t.name === step.tool);
-    if (!tool) {
-      throw new Error(`Tool not found: ${step.tool}`);
-    }
-    
-    // Execute the tool
-    const result = await tool.func(resolvedArgs);
-    const stepTime = performance.now() - stepStart;
-    console.log(`     └─ Completed in ${stepTime.toFixed(0)}ms`);
-    
-    // Parse the result and store for future steps
+    // Retry with more explicit instructions
     try {
-      const parsedResult = JSON.parse(result);
-      stepOutputs.set(`step_${step.step}`, parsedResult.data);
-      actions.push(parsedResult);
-    } catch (e) {
-      // If result is not JSON, store it as-is
-      stepOutputs.set(`step_${step.step}`, result);
+      const retryPrompt = planningPrompt + `\n\n⚠️ IMPORTANT: Your previous response had a JSON syntax error. Please return ONLY valid JSON with:\n- NO trailing commas\n- NO comments (// or /* */)\n- Quoted property names\n- Valid JSON syntax`;
+      
+      const retryResponse = await selectedModel.invoke([{ role: 'user', content: retryPrompt }]);
+      console.log('🔍 [DEBUG] Retry raw response:', retryResponse.content);
+      
+      const retryJsonMatch = retryResponse.content.match(/\{[\s\S]*\}/);
+      if (!retryJsonMatch) {
+        throw new Error('No JSON in retry response');
+      }
+      
+      const retrySanitized = sanitizeJSON(retryJsonMatch[0]);
+      console.log('🧹 [DEBUG] Retry sanitized JSON:', retrySanitized);
+      console.log('✅ [RETRY] Second attempt succeeded!');
+      return JSON.parse(retrySanitized);
+    } catch (retryError) {
+      // Both attempts failed - give user-friendly error
+      console.error('❌ [TECHNICAL] Parse error after retry:', retryError.message);
+      console.error('❌ [TECHNICAL] Original error:', firstError.message);
+      throw new Error('I had trouble processing that request. Could you try rephrasing it or breaking it into smaller steps?');
+    }
+  }
+}
+
+// 🎯 Tool execution functions (with smart batch operation support)
+
+async function executeToolsSequentially(plan, context) {
+  console.log(`🔧 [EXECUTION] Executing ${plan.length} step(s)...`);
+  
+  const results = [];
+  
+  for (let i = 0; i < plan.length; i++) {
+    const step = plan[i];
+    console.log(`  → Step ${step.step}: ${step.tool}`);
+    
+    try {
+      let result;
+      
+      // Resolve {{step_N}} references in args
+      const resolvedArgs = resolveStepReferences(step.args, results);
+      
+      // Map tool names to actions
+      const toolToActionMap = {
+        'create_rectangle': 'create_rectangle',
+        'create_circle': 'create_circle',
+        'create_text': 'create_text',
+        'create_line': 'create_line',
+        'update_shape': 'update_shape',
+        'move_shape': 'move_shape',
+        'resize_shape': 'resize_shape',
+        'rotate_shape': 'rotate_shape',
+        'delete_shape': 'delete_shape',
+        'batch_update_shapes': 'batch_update_shapes',
+        'batch_operations': 'batch_operations',
+        'create_grid': 'create_grid',
+        'create_row': 'create_row',
+        'create_circle_row': 'create_circle_row',
+        'clear_canvas': 'clear_canvas'
+      };
+      
+      const action = toolToActionMap[step.tool];
+      if (!action) {
+        throw new Error(`Unknown tool: ${step.tool}`);
+      }
+      
+      result = await executeSmartOperation(action, resolvedArgs, context.canvasId);
+      results.push(result);
+      
+      console.log(`  ✓ Step ${step.step} completed`);
+    } catch (error) {
+      console.error(`  ✗ Step ${step.step} failed:`, error.message);
+      throw new Error(`Step ${step.step} failed: ${error.message}`);
     }
   }
   
-  return actions;
+  return results;
 }
 
-/**
- * Resolve {{step_N}} references in arguments
- */
-function resolveStepReferences(args, stepOutputs) {
+function resolveStepReferences(args, previousResults) {
   const resolved = {};
   
   for (const [key, value] of Object.entries(args)) {
-    if (typeof value === 'string' && value.includes('{{step_')) {
-      // Extract step number
-      const match = value.match(/\{\{step_(\d+)\}\}/);
-      if (match) {
-        const stepNum = parseInt(match[1]);
-        const stepData = stepOutputs.get(`step_${stepNum}`);
-        resolved[key] = stepData;
+    if (typeof value === 'string' && value.match(/\{\{step_(\d+)\}\}/)) {
+      const stepNum = parseInt(value.match(/\{\{step_(\d+)\}\}/)[1]);
+      const result = previousResults[stepNum - 1];
+      
+      if (!result) {
+        throw new Error(`Cannot reference {{step_${stepNum}}} - step not yet executed`);
       }
-    } else if (typeof value === 'object' && value !== null) {
-      // Recursively resolve nested objects
-      resolved[key] = resolveStepReferences(value, stepOutputs);
+      
+      // If result is a shape, extract its ID
+      resolved[key] = result.id || result;
     } else {
       resolved[key] = value;
     }
@@ -1292,83 +1590,38 @@ function resolveStepReferences(args, stepOutputs) {
   return resolved;
 }
 
-/**
- * Execute an AI command using Plan-and-Execute pattern
- * Makes ONE LLM call for planning, then executes tools without additional calls
- * 
- * NOTE: This is the primary execution path for AI commands (stateless planning)
- * 
- * @param {string} userMessage - The user's natural language command
- * @param {Array} chatHistory - Previous conversation messages (NOT CURRENTLY USED - stateless planning)
- * @param {Array} canvasShapes - Current shapes on the canvas
- * @returns {Promise<{response: string, actions: Array, plan: Object}>} - AI response, canvas actions, and execution plan
- */
-export async function executeAICommandWithPlanAndExecute(userMessage, chatHistory = [], canvasShapes = []) {
+export async function executeAICommandWithPlanAndExecute(userMessage, chatHistory = [], canvasShapes = [], currentUserId = null) {
   try {
-    // PHASE 0: Check for direct execution (trivial commands)
-    const classifyStart = performance.now();
+    // Filter shapes to only those created by current user (for style inference)
+    const userShapes = currentUserId 
+      ? canvasShapes.filter(s => s.createdBy === currentUserId)
+      : [];
+    
+    // Infer user's personal style from their shapes
+    const userStyleGuide = inferUserStyle(userShapes);
+    
+    // Log for debugging
+    console.log(`🎨 [AI-AGENT] Processing request: "${userMessage}" with ${canvasShapes.length} shapes on canvas`);
+    
+    // Step 1: Classify task complexity for routing (with heuristic detection)
     const complexity = await classifyRequestComplexity(userMessage, canvasShapes);
-    const classifyTime = performance.now() - classifyStart;
     
-    // ========================================
-    // COMPOUND COMMAND EXECUTION
-    // ========================================
-    if (complexity && typeof complexity === 'object' && complexity.compound) {
-      console.log(`⚡⚡ [COMPOUND-EXECUTION] Executing ${complexity.commands.length} heuristic commands without LLM!`);
-      
-      const allPlans = [];
-      const allResponses = [];
-      const allActions = [];
-      
-      for (const { command, type } of complexity.commands) {
-        console.log(`   └─ Processing: "${command}" (${type})`);
-        
-        // Recursively execute each command (they're all heuristic, so they'll hit the direct execution path)
-        const result = await executeAICommandWithPlanAndExecute(command, canvasShapes, chatHistory);
-        
-        // ✅ FIX: result.plan is an object with { plan: [...], reasoning: "..." }
-        // We need to access result.plan.plan to get the array of steps
-        allPlans.push(...result.plan.plan);
-        allResponses.push(result.response);
-        allActions.push(...result.actions);
-      }
-      
-      // Combine all plans and responses
-      const combinedPlan = {
-        plan: allPlans.map((step, i) => ({ ...step, step: i + 1 })),
-        reasoning: allResponses.join(' ')
-      };
-      const response = allResponses.join(' ');
-      
-      return {
-        response,
-        actions: allActions,
-        plan: combinedPlan
-      };
-    }
-    
-    // ========================================
-    // SINGLE DIRECT EXECUTION
-    // ========================================
-    // Handle direct execution for trivial commands
+    // Step 1.5: Handle direct execution for heuristic commands
     if (typeof complexity === 'string' && complexity.startsWith('direct_')) {
-      console.log(`⚡ [DIRECT-EXECUTION] Bypassing LLM for trivial command (${classifyTime.toFixed(1)}ms)`);
+      console.log(`⚡ [DIRECT-EXECUTION] Executing heuristic command: ${complexity}`);
       
       let plan, response;
       
       if (complexity === 'direct_clear') {
         plan = {
-          plan: [{ step: 1, tool: 'clear_canvas', args: {}, description: 'Clear all shapes from the canvas' }],
-          reasoning: 'Done! I\'ve cleared all shapes from the canvas.'
+          plan: [{ step: 1, tool: 'clear_canvas', args: {}, description: 'Clear all shapes' }],
+          reasoning: 'Done! I\'ve cleared the canvas.'
         };
-        response = 'Done! I\'ve cleared all shapes from the canvas.';
-        
+        response = 'Done! I\'ve cleared the canvas.';
       } else if (complexity === 'direct_move_all') {
-        // Extract direction and optional distance from message
-        const match = userMessage.toLowerCase().match(/^(move|shift)\s+(everything|all|all shapes)\s+(up|down|left|right)(\s+by\s+(\d+))?/i);
-        const direction = match[3].toLowerCase();
-        const distance = match[5] ? parseInt(match[5]) : 100; // Default to 100px
-        
+        const match = userMessage.toLowerCase().match(/^(move|shift)\s+((everything|all|all shapes)\s+)?(up|down|left|right)(\s+by\s+(\d+))?/i);
+        const direction = match[4].toLowerCase();
+        const distance = match[6] ? parseInt(match[6]) : 100;
         const delta = direction === 'up' ? { deltaY: -distance } 
                     : direction === 'down' ? { deltaY: distance }
                     : direction === 'left' ? { deltaX: -distance }
@@ -1378,48 +1631,31 @@ export async function executeAICommandWithPlanAndExecute(userMessage, chatHistor
           plan: [{
             step: 1,
             tool: 'batch_update_shapes',
-            args: {
-              shapeIds: canvasShapes.map(s => s.id),
-              ...delta
-            },
-            description: `Move all shapes ${direction} by ${distance} pixels`
+            args: { shapeIds: canvasShapes.map(s => s.id), ...delta },
+            description: `Move all shapes ${direction}`
           }],
-          reasoning: `Done! I've moved all shapes ${direction} by ${distance} pixels.`
+          reasoning: `Done! I've moved all shapes ${direction}.`
         };
-        response = `Done! I've moved all shapes ${direction} by ${distance} pixels.`;
-        
+        response = `Done! I've moved all shapes ${direction}.`;
       } else if (complexity === 'direct_rotate_all') {
-        // Extract rotation angle from message
-        const match = userMessage.toLowerCase().match(/^(rotate|turn|spin)\s+(everything|all|all shapes)(\s+by)?\s+(\d+)\s*(degrees?|°)?/i);
-        const angle = parseInt(match[4]);
+        const match = userMessage.toLowerCase().match(/^(rotate|turn|spin)\s+((everything|all|all shapes)\s+)?(\s+by)?\s*(\d+)\s*(degrees?|°)?/i);
+        const angle = parseInt(match[5]);
         
         plan = {
           plan: [{
             step: 1,
             tool: 'batch_update_shapes',
-            args: {
-              shapeIds: canvasShapes.map(s => s.id),
-              deltaRotation: angle
-            },
+            args: { shapeIds: canvasShapes.map(s => s.id), deltaRotation: angle },
             description: `Rotate all shapes by ${angle} degrees`
           }],
           reasoning: `Done! I've rotated all shapes by ${angle} degrees.`
         };
         response = `Done! I've rotated all shapes by ${angle} degrees.`;
-        
       } else if (complexity === 'direct_scale_all') {
-        // Extract scale factor from message
         const lowerMsg = userMessage.toLowerCase();
-        let scaleFactor;
-        let description;
+        let scaleFactor, description;
         
-        if (lowerMsg.includes('bigger') || lowerMsg.includes('larger')) {
-          scaleFactor = 1.5;
-          description = 'bigger';
-        } else if (lowerMsg.includes('smaller')) {
-          scaleFactor = 0.5;
-          description = 'smaller';
-        } else if (lowerMsg.includes('double') || lowerMsg.includes('twice')) {
+        if (lowerMsg.includes('double')) {
           scaleFactor = 2;
           description = 'twice as big';
         } else if (lowerMsg.includes('triple')) {
@@ -1429,164 +1665,128 @@ export async function executeAICommandWithPlanAndExecute(userMessage, chatHistor
           scaleFactor = 0.5;
           description = 'half the size';
         } else {
-          // Extract numeric scale factor (e.g., "2.5 times" or "scale all 2.5x")
-          const timesMatch = lowerMsg.match(/(\d+(?:\.\d+)?)\s*(times|x)/);
-          scaleFactor = timesMatch ? parseFloat(timesMatch[1]) : 2;
-          description = `${scaleFactor}x the size`;
+          scaleFactor = 2;
+          description = 'bigger';
         }
         
         plan = {
           plan: [{
             step: 1,
             tool: 'batch_update_shapes',
-            args: {
-              shapeIds: canvasShapes.map(s => s.id),
-              scaleX: scaleFactor,
-              scaleY: scaleFactor
-            },
+            args: { shapeIds: canvasShapes.map(s => s.id), scaleX: scaleFactor, scaleY: scaleFactor },
             description: `Scale all shapes by ${scaleFactor}x`
           }],
           reasoning: `Done! I've made everything ${description}.`
         };
         response = `Done! I've made everything ${description}.`;
-        
       } else if (complexity === 'direct_create_shape') {
-        // Extract shape type and optional color from message
         const lowerMsg = userMessage.toLowerCase();
         const match = lowerMsg.match(/^(create|draw|make|add)\s+(a|an)?\s*((red|green|blue|yellow|orange|purple|pink|black|white)\s+)?(circle|rectangle|square|text|line)$/i);
-        
-        const shapeType = match[5].toLowerCase();
-        const colorName = match[4]?.toLowerCase();
-        
-        // Map color names to hex codes
+        const shapeType = match[5];
+        const colorName = match[4];
         const colorMap = {
-          red: '#FF0000',
-          green: '#00FF00',
-          blue: '#0000FF',
-          yellow: '#FFFF00',
-          orange: '#FFA500',
-          purple: '#800080',
-          pink: '#FFC0CB',
-          black: '#000000',
-          white: '#FFFFFF'
+          red: '#FF0000', green: '#00FF00', blue: '#0000FF', yellow: '#FFFF00',
+          orange: '#FFA500', purple: '#800080', pink: '#FFC0CB', black: '#000000', white: '#FFFFFF'
         };
-        const fill = colorName ? colorMap[colorName] : '#3B82F6'; // Default blue
+        const fill = colorName ? colorMap[colorName] : '#3B82F6';
         
-        // Create shape at center with default sizes
-        const centerX = 2500;
-        const centerY = 2500;
         let tool, args, shapeDescription;
+        const centerX = 2500, centerY = 2500;
         
         if (shapeType === 'circle') {
           tool = 'create_circle';
-          args = { x: centerX, y: centerY, radius: 50, fill };
+          const radius = 50;
+          args = { x: centerX, y: centerY, radius, fill };
           shapeDescription = colorName ? `${colorName} circle` : 'circle';
         } else if (shapeType === 'rectangle' || shapeType === 'square') {
           tool = 'create_rectangle';
           const size = shapeType === 'square' ? 100 : null;
-          args = { x: centerX, y: centerY, width: size || 150, height: size || 100, fill };
+          args = { x: centerX, y: centerY, width: size || 150, height: size || 100, fill, type: 'rectangle' };
           shapeDescription = colorName ? `${colorName} ${shapeType}` : shapeType;
         } else if (shapeType === 'text') {
           tool = 'create_text';
-          args = { x: centerX, y: centerY, text: 'Text', fontSize: 48, fill };
+          args = { x: centerX, y: centerY, text: 'Text', fontSize: 48, fill, type: 'text' };
           shapeDescription = colorName ? `${colorName} text` : 'text';
         } else if (shapeType === 'line') {
           tool = 'create_line';
-          args = { x1: centerX - 50, y1: centerY, x2: centerX + 50, y2: centerY, stroke: fill, strokeWidth: 2 };
+          args = { x1: centerX - 50, y1: centerY, x2: centerX + 50, y2: centerY, stroke: fill, strokeWidth: 2, type: 'line' };
           shapeDescription = colorName ? `${colorName} line` : 'line';
         }
         
         plan = {
-          plan: [{
-            step: 1,
-            tool,
-            args,
-            description: `Create a ${shapeDescription} at center`
-          }],
-          reasoning: `Done! I've created a ${shapeDescription} at the center of the canvas.`
+          plan: [{ step: 1, tool, args, description: `Create ${shapeDescription}` }],
+          reasoning: `Done! I've created a ${shapeDescription}.`
         };
-        response = `Done! I've created a ${shapeDescription} at the center of the canvas.`;
+        response = `Done! I've created a ${shapeDescription}.`;
       }
       
-      // Execute the direct action
-      const actions = await executePlan(plan, canvasShapes);
+      // Return actions for AIChat.jsx to execute (preserves React state management)
+      // Convert plan format to action format
+      const actions = plan.plan.map(step => ({
+        action: step.tool,
+        data: step.args
+      }));
       
       return {
         response,
         actions,
-        plan,
+        plan
       };
     }
     
-    // PHASE 1: Planning (ONE LLM call)
-    console.log('🧠 [PLANNING] Generating execution plan...');
-    const planStart = performance.now();
+    // Step 2: Generate execution plan (smart prompt, intelligent routing)
+    const plan = await generateExecutionPlan(userMessage, canvasShapes, complexity, userStyleGuide);
     
-    const plan = await generateExecutionPlan(userMessage, canvasShapes, complexity);
+    // Step 3: Convert plan to actions for AIChat.jsx to execute
+    // Don't execute here - let React components handle it for proper state management
+    const actions = plan.plan?.map(step => ({
+      action: step.tool,
+      data: step.args
+    })) || [];
     
-    const planTime = performance.now() - planStart;
-    console.log(`⏱️ [PLANNING] Plan generated in ${planTime.toFixed(0)}ms`);
-    console.log(`📋 [PLANNING] Plan: ${plan.plan.length} step(s)`);
-    if (plan.reasoning) {
-      console.log(`💭 [PLANNING] Reasoning: ${plan.reasoning}`);
-    }
-    
-    // PHASE 2: Execution (NO LLM calls)
-    const execStart = performance.now();
-    const actions = await executePlan(plan, canvasShapes);
-    const execTime = performance.now() - execStart;
-    
-    console.log(`⏱️ [EXECUTION] Completed in ${execTime.toFixed(0)}ms`);
-    
-    // Generate response message
-    // Always use reasoning field for conversational responses (questions AND actions)
-    const response = plan.reasoning || (plan.plan.length === 0 ? 'No information available.' : 'Done!');
-    
+    // Step 4: Return response with actions
     return {
-      response,
-      actions,
-      plan, // Include plan for debugging/visualization
+      response: plan.reasoning,
+      actions
     };
   } catch (error) {
-    console.error(`❌ [PLAN-AND-EXECUTE] Error:`, error.message);
-    console.error(`❌ [PLAN-AND-EXECUTE] Stack:`, error.stack);
-    
-    // Return user-friendly error message
-    const errorMessage = error.message?.includes('API key') 
-      ? 'API key error. Please check your OpenAI configuration.'
-      : error.message?.includes('network') || error.message?.includes('fetch')
-      ? 'Network error. Please check your connection and try again.'
-      : `Unexpected error: ${error.message}`;
-    
-    return {
-      response: `❌ Sorry, I encountered an error: ${errorMessage}\n\nPlease try again or rephrase your request.`,
-      actions: [],
-      plan: { plan: [], reasoning: errorMessage }
-    };
+    console.error('❌ [AI-AGENT] Error:', error);
+    throw error;
   }
 }
 
-/**
- * Get information about available AI commands
- */
-export function getAICapabilities() {
-  return {
-    categories: {
-      creation: ['Create rectangles, circles, text, lines'],
-      manipulation: ['Move, resize, rotate shapes'],
-      layout: ['Create grids, rows of shapes'],
-      deletion: ['Delete shapes by description'],
-    },
-    examples: [
-      'Create a red circle in the center',
-      'Add a blue rectangle at position 1000, 1000',
-      'Move the red circle to the right',
-      'Create a 3x3 grid of squares',
-      'Build a login form',
-      'Rotate the text 45 degrees',
-      'Make the circle twice as big',
-      'Delete all blue rectangles',
-    ],
-  };
+// Simple classifier for task complexity (used for routing)
+function classifyTaskComplexity(userMessage) {
+  const lower = userMessage.toLowerCase();
+  
+  // CREATIVE/COMPLEX tasks → GPT-4o
+  if (
+    // UI design requests
+    lower.match(/\b(login|dashboard|form|card|button|nav|menu|ui|screen|page|layout)\b/) ||
+    // Creative requests
+    lower.match(/\b(design|beautiful|modern|professional|stylish|elegant|clean)\b/) ||
+    // Complex spatial reasoning
+    lower.match(/\b(tree|house|person|face|car|flower|pattern|arrange|organize)\b/) ||
+    // Multi-step composite objects
+    lower.match(/\b(with|and.*and|multiple|several|various)\b.*\b(shapes|elements|components)\b/)
+  ) {
+    return 'creative';
+  }
+  
+  // SIMPLE tasks → GPT-4o-mini
+  // Single operations, basic shapes, simple transforms
+  return 'simple';
 }
 
+// Export main function and helpers
+export {
+  executeToolsSequentially,
+  classifyTaskComplexity,
+  inferUserStyle,
+  buildSmartContext
+};
+
+export default {
+  executeAICommandWithPlanAndExecute,
+  classifyTaskComplexity
+};

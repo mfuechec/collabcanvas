@@ -371,7 +371,7 @@ const updateShape = async (shapeId, updates, canvasId = CANVAS_DOC_ID) => {
       lastModifiedAt: Date.now()
     };
     
-    console.log('📝 [PER-SHAPE] Updating shape:', shapeId);
+    console.log('📝 [PER-SHAPE] Updating shape:', shapeId, 'with data:', updateData);
     
     await updateDoc(shapeRef, updateData);
     
@@ -543,10 +543,11 @@ const batchOperations = async (operations, canvasId = CANVAS_DOC_ID) => {
               y: 0
             } : shapeType === 'circle' ? {
               // Circles: use radius to calculate width/height
+              // AI provides CENTER coordinates, convert to TOP-LEFT for storage
               width: (shapeData.radius || 50) * 2,
               height: (shapeData.radius || 50) * 2,
-              x: shapeData.x !== undefined ? shapeData.x : 100,
-              y: shapeData.y !== undefined ? shapeData.y : 100,
+              x: (shapeData.x !== undefined ? shapeData.x : 100) - (shapeData.radius || 50),
+              y: (shapeData.y !== undefined ? shapeData.y : 100) - (shapeData.radius || 50),
               fill: shapeData.fill || '#cccccc'
             } : {
               // Rectangles and text: standard defaults
@@ -902,12 +903,31 @@ export const executeSmartOperation = async (action, data, canvasId = CANVAS_DOC_
       // ========================================
       
       case 'create_rectangle':
-      case 'create_circle':
       case 'create_text':
       case 'create_line': {
         // Simple create - delegate to createShape
         result = await createShape(data, canvasId);
         console.log(`✅ [SMART-OP-${executionId}] Create completed, returning result`);
+        return result;
+      }
+      
+      case 'create_circle': {
+        // Convert radius to width/height and ensure type is set
+        // AI provides CENTER coordinates, but we store as TOP-LEFT
+        const { radius, x, y, ...rest } = data;
+        const diameter = radius * 2;
+        const topLeftX = x - radius;
+        const topLeftY = y - radius;
+        const circleData = {
+          ...rest,
+          type: 'circle',
+          x: topLeftX,
+          y: topLeftY,
+          width: diameter,
+          height: diameter
+        };
+        result = await createShape(circleData, canvasId);
+        console.log(`✅ [SMART-OP-${executionId}] Create circle completed (center [${x},${y}], radius ${radius} → top-left [${topLeftX},${topLeftY}], diameter ${diameter})`);
         return result;
       }
       

@@ -13,6 +13,7 @@ const Shape = ({
   fill,
   opacity = 1.0, // Default to full opacity if not provided
   rotation = 0, // Default rotation
+  cornerRadius = 0, // Border radius for rectangles
   points, // For lines: [x1, y1, x2, y2]
   stroke, // For lines and borders
   strokeWidth, // For lines and borders
@@ -55,10 +56,11 @@ const Shape = ({
         storedTopLeft: { x, y },
         renderCenter: { x: x + width / 2, y: y + height / 2 },
         size: { width, height },
-        rotation
+        rotation,
+        cornerRadius
       });
     }
-  }, [id, type, x, y, width, height, rotation]);
+  }, [id, type, x, y, width, height, rotation, cornerRadius]);
 
   // Track if shape is currently being dragged
   const isDraggingRef = useRef(false);
@@ -775,6 +777,7 @@ const Shape = ({
       y={y + height / 2}
       width={width}
       height={height}
+      cornerRadius={cornerRadius}
       offsetX={width / 2}
       offsetY={height / 2}
       {...commonProps}

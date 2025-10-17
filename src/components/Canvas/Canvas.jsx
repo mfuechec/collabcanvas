@@ -605,6 +605,7 @@ const Canvas = () => {
                   fill={shape.fill}
                   opacity={shape.opacity}
                   rotation={shape.rotation} // Rotation in degrees
+                  cornerRadius={shape.cornerRadius} // Border radius for rectangles
                   points={shape.points} // For lines
                   stroke={shape.stroke} // For lines and borders
                   strokeWidth={shape.strokeWidth} // For lines and borders

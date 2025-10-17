@@ -5,6 +5,7 @@ import { useTheme } from '../../contexts/ThemeContext';
 import { COLORS, TYPOGRAPHY, SPACING, BORDER_RADIUS, LAYOUT } from '../../utils/designSystem';
 import { Send, Sparkles, Minimize2, Maximize2 } from 'lucide-react';
 import { clearAllShapes } from '../../utils/clearCanvas';
+import { auth } from '../../services/firebase';
 
 const AIChat = () => {
   const [messages, setMessages] = useState([
@@ -17,15 +18,26 @@ const AIChat = () => {
   const [isLoading, setIsLoading] = useState(false);
   const [isMinimized, setIsMinimized] = useState(true);
   const messagesEndRef = useRef(null);
+  const inputRef = useRef(null);
   const { theme } = useTheme();
   const colors = COLORS[theme];
   
   const { shapes, executeSmartOperation } = useCanvas();
   
+  // Get current user ID for style learning
+  const currentUserId = auth.currentUser?.uid || null;
+  
   // Auto-scroll to bottom when new messages arrive
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
   }, [messages]);
+  
+  // Auto-focus input when panel opens
+  useEffect(() => {
+    if (!isMinimized && inputRef.current) {
+      inputRef.current.focus();
+    }
+  }, [isMinimized]);
   
   // ⚡ SIMPLIFIED ACTION EXECUTOR - Delegates to smart service layer
   const executeActions = async (actions) => {
@@ -89,7 +101,8 @@ const AIChat = () => {
       const { response, actions } = await executeAICommandWithPlanAndExecute(
         userMessage, 
         chatHistory, 
-        shapes  // Pass full shapes array - aiAgent.js builds smart context internally
+        shapes,  // Pass full shapes array - aiAgent.js builds smart context internally
+        currentUserId  // Pass current user ID for personalized style learning
       );
       const aiEndTime = performance.now();
       
@@ -122,6 +135,12 @@ const AIChat = () => {
       ]);
     } finally {
       setIsLoading(false);
+      // Refocus input after command completes (slight delay for state to settle)
+      setTimeout(() => {
+        if (inputRef.current && !isMinimized) {
+          inputRef.current.focus();
+        }
+      }, 100);
     }
   };
   
@@ -274,12 +293,14 @@ const AIChat = () => {
           
           <form onSubmit={handleSubmit} style={inputContainerStyle}>
             <input
+              ref={inputRef}
               type="text"
               value={input}
               onChange={(e) => setInput(e.target.value)}
               placeholder="Try: Create a red circle..."
               style={inputStyle}
               disabled={isLoading}
+              autoFocus
             />
             <button
               type="submit"

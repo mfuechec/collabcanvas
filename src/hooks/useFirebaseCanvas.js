@@ -78,6 +78,18 @@ export const useFirebaseCanvas = (canvasId = 'global-canvas-v1') => {
             })));
           }
           
+          // Debug: Log shape data to check cornerRadius
+          if (data.shapes && data.shapes.length > 0) {
+            const shapesWithCornerRadius = data.shapes.filter(s => s.cornerRadius !== undefined);
+            if (shapesWithCornerRadius.length > 0) {
+              console.log('📥 [FIRESTORE-SUB] Shapes with cornerRadius:', shapesWithCornerRadius.map(s => ({
+                id: s.id,
+                type: s.type,
+                cornerRadius: s.cornerRadius
+              })));
+            }
+          }
+          
           setShapes(data.shapes || []);
           setError(null);
           setIsConnected(true);
