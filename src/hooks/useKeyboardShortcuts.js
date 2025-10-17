@@ -66,6 +66,14 @@ export const useKeyboardShortcuts = (handlers) => {
       // Cmd/Ctrl shortcuts
       if (cmdOrCtrl) {
         switch (e.key.toLowerCase()) {
+          case 'c':
+            e.preventDefault();
+            handlers.onCopy?.();
+            break;
+          case 'v':
+            e.preventDefault();
+            handlers.onPaste?.();
+            break;
           case 'd':
             e.preventDefault();
             handlers.onDuplicate?.();

@@ -197,6 +197,8 @@ export const SHORTCUTS = {
   
   // Actions
   DELETE: ['Delete', 'Backspace'],
+  COPY: ['Meta+c', 'Control+c'],
+  PASTE: ['Meta+v', 'Control+v'],
   DUPLICATE: ['Meta+d', 'Control+d'],
   UNDO: ['Meta+z', 'Control+z'],
   REDO: ['Meta+Shift+z', 'Control+Shift+z'],

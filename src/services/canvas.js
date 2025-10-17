@@ -240,9 +240,17 @@ const createShape = async (shapeData, canvasId = CANVAS_DOC_ID) => {
       
       const shapeType = shapeData.type || 'rectangle';
       
+      // Filter out undefined values from shapeData to avoid Firestore errors
+      const cleanedShapeData = {};
+      Object.keys(shapeData).forEach(key => {
+        if (shapeData[key] !== undefined) {
+          cleanedShapeData[key] = shapeData[key];
+        }
+      });
+      
       const newShape = {
-        // Spread shapeData first, then apply defaults/overrides
-        ...shapeData,
+        // Spread cleaned shapeData first, then apply defaults/overrides
+        ...cleanedShapeData,
         // Apply defaults for missing fields (use !== undefined to allow 0)
         type: shapeType,
         x: shapeData.x !== undefined ? shapeData.x : 100,
@@ -413,14 +421,20 @@ const batchUpdateShapes = async (shapeIds, updates, canvasId = CANVAS_DOC_ID) =>
     // Create batch operation
     const batch = writeBatch(db);
     
+    // Support both object and function for updates
+    const isFunction = typeof updates === 'function';
+    
     // Add all updates to batch
     for (const shapeId of shapeIds) {
       const shapeRef = getShapeRef(shapeId, canvasId);
       
+      // Get updates for this specific shape
+      const shapeUpdates = isFunction ? updates(shapeId) : updates;
+      
       // Note: We can't check locks before batch, so we update optimistically
       // The client-side should prevent updating locked shapes
       batch.update(shapeRef, {
-        ...updates,
+        ...shapeUpdates,
         lastModifiedBy: userId,
         lastModifiedAt: now
       });

@@ -28,7 +28,31 @@ import './utils/clearCanvas'
 // Inner component with access to all contexts
 const AppLayout = ({ showLayers, setShowLayers }) => {
   const { setMode, CANVAS_MODES, SHAPE_TYPES } = useCanvasMode();
-  const { deleteShape, duplicateShape, selectedShapeId, deselectAll, resetView, undo, redo, canUndo, canRedo } = useCanvas();
+  const { deleteShape, duplicateShape, copyShape, pasteShape, selectedShapeId, deselectAll, resetView, undo, redo, canUndo, canRedo, stageRef } = useCanvas();
+  
+  // Track last cursor position for paste
+  const lastCursorPos = useRef({ x: null, y: null });
+
+  // Update cursor position whenever mouse moves over the canvas
+  useEffect(() => {
+    const handleMouseMove = (e) => {
+      const stage = stageRef.current;
+      if (stage) {
+        const pointerPos = stage.getPointerPosition();
+        if (pointerPos) {
+          // Convert screen coordinates to canvas coordinates
+          const scale = stage.scaleX();
+          const stagePos = stage.position();
+          const canvasX = (pointerPos.x - stagePos.x) / scale;
+          const canvasY = (pointerPos.y - stagePos.y) / scale;
+          lastCursorPos.current = { x: canvasX, y: canvasY };
+        }
+      }
+    };
+
+    window.addEventListener('mousemove', handleMouseMove);
+    return () => window.removeEventListener('mousemove', handleMouseMove);
+  }, [stageRef]);
   
   // Global keyboard shortcuts
   useKeyboardShortcuts({
@@ -45,6 +69,20 @@ const AppLayout = ({ showLayers, setShowLayers }) => {
       if (selectedShapeId) {
         deleteShape(selectedShapeId);
         deselectAll();
+      }
+    },
+    onCopy: () => {
+      if (selectedShapeId) {
+        copyShape(selectedShapeId);
+      }
+    },
+    onPaste: () => {
+      // Paste at last cursor position if available
+      if (lastCursorPos.current.x !== null && lastCursorPos.current.y !== null) {
+        pasteShape({ x: lastCursorPos.current.x, y: lastCursorPos.current.y });
+      } else {
+        // Fallback to center if cursor position not tracked
+        pasteShape();
       }
     },
     onDuplicate: () => {

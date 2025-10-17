@@ -26,6 +26,9 @@ export const CanvasProvider = ({ children }) => {
   // Selection state (local)
   const [selectedShapeId, setSelectedShapeId] = useState(null);
 
+  // Clipboard state for copy/paste
+  const [clipboard, setClipboard] = useState(null);
+
   // Undo/Redo state
   const [undoStack, setUndoStack] = useState([]);
   const [redoStack, setRedoStack] = useState([]);
@@ -315,25 +318,55 @@ export const CanvasProvider = ({ children }) => {
       // Get old shape data for undo
       const shapesToUpdate = shapeIds.map(id => shapesMap.get(id)).filter(Boolean);
       
-      await batchUpdateShapesFirebase(shapeIds, updates);
+      // Support both object and function for updates
+      // If updates is a function, call it for each shapeId to get specific updates
+      const isFunction = typeof updates === 'function';
       
-      // Record actions for undo
-      if (shapesToUpdate.length > 0) {
-        shapesToUpdate.forEach(oldShape => {
-          const oldData = {};
-          const newData = {};
-          Object.keys(updates).forEach(key => {
-            oldData[key] = oldShape[key];
-            newData[key] = updates[key];
+      if (isFunction) {
+        // Call batch update with per-shape updates
+        await batchUpdateShapesFirebase(shapeIds, updates);
+        
+        // Record actions for undo with per-shape data
+        if (shapesToUpdate.length > 0) {
+          shapesToUpdate.forEach(oldShape => {
+            const shapeUpdates = updates(oldShape.id);
+            const oldData = {};
+            const newData = {};
+            Object.keys(shapeUpdates).forEach(key => {
+              oldData[key] = oldShape[key];
+              newData[key] = shapeUpdates[key];
+            });
+            
+            recordAction({
+              type: 'UPDATE_SHAPE',
+              shapeId: oldShape.id,
+              oldData,
+              newData
+            });
           });
-          
-          recordAction({
-            type: 'UPDATE_SHAPE',
-            shapeId: oldShape.id,
-            oldData,
-            newData
+        }
+      } else {
+        // Original behavior: same updates for all shapes
+        await batchUpdateShapesFirebase(shapeIds, updates);
+        
+        // Record actions for undo
+        if (shapesToUpdate.length > 0) {
+          shapesToUpdate.forEach(oldShape => {
+            const oldData = {};
+            const newData = {};
+            Object.keys(updates).forEach(key => {
+              oldData[key] = oldShape[key];
+              newData[key] = updates[key];
+            });
+            
+            recordAction({
+              type: 'UPDATE_SHAPE',
+              shapeId: oldShape.id,
+              oldData,
+              newData
+            });
           });
-        });
+        }
       }
       
       return shapeIds;
@@ -383,6 +416,7 @@ export const CanvasProvider = ({ children }) => {
       }
 
       // Create a copy with a small offset
+      // Only include defined values to avoid Firestore errors
       const duplicateData = {
         type: shape.type || 'rectangle',
         x: shape.x + 20, // Offset by 20px
@@ -390,7 +424,15 @@ export const CanvasProvider = ({ children }) => {
         width: shape.width,
         height: shape.height,
         fill: shape.fill,
-        opacity: shape.opacity
+        opacity: shape.opacity !== undefined ? shape.opacity : 1.0,
+        ...(shape.rotation !== undefined && { rotation: shape.rotation }),
+        // Copy additional properties for different shape types
+        ...(shape.type === 'text' && shape.text && { text: shape.text }),
+        ...(shape.type === 'text' && shape.fontSize && { fontSize: shape.fontSize }),
+        ...(shape.type === 'line' && shape.points && { points: shape.points }),
+        ...(shape.type === 'pen' && shape.points && { points: shape.points }),
+        ...(shape.stroke && { stroke: shape.stroke }),
+        ...(shape.strokeWidth !== undefined && { strokeWidth: shape.strokeWidth })
       };
 
       // Add the duplicate to Firebase
@@ -408,51 +450,46 @@ export const CanvasProvider = ({ children }) => {
     }
   }, [shapesMap, addShapeFirebase]);
 
-  const selectShape = useCallback(async (shapeId) => {
-    // Set selection immediately (optimistic)
-    setSelectedShapeId(shapeId);
-    
-    // Lock the newly selected shape (lockShape will auto-unlock all other shapes by this user)
-    if (shapeId) {
-      try {
-        await lockShape(shapeId, 300000); // 5 minute lock
-        console.log('✅ [LOCKING] Shape locked:', shapeId);
-      } catch (error) {
-        console.error('❌ [LOCKING] Failed to lock newly selected shape:', error);
-        // If lock fails, still keep it selected (local only)
+  // Copy shape to clipboard
+  const copyShape = useCallback((shapeId) => {
+    try {
+      // Find the shape to copy (shapesMap is a Map object)
+      const shape = shapesMap.get(shapeId);
+      if (!shape) {
+        console.error('Shape not found for copying:', shapeId);
+        return false;
       }
+
+      // Store shape data to clipboard (excluding id and Firebase metadata)
+      // Only include defined values to avoid Firestore errors
+      const shapeData = {
+        type: shape.type || 'rectangle',
+        x: shape.x,
+        y: shape.y,
+        width: shape.width,
+        height: shape.height,
+        fill: shape.fill,
+        opacity: shape.opacity !== undefined ? shape.opacity : 1.0,
+        ...(shape.rotation !== undefined && { rotation: shape.rotation }),
+        // Copy additional properties for different shape types
+        ...(shape.type === 'text' && shape.text && { text: shape.text }),
+        ...(shape.type === 'text' && shape.fontSize && { fontSize: shape.fontSize }),
+        ...(shape.type === 'line' && shape.points && { points: shape.points }),
+        ...(shape.type === 'pen' && shape.points && { points: shape.points }),
+        ...(shape.stroke && { stroke: shape.stroke }),
+        ...(shape.strokeWidth !== undefined && { strokeWidth: shape.strokeWidth })
+      };
+
+      setClipboard(shapeData);
+      console.log('📋 Copied shape to clipboard:', shapeId);
+      return true;
+    } catch (error) {
+      console.error('Failed to copy shape:', error);
+      return false;
     }
-  }, [lockShape]);
+  }, [shapesMap]);
 
-  const deselectAll = useCallback(() => {
-    // Unlock the currently selected shape before deselecting
-    const shapeToUnlock = selectedShapeId;
-    
-    // Deselect immediately (optimistic)
-    setSelectedShapeId(null);
-    
-    // Then unlock in background
-    if (shapeToUnlock) {
-      console.log('🔓 [LOCKING] Unlocking shape on deselect:', shapeToUnlock);
-      unlockShape(shapeToUnlock).catch((error) => {
-        console.error('❌ [LOCKING] Failed to unlock shape on deselect:', error);
-      });
-    }
-  }, [selectedShapeId, unlockShape]);
-
-  // Get selected shape
-  const selectedShape = shapes.find(shape => shape.id === selectedShapeId) || null;
-
-  // Canvas boundary checking utilities
-  const isWithinBounds = useCallback((x, y, width = 0, height = 0) => {
-    return (
-      x >= 0 && 
-      y >= 0 && 
-      x + width <= CANVAS_WIDTH && 
-      y + height <= CANVAS_HEIGHT
-    );
-  }, []);
-
+  // Helper function to constrain coordinates to canvas bounds
   const constrainToBounds = useCallback((x, y, width = 0, height = 0, rotation = 0) => {
     // No rotation - simple bounds check
     if (!rotation || rotation === 0) {
@@ -500,6 +537,116 @@ export const CanvasProvider = ({ children }) => {
       x: constrainedX,
       y: constrainedY
     };
+  }, []);
+
+  // Paste shape from clipboard
+  const pasteShape = useCallback(async (options = {}) => {
+    try {
+      if (!clipboard) {
+        console.log('Clipboard is empty');
+        return null;
+      }
+
+      let pasteX, pasteY;
+
+      if (options.x !== undefined && options.y !== undefined) {
+        // Use provided position (e.g., cursor position)
+        pasteX = options.x;
+        pasteY = options.y;
+      } else {
+        // Default: center of visible viewport
+        const stage = stageRef.current;
+        if (stage) {
+          const stageWidth = stage.width();
+          const stageHeight = stage.height();
+          const scale = stage.scaleX();
+          const position = stage.position();
+          
+          // Calculate center of visible area in canvas coordinates
+          pasteX = (-position.x + stageWidth / 2) / scale;
+          pasteY = (-position.y + stageHeight / 2) / scale;
+        } else {
+          // Fallback to small offset if stage not available
+          pasteX = clipboard.x + 20;
+          pasteY = clipboard.y + 20;
+        }
+      }
+
+      // Constrain to canvas bounds
+      const constrainedPos = constrainToBounds(
+        pasteX - (clipboard.width || 0) / 2,
+        pasteY - (clipboard.height || 0) / 2,
+        clipboard.width || 0,
+        clipboard.height || 0,
+        clipboard.rotation || 0
+      );
+
+      // Create a new shape at the target position
+      const pasteData = {
+        ...clipboard,
+        x: constrainedPos.x,
+        y: constrainedPos.y,
+      };
+
+      // Add the pasted shape to Firebase
+      const newShape = await addShapeFirebase(pasteData);
+      
+      // Select the new shape
+      if (newShape) {
+        setSelectedShapeId(newShape.id);
+      }
+      
+      console.log('📋 Pasted shape from clipboard at:', { x: constrainedPos.x, y: constrainedPos.y });
+      return newShape;
+    } catch (error) {
+      console.error('Failed to paste shape:', error);
+      throw error;
+    }
+  }, [clipboard, addShapeFirebase, constrainToBounds, stageRef]);
+
+  const selectShape = useCallback(async (shapeId) => {
+    // Set selection immediately (optimistic)
+    setSelectedShapeId(shapeId);
+    
+    // Lock the newly selected shape (lockShape will auto-unlock all other shapes by this user)
+    if (shapeId) {
+      try {
+        await lockShape(shapeId, 300000); // 5 minute lock
+        console.log('✅ [LOCKING] Shape locked:', shapeId);
+      } catch (error) {
+        console.error('❌ [LOCKING] Failed to lock newly selected shape:', error);
+        // If lock fails, still keep it selected (local only)
+      }
+    }
+  }, [lockShape]);
+
+  const deselectAll = useCallback(() => {
+    // Unlock the currently selected shape before deselecting
+    const shapeToUnlock = selectedShapeId;
+    
+    // Deselect immediately (optimistic)
+    setSelectedShapeId(null);
+    
+    // Then unlock in background
+    if (shapeToUnlock) {
+      console.log('🔓 [LOCKING] Unlocking shape on deselect:', shapeToUnlock);
+      unlockShape(shapeToUnlock).catch((error) => {
+        console.error('❌ [LOCKING] Failed to unlock shape on deselect:', error);
+      });
+    }
+  }, [selectedShapeId, unlockShape]);
+
+  // Get selected shape
+  const selectedShape = shapes.find(shape => shape.id === selectedShapeId) || null;
+
+  // Canvas boundary checking utilities
+  const isWithinBounds = useCallback((x, y, width = 0, height = 0) => {
+    return (
+      x >= 0 && 
+      y >= 0 && 
+      x + width <= CANVAS_WIDTH && 
+      y + height <= CANVAS_HEIGHT
+    );
   }, []);
 
   // Get visible canvas area based on current zoom and position
@@ -551,6 +698,8 @@ export const CanvasProvider = ({ children }) => {
     deleteShape,
     batchDeleteShapes,
     duplicateShape,
+    copyShape,
+    pasteShape,
     selectShape,
     deselectAll,
 
