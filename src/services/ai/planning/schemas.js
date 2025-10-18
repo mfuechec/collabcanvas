@@ -75,8 +75,38 @@ export const batchUpdatesSchema = z.object({
 }).nullable();
 
 // Discriminated union of all tool argument schemas
-// OPTIMIZED: Only 6 tools exposed (removed individual create/update/delete tools)
+// OPTIMIZED: Only 9 tools exposed (3 templates + batch + patterns + utility)
 export const toolArgsSchema = z.discriminatedUnion('tool', [
+  // Template tools (fastest for common UI patterns, 100-300x faster than batch_operations)
+  z.object({
+    tool: z.literal('use_login_template'),
+    primaryColor: z.string().nullable(),
+    size: z.enum(['small', 'normal', 'large']).nullable(),
+    style: z.enum(['modern', 'minimal', 'bold']).nullable(),
+    fields: z.array(z.enum(['email', 'username', 'password', 'phone', 'name'])).nullable(),
+    socialProviders: z.array(z.enum(['google', 'facebook', 'twitter', 'github'])).nullable(),
+    titleText: z.string().nullable(),
+    subtitleText: z.string().nullable()
+  }),
+  z.object({
+    tool: z.literal('use_navbar_template'),
+    primaryColor: z.string().nullable(),
+    backgroundColor: z.string().nullable(),
+    items: z.array(z.string()).nullable(),
+    itemCount: z.number().nullable(),
+    height: z.number().nullable(),
+    style: z.enum(['modern', 'minimal', 'bold']).nullable()
+  }),
+  z.object({
+    tool: z.literal('use_card_template'),
+    primaryColor: z.string().nullable(),
+    style: z.enum(['modern', 'minimal', 'bold']).nullable(),
+    hasImage: z.boolean().nullable(),
+    hasTitle: z.boolean().nullable(),
+    hasDescription: z.boolean().nullable(),
+    hasButton: z.boolean().nullable()
+  }),
+  
   // Batch tools (handles all create/update/delete)
   z.object({
     tool: z.literal('batch_operations'),
@@ -138,11 +168,14 @@ export const toolArgsSchema = z.discriminatedUnion('tool', [
 ]);
 
 // Main execution plan schema
-// OPTIMIZED: Only 7 tools available
+// OPTIMIZED: Only 10 tools available (3 templates + batch + patterns + utility)
 export const executionPlanSchema = z.object({
   plan: z.array(z.object({
     step: z.number().describe('Step number in execution sequence'),
     tool: z.enum([
+      'use_login_template',
+      'use_navbar_template',
+      'use_card_template',
       'batch_operations',
       'batch_update_shapes',
       'create_grid',

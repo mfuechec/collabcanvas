@@ -30,10 +30,20 @@ import { createCircleRowTool } from './patterns/circleRow.js';
 import { clearCanvasTool } from './utility/clear.js';
 import { addRandomShapesTool } from './utility/randomShapes.js';
 
+// Template tools
+import { USE_LOGIN_TEMPLATE_TOOL } from './templates/useLoginTemplate.js';
+import { USE_NAVBAR_TEMPLATE_TOOL } from './templates/useNavbarTemplate.js';
+import { USE_CARD_TEMPLATE_TOOL } from './templates/useCardTemplate.js';
+
 // Export all tools as an array (for LangChain)
 // OPTIMIZED: Only expose batch tools + specialized tools
 // This forces the AI to batch operations for better performance
 export const tools = [
+  // Template tools (fastest for common UI patterns, 100-300x faster than GPT)
+  USE_LOGIN_TEMPLATE_TOOL,
+  USE_NAVBAR_TEMPLATE_TOOL,
+  USE_CARD_TEMPLATE_TOOL,
+  
   // Batch tools (handles 95% of operations)
   batchOperationsTool,      // All create/update/delete
   batchUpdateShapesTool,    // Relative transforms (move all, scale all, etc.)
@@ -83,7 +93,11 @@ export const toolRegistry = {
   'create_circle_row': createCircleRowTool,
   
   'clear_canvas': clearCanvasTool,
-  'add_random_shapes': addRandomShapesTool
+  'add_random_shapes': addRandomShapesTool,
+  
+  'use_login_template': USE_LOGIN_TEMPLATE_TOOL,
+  'use_navbar_template': USE_NAVBAR_TEMPLATE_TOOL,
+  'use_card_template': USE_CARD_TEMPLATE_TOOL
 };
 
 // Export individual tools for direct imports

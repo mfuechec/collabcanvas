@@ -1275,6 +1275,36 @@ export const executeSmartOperation = async (action, data, canvasId = CANVAS_DOC_
         return { message: 'Coordinates calculated' };
       }
       
+      case 'use_login_template': {
+        console.log(`⚡ [TEMPLATE-TOOL] Executing use_login_template`);
+        const { USE_LOGIN_TEMPLATE_TOOL } = await import('./ai/tools/templates/useLoginTemplate.js');
+        const result = await USE_LOGIN_TEMPLATE_TOOL.execute(data, { 
+          canvasShapes: [], // Templates have their own positioning logic
+          userStyleGuide: null
+        });
+        return await executeSmartOperation(result.action, result.data, canvasId);
+      }
+      
+      case 'use_navbar_template': {
+        console.log(`⚡ [TEMPLATE-TOOL] Executing use_navbar_template`);
+        const { USE_NAVBAR_TEMPLATE_TOOL } = await import('./ai/tools/templates/useNavbarTemplate.js');
+        const result = await USE_NAVBAR_TEMPLATE_TOOL.execute(data, { 
+          canvasShapes: [], // Templates have their own positioning logic
+          userStyleGuide: null
+        });
+        return await executeSmartOperation(result.action, result.data, canvasId);
+      }
+      
+      case 'use_card_template': {
+        console.log(`⚡ [TEMPLATE-TOOL] Executing use_card_template`);
+        const { USE_CARD_TEMPLATE_TOOL } = await import('./ai/tools/templates/useCardTemplate.js');
+        const result = await USE_CARD_TEMPLATE_TOOL.execute(data, { 
+          canvasShapes: [], // Templates have their own positioning logic
+          userStyleGuide: null
+        });
+        return await executeSmartOperation(result.action, result.data, canvasId);
+      }
+      
       default:
         throw new Error(`Unknown action: ${action}`);
     }

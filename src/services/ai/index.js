@@ -8,6 +8,7 @@
 import { inferUserStyle } from './context/styleInference.js';
 import { classifyRequestComplexity } from './routing/classifier.js';
 import { generateExecutionPlan } from './planning/planner.js';
+import { detectTemplate, executeTemplate } from './templates/index.js';
 
 /**
  * Main entry point for AI command execution
@@ -188,7 +189,47 @@ export async function executeAICommandWithPlanAndExecute(userMessage, chatHistor
       };
     }
     
+    // Step 1.5c: Template detection (after heuristics, before GPT)
+    const templateMatch = detectTemplate(userMessage);
+    
+    if (templateMatch) {
+      const templateStart = performance.now();
+      console.log(`⚡ [TEMPLATE] Matched: ${templateMatch.name}`);
+      
+      try {
+        const plan = executeTemplate(
+          templateMatch.name,
+          userMessage,
+          canvasShapes,
+          userStyleGuide,
+          null // viewport - could be passed from UI in future
+        );
+        const templateTime = performance.now() - templateStart;
+        
+        console.log(`⚡ [TEMPLATE] Generated in ${templateTime.toFixed(1)}ms (instant vs ~3-5s for GPT)`);
+        
+        // Convert plan to actions format
+        const actions = plan.plan.map(step => {
+          const { tool, ...data } = step.args;
+          return {
+            action: step.tool,
+            data
+          };
+        });
+        
+        return {
+          response: plan.reasoning,
+          actions,
+          plan
+        };
+      } catch (error) {
+        console.warn(`⚠️ [TEMPLATE] Failed, falling back to GPT:`, error.message);
+        // Fall through to GPT planning
+      }
+    }
+    
     // Step 2: Generate execution plan (smart prompt, intelligent routing)
+    console.log('🧠 [PLANNING] No template match, using GPT...');
     const plan = await generateExecutionPlan(userMessage, canvasShapes, complexity, userStyleGuide);
     
     // Step 3: Convert plan to actions for AIChat.jsx to execute
