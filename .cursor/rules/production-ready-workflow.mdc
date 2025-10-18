@@ -1,6 +1,11 @@
+---
+Description: Automated workflow for production deployments when user says "production ready"
+Globs: scripts/jira/*.js, deploy-*.sh, .git/config
+---
+
 # Production Ready Workflow
 
-## Description
+## Trigger
 When the user says a branch is "production ready", execute the following automated workflow to move the ticket to Done, merge to master, and deploy to production.
 
 ## Workflow Steps

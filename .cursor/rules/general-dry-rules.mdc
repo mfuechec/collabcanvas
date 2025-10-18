@@ -1,333 +1,87 @@
 ---
 alwaysApply: true
 ---
-## Where to Put Functions
+## DRY Principles - Essential Guidelines
 
-### Canvas/Shape Operations → `utils/canvas.js`
+### Where to Put Functions
+
+- **Canvas/Shape Operations** → `utils/canvas.js` or `utils/shapes/`
+- **Geometry/Math** → `utils/geometry.js`
+- **Shape Matching/Search** → `utils/shapeMatching.js`
+- **Validation** → `utils/validation.js`
+- **Constants** → `utils/constants.js` or `utils/designSystem.js`
+- **Firebase Operations** → `services/*.js`
+- **React State Logic** → `hooks/*.js`
+
+### Core Rules
+
+1. **Extract at 2** - If logic appears 2+ times, extract to utils/
+2. **Single Responsibility** - Each function does ONE thing well
+3. **Max 50 lines** - Break larger functions into smaller ones
+4. **Pure functions preferred** - Avoid side effects when possible
+5. **One source of truth** - Constants and utilities have ONE definition
+6. **Preserve behavior** - Refactoring must NEVER change functionality
+
+### When NOT to Extract (Acceptable Duplication)
+
+❌ **Don't unify if:**
+- Different purposes/domains (even if code looks similar)
+- Different error handling patterns
+- Different timing (immediate vs debounced)
+- Different state dependencies
+- Over-abstraction would hurt readability
+
+✅ **Examples that should stay separate:**
 ```javascript
-// Centralized canvas utilities
-export function createShape(type, props) { ... }
-export function updateShapePosition(shape, x, y) { ... }
-export function getShapeBounds(shape) { ... }
-```
-
-### Geometry/Math → `utils/geometry.js`
-```javascript
-// Reusable math functions
-export function distance(p1, p2) { ... }
-export function getCanvasCenter() { return { x: 2500, y: 2500 }; }
-export function rotatePoint(point, angle, origin) { ... }
-```
-
-### Shape Matching/Search → `utils/shapeMatching.js`
-```javascript
-// AI tool helper functions
-export function findShapeByDescription(desc, shapes) { ... }
-export function filterShapesByColor(color, shapes) { ... }
-```
-
-### Validation → `utils/validation.js`
-```javascript
-// Input validation
-export function isValidColor(color) { ... }
-export function isValidCoordinate(x, y) { ... }
-```
-
-### Constants → `utils/constants.js` or `utils/designSystem.js`
-```javascript
-export const CANVAS_WIDTH = 5000;
-export const CANVAS_HEIGHT = 5000;
-export const CANVAS_CENTER = { x: 2500, y: 2500 };
-export const DEFAULT_SHAPE_COLOR = '#3B82F6';
-```
-
-### Firebase Operations → `services/*.js`
-```javascript
-// services/canvas.js
-export async function getCanvas(canvasId) { ... }
-export async function updateCanvas(canvasId, updates) { ... }
-```
-
-### React State Logic → `hooks/*.js`
-```javascript
-// Custom hooks for reusable state logic
-export function useShapes() { ... }
-export function useCursors() { ... }
-```
-
----
-
-## Function Modularity Rules
-
-1. **Single Responsibility**: Each function should do ONE thing well
-2. **Max 50 lines**: If a function exceeds 50 lines, break it into smaller functions
-3. **Pure functions preferred**: Avoid side effects when possible
-4. **Extract at 2**: If logic appears 2+ times, extract to utils/
-
----
-
-## Common Patterns to Watch For
-
-### ❌ BAD: Duplicated Shape Creation
-```javascript
-// In ComponentA.jsx
-const newShape = {
-  id: `shape_${Date.now()}_${Math.random()}`,
-  type: 'rectangle',
-  x: x || 500,
-  y: y || 500,
-  fill: color || '#3B82F6'
-};
-
-// In ComponentB.jsx - SIMILAR CODE!
-const shape = {
-  id: generateId(),
-  type: 'circle',
-  x: x ?? 500,
-  y: y ?? 500,
-  fill: color ?? '#3B82F6'
-};
-```
-
-### ✅ GOOD: Unified Shape Factory
-```javascript
-// utils/shapeFactory.js
-import { generateId } from './id';
-import { CANVAS_CENTER, DEFAULT_SHAPE_COLOR } from './constants';
-
-export function createShape(type, props = {}) {
-  return {
-    id: generateId(),
-    type,
-    x: props.x ?? CANVAS_CENTER.x,
-    y: props.y ?? CANVAS_CENTER.y,
-    fill: props.fill ?? DEFAULT_SHAPE_COLOR,
-    ...props
-  };
-}
-
-// Usage everywhere
-import { createShape } from '@/utils/shapeFactory';
-const rect = createShape('rectangle', { width: 100, height: 50 });
-const circle = createShape('circle', { radius: 25, fill: '#FF0000' });
-```
-
-### ❌ BAD: Duplicated Coordinate Calculations
-```javascript
-// In multiple files
-const centerX = 5000 / 2;
-const centerY = 5000 / 2;
-
-// Different file
-const center = { x: 2500, y: 2500 };
-
-// Another file
-if (x > 0 && x < 5000 && y > 0 && y < 5000) { ... }
-```
-
-### ✅ GOOD: Unified Geometry Utilities
-```javascript
-// utils/geometry.js
-import { CANVAS_WIDTH, CANVAS_HEIGHT, CANVAS_CENTER } from './constants';
-
-export function getCanvasCenter() {
-  return CANVAS_CENTER;
-}
-
-export function isWithinCanvas(x, y) {
-  return x >= 0 && x <= CANVAS_WIDTH && y >= 0 && y <= CANVAS_HEIGHT;
-}
-
-export function clampToCanvas(x, y) {
-  return {
-    x: Math.max(0, Math.min(CANVAS_WIDTH, x)),
-    y: Math.max(0, Math.min(CANVAS_HEIGHT, y))
-  };
-}
-```
-
-### ❌ BAD: Duplicated Firebase Operations
-```javascript
-// In ComponentA
-const canvasRef = db.collection('canvases').doc(canvasId);
-const doc = await canvasRef.get();
-
-// In ComponentB - SIMILAR CODE!
-const ref = db.collection('canvases').doc(id);
-const snapshot = await ref.get();
-```
-
-### ✅ GOOD: Unified Service
-```javascript
-// services/canvas.js
-export async function getCanvas(canvasId) {
-  const snapshot = await db.collection('canvases').doc(canvasId).get();
-  return snapshot.exists ? { id: snapshot.id, ...snapshot.data() } : null;
-}
-
-// Usage everywhere
-import { getCanvas } from '@/services/canvas';
-const canvas = await getCanvas(canvasId);
-```
-
----
-
-## Extract Logic to Hooks
-
-### ❌ BAD: Logic Duplicated in Components
-```javascript
-function ComponentA() {
-  const [shapes, setShapes] = useState([]);
-  const addShape = (shape) => {
-    setShapes(prev => [...prev, { ...shape, id: generateId() }]);
-  };
-}
-
-function ComponentB() {
-  const [shapes, setShapes] = useState([]);
-  const addShape = (shape) => {
-    setShapes(prev => [...prev, { ...shape, id: generateId() }]);
-  };
-}
-```
-
-### ✅ GOOD: Shared Hook
-```javascript
-// hooks/useShapes.js
-export function useShapes() {
-  const [shapes, setShapes] = useState([]);
-  
-  const addShape = useCallback((shape) => {
-    setShapes(prev => [...prev, createShape(shape.type, shape)]);
-  }, []);
-  
-  const updateShape = useCallback((id, updates) => {
-    setShapes(prev => prev.map(s => s.id === id ? { ...s, ...updates } : s));
-  }, []);
-  
-  return { shapes, addShape, updateShape };
-}
-
-// Usage
-import { useShapes } from '@/hooks/useShapes';
-function MyComponent() {
-  const { shapes, addShape } = useShapes();
-}
-```
-
----
-
-## When NOT to Extract (Acceptable Duplication)
-
-### Different Purposes (Even if Code Looks Similar)
-```javascript
-// ✅ GOOD: Keep separate - different domains
+// Different domains
 function createCanvasShape(type, props) {
   return { ...props, id: generateId(), canvasId: currentCanvas };
 }
-
 function createPreviewShape(type, props) {
   return { ...props, id: tempId(), isPreview: true };
 }
-// These serve different purposes, don't merge!
-```
 
-### Different Error Handling
-```javascript
-// ✅ GOOD: Keep separate - different error behaviors
-// Component A - Silent failure
-try { updateShape(id, props) } catch { /* ignore */ }
+// Different error handling
+try { updateShape(id, props) } catch { /* ignore */ }  // Component A
+try { updateShape(id, props) } catch (err) { showError(err) }  // Component B
 
-// Component B - Show error
-try { updateShape(id, props) } catch (err) { showError(err) }
-```
-
-### Different Timing
-```javascript
-// ✅ GOOD: Keep separate - timing is part of behavior
+// Different timing
 onDragMove = () => { updatePosition(x, y); }  // Immediate
 onDragMove = debounce(() => { updatePosition(x, y); }, 100)  // Debounced
 ```
 
----
+### Naming Conventions
 
-## Code Review Checklist
+**Functions:**
+- Prefix with verb: `createShape`, `updatePosition`, `findShape`
+- Be specific: `getShapeById` not `get`
+- Boolean: `isWithinCanvas`, `hasPermission`, `canEdit`
 
-### Before Writing New Code:
-- [ ] Does this function already exist in `utils/`?
-- [ ] Can I use an existing hook instead?
-- [ ] Should this be extracted to a service?
+**Files:**
+- Lowercase: `shapeFactory.js`, `geometry.js`
+- Match content: if exporting `createShape`, name it `shapeFactory.js` not `utils.js`
+
+**Constants:**
+- SCREAMING_SNAKE_CASE: `CANVAS_WIDTH`, `DEFAULT_COLOR`
+
+### Before Writing Code - Quick Checklist
+
+- [ ] Does this function exist in `utils/`?
+- [ ] Can I use an existing hook?
+- [ ] Should this be in a service?
 - [ ] Am I using constants or magic numbers?
-- [ ] Is this shape logic that belongs in `utils/shapeFactory.js`?
-- [ ] Can this be a pure function?
 - [ ] Is this calculation duplicated elsewhere?
 
-### When Refactoring:
-- [ ] Have I checked all usages of similar code?
-- [ ] Did I update all duplicates to use the new shared function?
-- [ ] Are my function names descriptive and consistent?
-- [ ] Did I add JSDoc comments for complex functions?
-- [ ] Can this function be more generic/reusable?
-- [ ] Does the refactored version preserve ALL original behavior?
+### Quick Reference: Where Does It Go?
+
+- Shape logic? → `utils/shapes/` or `utils/shapeFactory.js`
+- Math/geometry? → `utils/geometry.js`
+- Constants? → `utils/constants.js`
+- React state? → `hooks/useXxx.js`
+- Firebase? → `services/xxx.js`
+- Validation? → `utils/validation.js`
+- AI helpers? → `utils/shapeMatching.js`
 
 ---
 
-## Naming Conventions
-
-### Functions
-- Prefix with verb: `createShape`, `updatePosition`, `findShape`, `calculateDistance`
-- Be specific: `getShapeById` not `get`, `filterShapesByColor` not `filter`
-- Boolean functions: `isWithinCanvas`, `hasPermission`, `canEdit`
-
-### Files
-- Lowercase: `shapeFactory.js`, `geometry.js`, `validation.js`
-- Group related utilities: `geometry.js`, `validation.js`, `colors.js`
-- Match content: if file exports `createShape`, name it `shapeFactory.js` not `utils.js`
-
-### Constants
-- SCREAMING_SNAKE_CASE: `CANVAS_WIDTH`, `DEFAULT_COLOR`
-- Group in objects: `TOOL_TYPES.RECTANGLE`, `COLORS.PRIMARY`
-
----
-
-## When to Create New Files
-
-### Create a new utility file when:
-- You have 3+ related functions
-- The file would be >200 lines
-- Functions serve a distinct purpose (geometry, validation, etc.)
-- Multiple components/tools need these functions
-
-### Don't create a new file when:
-- You have 1-2 simple functions → add to existing relevant file
-- It's component-specific logic → keep in component or custom hook
-- It's a single constant → add to existing constants file
-
----
-
-## Golden Rules
-
-1. **Look before you code** - Search for existing utilities first
-2. **Extract at 2** - If you see similar code twice, extract it
-3. **One source of truth** - Constants, types, utilities should have ONE definition
-4. **Pure over impure** - Prefer pure functions that return values over side effects
-5. **Name it well** - Good names make code self-documenting
-6. **Think reusability** - Write functions that could be used in other contexts
-7. **Preserve behavior** - Refactoring must NEVER change functionality
-
----
-
-## Quick Reference: Where Does It Go?
-
-- **Shape logic?** → `utils/shapeFactory.js` or `utils/canvas.js`
-- **Math/geometry?** → `utils/geometry.js`
-- **Constants?** → `utils/constants.js` or `utils/designSystem.js`
-- **React state logic?** → `hooks/useXxx.js`
-- **API/Firebase?** → `services/xxx.js`
-- **Validation?** → `utils/validation.js`
-- **AI tool helpers?** → `utils/shapeMatching.js`
-- **Coordinate transforms?** → `utils/coordinates.js`
-
----
-
-**Remember**: Clean, DRY code is faster to write, easier to debug, and simpler to extend. But never sacrifice correctness for DRY—preserve all functionality!
+**Remember**: Clean, DRY code is maintainable code. But never sacrifice correctness for DRY—preserve all functionality!

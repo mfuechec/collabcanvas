@@ -1,0 +1,221 @@
+---
+Description: Quick workflow for adding simple Jira tickets when user says "add to todo" or similar phrases
+Globs: []
+---
+
+# Quick Jira Ticket Creation
+
+## When to Use
+User says phrases like:
+- "add to todo list"
+- "create a jira ticket"
+- "add this to jira"
+- "make a ticket for this"
+
+## Workflow
+
+Create a simple ticket with just **title and description**. No complex metadata initially.
+
+### 1. Determine Title
+- Use user's description or conversation context
+- Keep it clear and actionable
+- Start with a verb when possible (Fix, Add, Implement, etc.)
+- Max 80 characters
+
+### 2. Create Description
+- 2-3 sentences summarizing the task
+- Include context from conversation
+- Mention any key technical details discussed
+
+### 3. Determine Area Labels
+
+Based on the task description and context, add one or more labels:
+
+**Area Labels:**
+- `frontend` - UI components, React, styling, user interactions
+- `backend` - Services, Firebase, database operations, API integrations
+- `ai` - AI tools, LLM integration, prompts, model routing
+- `canvas` - Canvas rendering, Konva, shape operations, transformations
+- `collaboration` - Real-time features, cursors, presence, multiplayer
+- `testing` - Test suites, E2E tests, validation
+- `performance` - Optimization, caching, profiling
+- `auth` - Authentication, security, permissions
+- `infra` - Deployment, CI/CD, configuration
+
+**Guidelines:**
+- Add 1-2 most relevant labels
+- Use lowercase
+- Can combine multiple if task spans areas (e.g., `ai` + `performance`)
+
+### 4. Create Ticket
+```bash
+node << 'EOF'
+import('dotenv').then(async dotenv => {
+  dotenv.default.config();
+  
+  const JIRA_HOST = process.env.JIRA_HOST;
+  const JIRA_EMAIL = process.env.JIRA_EMAIL;
+  const JIRA_API_TOKEN = process.env.JIRA_API_TOKEN;
+  const JIRA_PROJECT_KEY = process.env.JIRA_PROJECT_KEY || 'CRM';
+  const JIRA_ISSUE_TYPE = process.env.JIRA_ISSUE_TYPE || 'Task';
+  
+  const auth = Buffer.from(`${JIRA_EMAIL}:${JIRA_API_TOKEN}`).toString('base64');
+  
+  // Format description in Atlassian Document Format
+  const description = {
+    type: "doc",
+    version: 1,
+    content: [
+      {
+        type: "paragraph",
+        content: [
+          {
+            type: "text",
+            text: "[DESCRIPTION]"
+          }
+        ]
+      }
+    ]
+  };
+  
+  const ticket = {
+    fields: {
+      project: { key: JIRA_PROJECT_KEY },
+      summary: "[TITLE]",
+      description: description,
+      issuetype: { name: JIRA_ISSUE_TYPE },
+      priority: { name: "Medium" },
+      labels: ["[LABEL1]", "[LABEL2]"]  // Replace with determined labels
+    }
+  };
+  
+  const response = await fetch(`https://${JIRA_HOST}/rest/api/3/issue`, {
+    method: 'POST',
+    headers: {
+      'Authorization': `Basic ${auth}`,
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify(ticket)
+  });
+  
+  if (response.ok) {
+    const result = await response.json();
+    console.log(`✅ Created: ${result.key}`);
+    console.log(`🔗 https://${JIRA_HOST}/browse/${result.key}`);
+  } else {
+    const error = await response.text();
+    console.error(`❌ Failed: ${error}`);
+  }
+});
+EOF
+```
+
+### 5. Confirm to User
+Tell user:
+- ✅ Ticket created: [KEY]
+- 🏷️ Labels: [list of labels added]
+- 🔗 Link to view ticket
+- Mention they can add more details later
+
+## Examples
+
+### Example 1: Bug from conversation
+```
+User: "The minimap isn't showing circles correctly. Add to todo list."
+
+AI creates ticket:
+- Title: "Fix minimap circle rendering"
+- Description: "Circles are not displaying correctly in the minimap. Likely related to coordinate conversion or scaling. Need to investigate Minimap.jsx rendering logic."
+- Priority: High (bug)
+- Labels: ["canvas", "frontend"]
+- Result: "✅ Created CRM-15: Fix minimap circle rendering
+         🏷️ Labels: canvas, frontend"
+```
+
+### Example 2: Feature request
+```
+User: "We should add keyboard shortcuts for shape operations. Create a ticket."
+
+AI creates ticket:
+- Title: "Add keyboard shortcuts for shape operations"  
+- Description: "Implement keyboard shortcuts for common shape operations (copy, paste, delete, undo, redo). Should follow standard conventions (Ctrl+C, Ctrl+V, Delete, Ctrl+Z, Ctrl+Y). Improves user workflow efficiency."
+- Priority: Medium
+- Labels: ["frontend"]
+- Result: "✅ Created CRM-16: Add keyboard shortcuts for shape operations
+         🏷️ Labels: frontend"
+```
+
+### Example 3: AI/Performance task
+```
+User: "Create ticket for optimizing AI response caching"
+
+AI creates ticket:
+- Title: "Optimize AI response caching"
+- Description: "Implement caching strategy for common AI requests to reduce latency and API costs. Store by prompt hash with TTL expiration."
+- Priority: Medium
+- Labels: ["ai", "performance"]
+- Result: "✅ Created CRM-17: Optimize AI response caching
+         🏷️ Labels: ai, performance"
+```
+
+## Title Guidelines
+
+**Good titles:**
+- ✅ Fix circle rotation bug
+- ✅ Add PNG export functionality
+- ✅ Optimize canvas rendering performance
+- ✅ Implement user authentication
+
+**Bad titles:**
+- ❌ Bug (too vague)
+- ❌ Make it better (not specific)
+- ❌ User wants feature (not actionable)
+
+## Description Guidelines
+
+**Keep it brief but informative:**
+- What needs to be done?
+- Why is it needed?
+- Any key technical context?
+
+**2-3 sentences is perfect.** Detailed planning comes later.
+
+## Priority Defaults
+
+Unless user specifies:
+- Bugs → High
+- Features → Medium
+- Improvements → Medium
+- Ideas → Low
+
+User can always adjust priority in Jira later.
+
+## Label Selection Guidelines
+
+**How to choose labels:**
+- Read the task title and description
+- Identify which part of the codebase will be modified
+- Add 1-2 most relevant area labels
+- When in doubt, pick the primary area
+
+**Common patterns:**
+- Mentions "AI", "prompt", "LLM" → `ai`
+- Mentions "canvas", "shape", "render" → `canvas`
+- Mentions "UI", "component", "button" → `frontend`
+- Mentions "Firebase", "database", "service" → `backend`
+- Mentions "cursor", "presence", "real-time" → `collaboration`
+- Mentions "cache", "optimize", "performance" → `performance`
+- Mentions "test", "validation" → `testing`
+
+## What NOT to Do
+
+❌ Don't add extensive metadata (story points, assignments, etc.)
+❌ Don't perform detailed analysis
+❌ Don't search for related files
+❌ Don't create subtasks
+
+Keep it **simple and fast**. Just title + description + area labels. Done!
+
+---
+
+**Remember:** This is for quick ticket creation. User can add details, assign to agents, and update status later in Jira.

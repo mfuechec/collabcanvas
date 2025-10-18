@@ -1,5 +1,5 @@
 Description: Detailed rules for background DRY analysis agent only. NOT for regular coding assistance - use general-dry-rules.mdc for that.
-Globs: src/**/*.{js,jsx,ts,tsx}
+Globs: scripts/dry-agent.js, scripts/analyzers/*.js
 
 # DRY Enforcement Rules for Background Agent
 
