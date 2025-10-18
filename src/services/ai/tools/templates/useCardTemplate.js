@@ -51,8 +51,13 @@ export const USE_CARD_TEMPLATE_TOOL = {
       userMessage += ` with ${components.join(', ')}`;
     }
     
-    // Execute template with enriched message
-    const plan = executeTemplate('card_layout', userMessage, canvasShapes, userStyleGuide, null);
+    // Execute template with enriched message and explicit params
+    const plan = executeTemplate('card_layout', userMessage, canvasShapes, userStyleGuide, null, {
+      // Pass explicit params that can't be extracted from message
+      titleText: args.titleText,
+      buttonText: args.buttonText,
+      imageAspectRatio: args.imageAspectRatio
+    });
     
     // Convert plan to batch_operations format for execution
     return {

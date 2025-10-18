@@ -17,6 +17,28 @@ const TEMPLATES = [
 ];
 
 /**
+ * Check if message has customization keywords (should use GPT for parsing)
+ */
+function hasCustomization(userMessage) {
+  const customizationKeywords = [
+    // Custom text
+    /\b(titled?|called?|named?|heading|header|title|subtitle|tagline)\b/i,
+    /\b(button|logo|brand|branding)\s*:/i,
+    /\bwith\s+(a\s+)?(title|subtitle|button|logo|brand)/i,
+    
+    // Custom counts/items
+    /\b\d+\s+(items?|buttons?|links?|fields?)\b/i,
+    /\bwith\s+(a\s+)?\d+/i,
+    
+    // Multiple features mentioned
+    /\bwith\s+(email|password|username|phone|image|description)/i,
+    /\band\s+(google|facebook|twitter|github)/i
+  ];
+  
+  return customizationKeywords.some(pattern => pattern.test(userMessage));
+}
+
+/**
  * Detect if message matches a template
  * 
  * @param {string} userMessage - User's natural language request
@@ -33,6 +55,12 @@ export function detectTemplate(userMessage) {
   for (const template of TEMPLATES) {
     for (const pattern of template.patterns) {
       if (pattern.test(userMessage)) {
+        // If customization detected, fall back to GPT (GPT will call template tool with params)
+        if (hasCustomization(userMessage)) {
+          console.log(`🎨 [TEMPLATE] Customization detected in "${userMessage.substring(0, 50)}...", routing to GPT`);
+          return null;
+        }
+        
         return { name: template.name, template };
       }
     }
@@ -49,9 +77,10 @@ export function detectTemplate(userMessage) {
  * @param {Array} canvasShapes - Current shapes on canvas
  * @param {Object} userStyleGuide - User's inferred style preferences
  * @param {Object} viewport - Current viewport info (optional)
+ * @param {Object} explicitParams - Explicit params from AI tool (override extracted params)
  * @returns {Object} - Execution plan with operations
  */
-export function executeTemplate(templateName, userMessage, canvasShapes = [], userStyleGuide = null, viewport = null) {
+export function executeTemplate(templateName, userMessage, canvasShapes = [], userStyleGuide = null, viewport = null, explicitParams = {}) {
   const template = TEMPLATES.find(t => t.name === templateName);
   
   if (!template) {
@@ -62,7 +91,18 @@ export function executeTemplate(templateName, userMessage, canvasShapes = [], us
   
   try {
     // Step 1: Extract parameters from user message
-    const params = template.extract(userMessage, userStyleGuide);
+    let params = template.extract(userMessage, userStyleGuide);
+    
+    // Step 1.5: Override with explicit params from AI tool (for custom text, etc.)
+    if (explicitParams && Object.keys(explicitParams).length > 0) {
+      params = {
+        ...params,
+        ...Object.fromEntries(
+          Object.entries(explicitParams).filter(([_, v]) => v !== null && v !== undefined)
+        )
+      };
+    }
+    
     console.log(`   ├─ Extracted params:`, {
       primaryColor: params.primaryColor,
       style: params.style,

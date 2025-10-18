@@ -86,7 +86,8 @@ export const toolArgsSchema = z.discriminatedUnion('tool', [
     fields: z.array(z.enum(['email', 'username', 'password', 'phone', 'name'])).nullable(),
     socialProviders: z.array(z.enum(['google', 'facebook', 'twitter', 'github'])).nullable(),
     titleText: z.string().nullable(),
-    subtitleText: z.string().nullable()
+    subtitleText: z.string().nullable(),
+    buttonText: z.string().nullable()
   }),
   z.object({
     tool: z.literal('use_navbar_template'),
@@ -94,13 +95,19 @@ export const toolArgsSchema = z.discriminatedUnion('tool', [
     backgroundColor: z.string().nullable(),
     items: z.array(z.string()).nullable(),
     itemCount: z.number().nullable(),
+    logoText: z.string().nullable(),
     height: z.number().nullable(),
+    size: z.enum(['small', 'normal', 'large']).nullable(),
     style: z.enum(['modern', 'minimal', 'bold']).nullable()
   }),
   z.object({
     tool: z.literal('use_card_template'),
     primaryColor: z.string().nullable(),
     style: z.enum(['modern', 'minimal', 'bold']).nullable(),
+    size: z.enum(['small', 'normal', 'large']).nullable(),
+    titleText: z.string().nullable(),
+    buttonText: z.string().nullable(),
+    imageAspectRatio: z.enum(['16:9', '4:3', '1:1', 'square']).nullable(),
     hasImage: z.boolean().nullable(),
     hasTitle: z.boolean().nullable(),
     hasDescription: z.boolean().nullable(),

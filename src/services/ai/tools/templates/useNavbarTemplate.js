@@ -46,8 +46,11 @@ export const USE_NAVBAR_TEMPLATE_TOOL = {
       userMessage += ` with ${args.items.length} items`;
     }
     
-    // Execute template with enriched message
-    const plan = executeTemplate('navigation_bar', userMessage, canvasShapes, userStyleGuide, null);
+    // Execute template with enriched message and explicit params
+    const plan = executeTemplate('navigation_bar', userMessage, canvasShapes, userStyleGuide, null, {
+      // Pass explicit params that can't be extracted from message
+      logoText: args.logoText
+    });
     
     // Convert plan to batch_operations format for execution
     return {

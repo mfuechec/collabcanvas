@@ -54,8 +54,13 @@ export const USE_LOGIN_TEMPLATE_TOOL = {
       userMessage += ` and ${args.socialProviders.join(', ')} sign-in`;
     }
     
-    // Execute template with enriched message
-    const plan = executeTemplate('login_form', userMessage, canvasShapes, userStyleGuide, null);
+    // Execute template with enriched message and explicit params
+    const plan = executeTemplate('login_form', userMessage, canvasShapes, userStyleGuide, null, {
+      // Pass explicit params that can't be extracted from message
+      titleText: args.titleText,
+      subtitleText: args.subtitleText,
+      buttonText: args.buttonText
+    });
     
     // Convert plan to batch_operations format for execution
     return {
