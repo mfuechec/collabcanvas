@@ -185,12 +185,17 @@ Konva:   { x: 0, y: 0, points: [100, 100, 200, 200] }
 
 **Tier 2: AI-Guided Templates** (fast, ~3s total)
 - Common UI patterns: login forms, navbars, cards
-- AI extracts parameters from natural language
+- **Detection Strategy**: Simple pattern match + customization detection
+  - Simple requests ("create a login form") → Direct template (10ms)
+  - Customized requests ("create a purple login form titled X") → GPT extracts params → Template tool
+- AI extracts parameters from natural language (titleText, buttonText, color, size, style, fields, etc.)
 - Template generates professional layouts instantly
 - 100-300x faster than full GPT generation
+- **Simplified Architecture**: No complex regex extractors, GPT handles all text parsing
 - Examples:
-  - "create a purple login form" → AI calls `use_login_template` with `{primaryColor: '#8B5CF6'}`
-  - "create a navbar with 5 items" → AI calls `use_navbar_template` with `{itemCount: 5}`
+  - "create a login form" → Direct template → 10ms
+  - "create a purple login form titled Collab Canvas" → GPT calls `use_login_template` with params → 3s
+  - "create a navbar with 5 items" → GPT calls `use_navbar_template` with `{itemCount: 5}` → 3s
 
 **Tier 3: GPT Freeform** (full custom, 6-8s)
 - Novel designs, complex layouts

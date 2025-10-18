@@ -47,11 +47,15 @@
 - [x] Chat interface (bottom-right, collapsible)
 - [x] **3-tier performance system: Heuristic → AI-Guided Templates → GPT Freeform**
 - [x] **Parameterized template system for common UI patterns**
-- [x] **AI-guided template customization (color, size, style, fields, social auth)**
-- [x] **Login form template (21+ shapes, ~15ms generation)**
+- [x] **AI-guided template customization (color, size, style, fields, social auth, custom text)**
+- [x] **Login form template (21+ shapes, ~15ms generation, bug-free)**
 - [x] **Navigation bar template (8+ shapes, ~15ms generation)**
 - [x] **Card layout template (6-10 shapes, ~15ms generation)**
 - [x] **2-3x faster UI generation for common patterns**
+- [x] **Simplified template detection (routes customizations to GPT for robustness)**
+- [x] **Fixed ghost squares bug (double-wrapping issue)**
+- [x] **Fixed title/subtitle alignment**
+- [x] **Fixed false positive multi-template detection**
 
 ### ✅ Undo/Redo System
 - [x] Undo/redo stack for all operations
@@ -214,13 +218,16 @@
 - Critical bugs fixed
 
 ### Recent Wins
-1. ✅ **DRY Enforcement Infrastructure** - Comprehensive rules for code quality
-2. ✅ **Background Agent Design** - Intelligent code analysis architecture
-3. ✅ **Disconnect Cleanup Bug Fixed** - No more orphaned handlers
-4. ✅ **E2E Testing Suite** - Comprehensive test coverage ready
-5. ✅ **Per-Shape Architecture** - Dramatically faster batch operations
-6. ✅ **UI Redesign Complete** - Figma-inspired modern interface
-7. ✅ **Rules Migration** - Legacy `.cursorrules` → modern `.cursor/rules/*.mdc`
+1. ✅ **Template System Optimized** - Bug-free, simplified architecture, production-ready
+2. ✅ **Ghost Squares Bug Fixed** - Clean login forms without visual artifacts
+3. ✅ **Template Detection Simplified** - Robust customization routing to GPT
+4. ✅ **DRY Enforcement Infrastructure** - Comprehensive rules for code quality
+5. ✅ **Background Agent Design** - Intelligent code analysis architecture
+6. ✅ **Disconnect Cleanup Bug Fixed** - No more orphaned handlers
+7. ✅ **E2E Testing Suite** - Comprehensive test coverage ready
+8. ✅ **Per-Shape Architecture** - Dramatically faster batch operations
+9. ✅ **UI Redesign Complete** - Figma-inspired modern interface
+10. ✅ **Rules Migration** - Legacy `.cursorrules` → modern `.cursor/rules/*.mdc`
 
 ### Known Issues
 1. 🟡 **E2E Test Authentication** - Needs auth strategy (in progress)

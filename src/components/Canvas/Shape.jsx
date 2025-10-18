@@ -2,6 +2,15 @@ import { Rect, Circle, Line, Text } from 'react-konva';
 import { useRef, useEffect, useMemo, useState, useCallback } from 'react';
 import { useCanvas } from '../../hooks/useCanvas';
 import { useCanvasMode } from '../../contexts/CanvasModeContext';
+import { 
+  getActualDimensions,
+  konvaPositionToBoundingBox,
+  boundingBoxToKonvaPosition,
+  getLineBounds,
+  getPenBounds,
+  translateLinePoints,
+  translatePenPoints
+} from '../../utils/shapes';
 
 const Shape = ({ 
   id,
@@ -173,50 +182,12 @@ const Shape = ({
       
       // Get the Konva shape node
       const shapeNode = e.target;
-      const shapePos = shapeNode.position();
       
-      // Convert to bounding box coordinates for consistent broadcasting
-      let boundingBoxX, boundingBoxY;
-      if (type === 'text') {
-        // Text position is center, convert to bounding box top-left
-        // Get actual text dimensions from the shape
-        const actualWidth = shapeNode.width();
-        const actualHeight = shapeNode.height();
-        boundingBoxX = shapePos.x - actualWidth / 2;
-        boundingBoxY = shapePos.y - actualHeight / 2;
-      } else if (type === 'circle') {
-        // Circle position is center, convert to bounding box top-left
-        boundingBoxX = shapePos.x - width / 2;
-        boundingBoxY = shapePos.y - height / 2;
-      } else if (type === 'rectangle') {
-        // Rectangle position is center, convert to bounding box top-left
-        boundingBoxX = shapePos.x - width / 2;
-        boundingBoxY = shapePos.y - height / 2;
-      } else if (type === 'line' && points && points.length === 4) {
-        // Lines are positioned at center with offsetX/offsetY
-        const centerX = (points[0] + points[2]) / 2;
-        const centerY = (points[1] + points[3]) / 2;
-        const minX = Math.min(points[0], points[2]);
-        const minY = Math.min(points[1], points[3]);
-        // Bounding box position = center position - offset from center to top-left
-        boundingBoxX = shapePos.x - (centerX - minX);
-        boundingBoxY = shapePos.y - (centerY - minY);
-      } else if (type === 'pen' && points && points.length >= 4) {
-        // Pen is positioned at center with offsetX/offsetY
-        const xCoords = points.filter((_, i) => i % 2 === 0);
-        const yCoords = points.filter((_, i) => i % 2 === 1);
-        const centerX = (Math.min(...xCoords) + Math.max(...xCoords)) / 2;
-        const centerY = (Math.min(...yCoords) + Math.max(...yCoords)) / 2;
-        const minX = Math.min(...xCoords);
-        const minY = Math.min(...yCoords);
-        // Bounding box position = center position - offset from center to top-left
-        boundingBoxX = shapePos.x - (centerX - minX);
-        boundingBoxY = shapePos.y - (centerY - minY);
-      } else {
-        // Fallback: assume top-left positioning
-        boundingBoxX = shapePos.x;
-        boundingBoxY = shapePos.y;
-      }
+      // Convert Konva position to bounding box using consolidated utility
+      const shapeData = { type, width, height, points };
+      const boundingBox = konvaPositionToBoundingBox(shapeNode.position(), shapeData, shapeNode);
+      const boundingBoxX = boundingBox.x;
+      const boundingBoxY = boundingBox.y;
       
       // Send initial drag start position to other users
       const previewData = {
@@ -238,11 +209,37 @@ const Shape = ({
         if (width) previewData.width = width;
         if (height) previewData.height = height;
         if (fill) previewData.fill = fill;
+        // Include cornerRadius for rectangles
+        if (type === 'rectangle' && cornerRadius) {
+          previewData.cornerRadius = cornerRadius;
+        }
+        // Include text content and fontSize for text
+        if (type === 'text') {
+          if (text) previewData.text = text;
+          if (fontSize) previewData.fontSize = fontSize;
+        }
       }
       
       // Include rotation for accurate preview
       if (rotation) {
         previewData.rotation = rotation;
+      }
+      
+      // 🐛 DEBUG: Log what we're sending for text
+      if (type === 'text') {
+        console.log('📤 [SHAPE] Sending text drag preview data (START):', {
+          type,
+          x: previewData.x,
+          y: previewData.y,
+          width: previewData.width,
+          height: previewData.height,
+          text: previewData.text,
+          fontSize: previewData.fontSize,
+          fill: previewData.fill,
+          hasText: !!previewData.text,
+          hasFontSize: !!previewData.fontSize,
+          allData: previewData
+        });
       }
       
       updateDragPreview(id, previewData);
@@ -254,99 +251,25 @@ const Shape = ({
     const shape = e.target;
     const newPos = shape.position();
     
-    // ✅ Get actual dimensions from Konva node (works for auto-sized text!)
-    const actualWidth = type === 'text' ? shape.width() : width;
-    const actualHeight = type === 'text' ? shape.height() : height;
+    // Get actual dimensions using utility (handles text auto-sizing)
+    const shapeData = { type, width, height, points };
+    const dimensions = getActualDimensions(shapeData, shape);
     
-    // All shapes now use center position with offsetX/offsetY for rotation
-    // Convert to bounding box coordinates for boundary checking
-    let boundingBoxX, boundingBoxY;
-    if (type === 'line' && points && points.length === 4) {
-      // Lines are positioned at center with offsetX/offsetY
-      // The visual top-left is at: newPos - offset = bounding box position
-      const centerX = (points[0] + points[2]) / 2;
-      const centerY = (points[1] + points[3]) / 2;
-      const minX = Math.min(points[0], points[2]);
-      const minY = Math.min(points[1], points[3]);
-      // Bounding box position = center position - offset from center to top-left
-      boundingBoxX = newPos.x - (centerX - minX);
-      boundingBoxY = newPos.y - (centerY - minY);
-    } else if (type === 'pen' && points && points.length >= 4) {
-      // Pen is positioned at center with offsetX/offsetY
-      const xCoords = points.filter((_, i) => i % 2 === 0);
-      const yCoords = points.filter((_, i) => i % 2 === 1);
-      const centerX = (Math.min(...xCoords) + Math.max(...xCoords)) / 2;
-      const centerY = (Math.min(...yCoords) + Math.max(...yCoords)) / 2;
-      const minX = Math.min(...xCoords);
-      const minY = Math.min(...yCoords);
-      // Bounding box position = center position - offset from center to top-left
-      boundingBoxX = newPos.x - (centerX - minX);
-      boundingBoxY = newPos.y - (centerY - minY);
-    } else if (type === 'text') {
-      // Text is now positioned at center with offsetX/offsetY (like rectangles)
-      // Convert center to bounding box top-left
-      boundingBoxX = newPos.x - actualWidth / 2;
-      boundingBoxY = newPos.y - actualHeight / 2;
-    } else {
-      // Circle and rectangle use center position
-      // Convert center to bounding box top-left
-      // ✅ Use actual dimensions from Konva
-      boundingBoxX = newPos.x - actualWidth / 2;
-      boundingBoxY = newPos.y - actualHeight / 2;
-    }
+    // Convert Konva position to bounding box for boundary checking
+    const boundingBox = konvaPositionToBoundingBox(newPos, shapeData, shape);
     
-    // Constrain shape to canvas boundaries using bounding box (with rotation)
-    // ✅ Use actual dimensions for boundary checking
+    // Constrain shape to canvas boundaries (with rotation)
     const constrainedBoundingBox = constrainToBounds(
-      boundingBoxX, 
-      boundingBoxY, 
-      actualWidth, 
-      actualHeight,
-      rotation
+      boundingBox.x, 
+      boundingBox.y, 
+      dimensions.width, 
+      dimensions.height,
+      rotation,
+      type  // Pass shape type so circles don't calculate rotated bounds
     );
     
-    // Convert back to shape-specific coordinates for Konva
-    let constrainedPos;
-    if (type === 'line' && points && points.length === 4) {
-      // For lines, convert bounding box back to center position
-      const centerX = (points[0] + points[2]) / 2;
-      const centerY = (points[1] + points[3]) / 2;
-      const minX = Math.min(points[0], points[2]);
-      const minY = Math.min(points[1], points[3]);
-      // Center position = bounding box + offset from top-left to center
-      constrainedPos = {
-        x: constrainedBoundingBox.x + (centerX - minX),
-        y: constrainedBoundingBox.y + (centerY - minY)
-      };
-    } else if (type === 'pen' && points && points.length >= 4) {
-      // For pen, convert bounding box back to center position
-      const xCoords = points.filter((_, i) => i % 2 === 0);
-      const yCoords = points.filter((_, i) => i % 2 === 1);
-      const centerX = (Math.min(...xCoords) + Math.max(...xCoords)) / 2;
-      const centerY = (Math.min(...yCoords) + Math.max(...yCoords)) / 2;
-      const minX = Math.min(...xCoords);
-      const minY = Math.min(...yCoords);
-      // Center position = bounding box + offset from top-left to center
-      constrainedPos = {
-        x: constrainedBoundingBox.x + (centerX - minX),
-        y: constrainedBoundingBox.y + (centerY - minY)
-      };
-    } else if (type === 'text') {
-      // Text uses center position with offsetX/offsetY (like rectangles)
-      // Convert bounding box back to center
-      constrainedPos = {
-        x: constrainedBoundingBox.x + actualWidth / 2,
-        y: constrainedBoundingBox.y + actualHeight / 2
-      };
-    } else {
-      // Circle and rectangle use center position
-      // Convert bounding box back to center
-      // ✅ Use actual dimensions for accurate positioning
-      constrainedPos = {
-        x: constrainedBoundingBox.x + actualWidth / 2,
-        y: constrainedBoundingBox.y + actualHeight / 2
-      };
-    }
+    // Convert constrained bounding box back to Konva position
+    const constrainedPos = boundingBoxToKonvaPosition(constrainedBoundingBox, shapeData, shape);
     
     // Update position if it was constrained
     if (constrainedPos.x !== newPos.x || constrainedPos.y !== newPos.y) {
@@ -376,20 +299,18 @@ const Shape = ({
         };
         
         // Add shape-specific properties
-        if (type === 'line' || type === 'pen') {
-          // Lines use stroke and points
-          if (points) {
-            const deltaX = constrainedBoundingBox.x - x;
-            const deltaY = constrainedBoundingBox.y - y;
-            const translatedPoints = points.map((coord, index) => {
-              if (index % 2 === 0) {
-                return coord + deltaX; // X coordinate
-              } else {
-                return coord + deltaY; // Y coordinate
-              }
-            });
-            previewData.points = translatedPoints;
-          }
+        if (type === 'line' && points) {
+          // Translate line points using utility
+          const deltaX = constrainedBoundingBox.x - x;
+          const deltaY = constrainedBoundingBox.y - y;
+          previewData.points = translateLinePoints(points, deltaX, deltaY);
+          if (stroke) previewData.stroke = stroke;
+          if (strokeWidth) previewData.strokeWidth = strokeWidth;
+        } else if (type === 'pen' && points) {
+          // Translate pen points using utility
+          const deltaX = constrainedBoundingBox.x - x;
+          const deltaY = constrainedBoundingBox.y - y;
+          previewData.points = translatePenPoints(points, deltaX, deltaY);
           if (stroke) previewData.stroke = stroke;
           if (strokeWidth) previewData.strokeWidth = strokeWidth;
         } else {
@@ -397,11 +318,36 @@ const Shape = ({
           if (width) previewData.width = width;
           if (height) previewData.height = height;
           if (fill) previewData.fill = fill;
+          // Include cornerRadius for rectangles
+          if (type === 'rectangle' && cornerRadius) {
+            previewData.cornerRadius = cornerRadius;
+          }
+          // Include text content and fontSize for text
+          if (type === 'text') {
+            if (text) previewData.text = text;
+            if (fontSize) previewData.fontSize = fontSize;
+          }
         }
         
         // Include rotation for accurate preview
         if (rotation) {
           previewData.rotation = rotation;
+        }
+        
+        // 🐛 DEBUG: Log what we're sending for text (throttled)
+        if (type === 'text') {
+          console.log('📤 [SHAPE] Sending text drag preview data (MOVE):', {
+            type,
+            x: previewData.x,
+            y: previewData.y,
+            width: previewData.width,
+            height: previewData.height,
+            text: previewData.text,
+            fontSize: previewData.fontSize,
+            fill: previewData.fill,
+            hasText: !!previewData.text,
+            hasFontSize: !!previewData.fontSize
+          });
         }
         
         updateDragPreview(id, previewData);
@@ -427,113 +373,44 @@ const Shape = ({
     // 🚀 CRITICAL: Clear dragging state FIRST
     isDraggingRef.current = false;
     
-    // ✅ Get actual dimensions from Konva node (works for auto-sized text!)
-    const actualWidth = type === 'text' ? shape.width() : width;
-    const actualHeight = type === 'text' ? shape.height() : height;
+    // Get actual dimensions using utility (handles text auto-sizing)
+    const shapeData = { type, width, height, points };
+    const dimensions = getActualDimensions(shapeData, shape);
     
-    // Convert to bounding box coordinates for storage
-    let boundingBoxX, boundingBoxY;
-    if (type === 'line' && points && points.length === 4) {
-      // Lines are positioned at center with offsetX/offsetY
-      const centerX = (points[0] + points[2]) / 2;
-      const centerY = (points[1] + points[3]) / 2;
-      const minX = Math.min(points[0], points[2]);
-      const minY = Math.min(points[1], points[3]);
-      // Bounding box position = center position - offset from center to top-left
-      boundingBoxX = finalPos.x - (centerX - minX);
-      boundingBoxY = finalPos.y - (centerY - minY);
-    } else if (type === 'pen' && points && points.length >= 4) {
-      // Pen is positioned at center with offsetX/offsetY
-      const xCoords = points.filter((_, i) => i % 2 === 0);
-      const yCoords = points.filter((_, i) => i % 2 === 1);
-      const centerX = (Math.min(...xCoords) + Math.max(...xCoords)) / 2;
-      const centerY = (Math.min(...yCoords) + Math.max(...yCoords)) / 2;
-      const minX = Math.min(...xCoords);
-      const minY = Math.min(...yCoords);
-      // Bounding box position = center position - offset from center to top-left
-      boundingBoxX = finalPos.x - (centerX - minX);
-      boundingBoxY = finalPos.y - (centerY - minY);
-    } else if (type === 'circle') {
-      // Circle position is center, convert to bounding box top-left
-      // ✅ Use actual dimensions for boundary checking
-      boundingBoxX = finalPos.x - actualWidth / 2;
-      boundingBoxY = finalPos.y - actualHeight / 2;
-    } else if (type === 'text') {
-      // Text is now positioned at center with offsetX/offsetY (like rectangles)
-      // Convert center to bounding box top-left
-      boundingBoxX = finalPos.x - actualWidth / 2;
-      boundingBoxY = finalPos.y - actualHeight / 2;
-    } else {
-      // Rectangle rotates around center, so position is center
-      // Convert center to bounding box top-left
-      boundingBoxX = finalPos.x - width / 2;
-      boundingBoxY = finalPos.y - height / 2;
-    }
+    // Convert Konva position to bounding box for storage
+    const boundingBox = konvaPositionToBoundingBox(finalPos, shapeData, shape);
     
     // Ensure final bounding box position is within bounds (with rotation)
-    // ✅ Use actual dimensions for boundary checking
     const constrainedBoundingBox = constrainToBounds(
-      boundingBoxX, 
-      boundingBoxY, 
-      actualWidth, 
-      actualHeight,
-      rotation
+      boundingBox.x, 
+      boundingBox.y, 
+      dimensions.width, 
+      dimensions.height,
+      rotation,
+      type  // Pass shape type so circles don't calculate rotated bounds
     );
     
-    // For non-line/pen shapes, update position immediately for smooth UX
-    if (type === 'text') {
-      // Text uses center position with offsetX/offsetY (like rectangles)
-      // Convert bounding box back to center
-      const constrainedPos = {
-        x: constrainedBoundingBox.x + actualWidth / 2,
-        y: constrainedBoundingBox.y + actualHeight / 2
-      };
-      shape.position(constrainedPos);
-    } else if (type !== 'line' && type !== 'pen') {
-      // Circle and rectangle use center position with offsetX/offsetY
-      // Convert bounding box back to center position
-      // ✅ Use actual dimensions for accurate positioning
-      const constrainedPos = {
-        x: constrainedBoundingBox.x + actualWidth / 2,
-        y: constrainedBoundingBox.y + actualHeight / 2
-      };
-      
-      // Ensure shape is positioned correctly immediately
-      shape.position(constrainedPos);
-    } else if ((type === 'line' || type === 'pen') && points) {
-      // For lines/pen, optimistically update points AND position to prevent blink
+    // Update Konva position immediately for smooth UX (prevents blink on re-render)
+    const constrainedPos = boundingBoxToKonvaPosition(constrainedBoundingBox, shapeData, shape);
+    shape.position(constrainedPos);
+    
+    // For lines/pen, also update points immediately
+    if ((type === 'line' || type === 'pen') && points) {
       const deltaX = constrainedBoundingBox.x - x;
       const deltaY = constrainedBoundingBox.y - y;
       
-      const translatedPoints = points.map((coord, index) => {
-        if (index % 2 === 0) {
-          return coord + deltaX; // X coordinate
-        } else {
-          return coord + deltaY; // Y coordinate
-        }
-      });
+      const translatedPoints = type === 'line' 
+        ? translateLinePoints(points, deltaX, deltaY)
+        : translatePenPoints(points, deltaX, deltaY);
       
-      // Apply translated points immediately to Konva shape
       shape.points(translatedPoints);
       
-      // Calculate new center position for the shape
-      if (type === 'line' && translatedPoints.length === 4) {
-        const newCenterX = (translatedPoints[0] + translatedPoints[2]) / 2;
-        const newCenterY = (translatedPoints[1] + translatedPoints[3]) / 2;
-        shape.position({ x: newCenterX, y: newCenterY });
-        // Also update offsets to match new center (prevents blink on re-render)
-        shape.offsetX(newCenterX);
-        shape.offsetY(newCenterY);
-      } else if (type === 'pen' && translatedPoints.length >= 4) {
-        const xCoords = translatedPoints.filter((_, i) => i % 2 === 0);
-        const yCoords = translatedPoints.filter((_, i) => i % 2 === 1);
-        const newCenterX = (Math.min(...xCoords) + Math.max(...xCoords)) / 2;
-        const newCenterY = (Math.min(...yCoords) + Math.max(...yCoords)) / 2;
-        shape.position({ x: newCenterX, y: newCenterY });
-        // Also update offsets to match new center (prevents blink on re-render)
-        shape.offsetX(newCenterX);
-        shape.offsetY(newCenterY);
-      }
+      // Update offsets to match new center
+      const bounds = type === 'line' 
+        ? getLineBounds(translatedPoints) 
+        : getPenBounds(translatedPoints);
+      shape.offsetX(bounds.centerX);
+      shape.offsetY(bounds.centerY);
     }
     
     // 🚀 COLLABORATIVE: End drag preview broadcast to other users
@@ -554,34 +431,28 @@ const Shape = ({
         // Calculate updates based on shape type
         const updates = {};
         
-        if ((type === 'line' || type === 'pen') && points && points.length >= 4) {
-          // Translate all points by the offset
-          const updatedPoints = points.map((coord, index) => {
-            if (index % 2 === 0) {
-              // X coordinate
-              return coord + deltaX;
-            } else {
-              // Y coordinate
-              return coord + deltaY;
-            }
-          });
+        if (type === 'line' && points && points.length >= 4) {
+          // Translate line points using utility
+          const updatedPoints = translateLinePoints(points, deltaX, deltaY);
           updates.points = updatedPoints;
           
-          // Also update x,y to keep them in sync with the new bounding box
-          // This ensures stored x,y matches the points' bounding box
-          if (type === 'pen') {
-            const xCoords = updatedPoints.filter((_, i) => i % 2 === 0);
-            const yCoords = updatedPoints.filter((_, i) => i % 2 === 1);
-            updates.x = Math.min(...xCoords);
-            updates.y = Math.min(...yCoords);
-            updates.width = Math.max(...xCoords) - updates.x;
-            updates.height = Math.max(...yCoords) - updates.y;
-          } else if (type === 'line') {
-            updates.x = Math.min(updatedPoints[0], updatedPoints[2]);
-            updates.y = Math.min(updatedPoints[1], updatedPoints[3]);
-            updates.width = Math.abs(updatedPoints[2] - updatedPoints[0]);
-            updates.height = Math.abs(updatedPoints[3] - updatedPoints[1]);
-          }
+          // Update x,y to match new bounding box
+          const bounds = getLineBounds(updatedPoints);
+          updates.x = bounds.x;
+          updates.y = bounds.y;
+          updates.width = bounds.width;
+          updates.height = bounds.height;
+        } else if (type === 'pen' && points && points.length >= 4) {
+          // Translate pen points using utility
+          const updatedPoints = translatePenPoints(points, deltaX, deltaY);
+          updates.points = updatedPoints;
+          
+          // Update x,y to match new bounding box
+          const bounds = getPenBounds(updatedPoints);
+          updates.x = bounds.x;
+          updates.y = bounds.y;
+          updates.width = bounds.width;
+          updates.height = bounds.height;
         } else {
           // For all other shapes, update x/y coordinates
           updates.x = constrainedBoundingBox.x;
@@ -729,16 +600,19 @@ const Shape = ({
   // Render different shapes based on type
   if (type === 'circle') {
     // For circles, use the bounding box to calculate center and radius
+    // Circles are rotationally symmetric - don't apply rotation
     const centerX = x + width / 2;
     const centerY = y + height / 2;
     const radius = Math.min(width, height) / 2;
+    
+    const { rotation: _unused, ...circleProps } = commonProps; // Remove rotation from props
     
     return (
       <Circle
         x={centerX}
         y={centerY}
         radius={radius}
-        {...commonProps}
+        {...circleProps}
       />
     );
   }

@@ -1,15 +1,14 @@
 import { tool } from '@langchain/core/tools';
 import { z } from 'zod';
 import { CANVAS_WIDTH, CANVAS_HEIGHT } from '@/utils/constants';
+import { circleCenterToTopLeft } from '@/utils/shapes';
 
 // COORDINATE SYSTEM: AI receives CENTER coordinates, we store as TOP-LEFT
 export const createCircleTool = tool(
   async ({ x, y, radius, fill }) => {
     // Convert center coordinates to TOP-LEFT of bounding box
     // Circle storage: x, y = top-left, width/height = diameter
-    const diameter = radius * 2;
-    const topLeftX = x - radius;
-    const topLeftY = y - radius;
+    const { x: topLeftX, y: topLeftY, width: diameter, height } = circleCenterToTopLeft(x, y, radius);
     
     // Return batch_operations format for unified execution
     return JSON.stringify({

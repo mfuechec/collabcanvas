@@ -1,13 +1,13 @@
 import { tool } from '@langchain/core/tools';
 import { z } from 'zod';
 import { CANVAS_WIDTH, CANVAS_HEIGHT } from '@/utils/constants';
+import { centerToTopLeft } from '@/utils/shapes';
 
 // COORDINATE SYSTEM: AI receives CENTER coordinates, we store as TOP-LEFT
 export const createRectangleTool = tool(
   async ({ x, y, width, height, fill, cornerRadius }) => {
     // Convert center coordinates to top-left corner for storage
-    const topLeftX = x - (width / 2);
-    const topLeftY = y - (height / 2);
+    const { x: topLeftX, y: topLeftY } = centerToTopLeft(x, y, width, height);
     console.log(`📐 [CREATE_RECTANGLE] AI provided center: (${x}, ${y}), converting to top-left: (${topLeftX}, ${topLeftY}), size: ${width}x${height}${cornerRadius ? `, cornerRadius: ${cornerRadius}` : ''}`);
     
     // Return batch_operations format for unified execution

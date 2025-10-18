@@ -6,13 +6,13 @@
 
 // Import modules
 import { inferUserStyle } from './context/styleInference.js';
-import { classifyRequestComplexity } from './routing/classifier.js';
+import { checkSingleCommandHeuristic } from './routing/heuristics.js';
 import { generateExecutionPlan } from './planning/planner.js';
 import { detectTemplate, executeTemplate } from './templates/index.js';
 
 /**
  * Main entry point for AI command execution
- * Handles the complete flow: classify → plan → execute
+ * Handles the complete flow: heuristics → templates → GPT
  * 
  * @param {string} userMessage - User's natural language command
  * @param {Array} chatHistory - Previous chat messages (for context)
@@ -33,43 +33,60 @@ export async function executeAICommandWithPlanAndExecute(userMessage, chatHistor
     // Log for debugging
     console.log(`🎨 [AI-AGENT] Processing request: "${userMessage}" with ${canvasShapes.length} shapes on canvas`);
     
-    // Step 1: Classify task complexity for routing (with heuristic detection)
-    const complexity = await classifyRequestComplexity(userMessage, canvasShapes);
+    // Step 1: Check for compound heuristic commands (e.g., "clear and create a circle")
+    const commandSeparators = /\s+(and|then)\s+|,\s+/i;
+    const subCommands = userMessage.split(commandSeparators).filter(cmd => {
+      return cmd && !['and', 'then'].includes(cmd.trim().toLowerCase());
+    });
     
-    // Step 1.5a: Handle compound heuristic commands
-    if (typeof complexity === 'object' && complexity.compound) {
-      console.log(`⚡ [COMPOUND-EXECUTION] Executing ${complexity.commands.length} heuristic commands`);
+    if (subCommands.length > 1) {
+      console.log(`⚡ [COMPOUND] Detected ${subCommands.length} sub-commands`);
       
-      // Recursively execute each command and collect results
-      const allActions = [];
-      let combinedResponse = '';
-      
-      for (const { command, type } of complexity.commands) {
-        // Recursively call executeAICommandWithPlanAndExecute for each sub-command
-        const result = await executeAICommandWithPlanAndExecute(command, chatHistory, canvasShapes, currentUserId);
-        allActions.push(...result.actions);
-        combinedResponse += result.response + ' ';
+      const heuristicTypes = [];
+      for (const subCmd of subCommands) {
+        const heuristicType = checkSingleCommandHeuristic(subCmd.trim());
+        if (!heuristicType) {
+          console.log(`   └─ Sub-command "${subCmd.trim()}" is not heuristic, using GPT`);
+          break; // Fall through to GPT
+        }
+        heuristicTypes.push({ command: subCmd.trim(), type: heuristicType });
       }
       
-      return {
-        response: combinedResponse.trim(),
-        actions: allActions
-      };
+      // All commands are heuristic - execute compound
+      if (heuristicTypes.length === subCommands.length) {
+        console.log(`   └─ All commands are heuristic! Executing compound command`);
+        const allActions = [];
+        let combinedResponse = '';
+        
+        for (const { command } of heuristicTypes) {
+          const result = await executeAICommandWithPlanAndExecute(command, chatHistory, canvasShapes, currentUserId);
+          allActions.push(...result.actions);
+          combinedResponse += result.response + ' ';
+        }
+        
+        return {
+          response: combinedResponse.trim(),
+          actions: allActions
+        };
+      }
     }
     
-    // Step 1.5b: Handle direct execution for heuristic commands
-    if (typeof complexity === 'string' && complexity.startsWith('direct_')) {
-      console.log(`⚡ [DIRECT-EXECUTION] Executing heuristic command: ${complexity}`);
+    // Step 2: Check for single heuristic commands
+    const heuristicType = checkSingleCommandHeuristic(userMessage);
+    
+    // Step 3: Handle direct execution for heuristic commands
+    if (heuristicType) {
+      console.log(`⚡ [HEURISTIC] Executing: ${heuristicType}`);
       
       let plan, response;
       
-      if (complexity === 'direct_clear') {
+      if (heuristicType === 'direct_clear') {
         plan = {
           plan: [{ step: 1, tool: 'clear_canvas', args: { tool: 'clear_canvas' }, description: 'Clear all shapes' }],
           reasoning: 'Done! I\'ve cleared the canvas.'
         };
         response = 'Done! I\'ve cleared the canvas.';
-      } else if (complexity === 'direct_move_all') {
+      } else if (heuristicType === 'direct_move_all') {
         const match = userMessage.toLowerCase().match(/^(move|shift)\s+((everything|all|all shapes)\s+)?(up|down|left|right)(\s+by\s+(\d+))?/i);
         const direction = match[4].toLowerCase();
         const distance = match[6] ? parseInt(match[6]) : 100;
@@ -88,7 +105,7 @@ export async function executeAICommandWithPlanAndExecute(userMessage, chatHistor
           reasoning: `Done! I've moved all shapes ${direction}.`
         };
         response = `Done! I've moved all shapes ${direction}.`;
-      } else if (complexity === 'direct_rotate_all') {
+      } else if (heuristicType === 'direct_rotate_all') {
         const match = userMessage.toLowerCase().match(/^(rotate|turn|spin)\s+((everything|all|all shapes)\s+)?(\s+by)?\s*(\d+)\s*(degrees?|°)?/i);
         const angle = parseInt(match[5]);
         
@@ -102,7 +119,7 @@ export async function executeAICommandWithPlanAndExecute(userMessage, chatHistor
           reasoning: `Done! I've rotated all shapes by ${angle} degrees.`
         };
         response = `Done! I've rotated all shapes by ${angle} degrees.`;
-      } else if (complexity === 'direct_scale_all') {
+      } else if (heuristicType === 'direct_scale_all') {
         const lowerMsg = userMessage.toLowerCase();
         let scaleFactor, description;
         
@@ -130,7 +147,7 @@ export async function executeAICommandWithPlanAndExecute(userMessage, chatHistor
           reasoning: `Done! I've made everything ${description}.`
         };
         response = `Done! I've made everything ${description}.`;
-      } else if (complexity === 'direct_create_shape') {
+      } else if (heuristicType === 'direct_create_shape') {
         const lowerMsg = userMessage.toLowerCase();
         const match = lowerMsg.match(/^(create|draw|make|add)\s+(a|an)?\s*((red|green|blue|yellow|orange|purple|pink|black|white)\s+)?(circle|rectangle|square|text|line)$/i);
         const shapeType = match[5];
@@ -189,7 +206,7 @@ export async function executeAICommandWithPlanAndExecute(userMessage, chatHistor
       };
     }
     
-    // Step 1.5c: Template detection (after heuristics, before GPT)
+    // Step 4: Template detection (after heuristics, before GPT)
     const templateMatch = detectTemplate(userMessage);
     
     if (templateMatch) {
@@ -228,9 +245,9 @@ export async function executeAICommandWithPlanAndExecute(userMessage, chatHistor
       }
     }
     
-    // Step 2: Generate execution plan (smart prompt, intelligent routing)
-    console.log('🧠 [PLANNING] No template match, using GPT...');
-    const plan = await generateExecutionPlan(userMessage, canvasShapes, complexity, userStyleGuide);
+    // Step 5: Generate execution plan using GPT-4o (no classification overhead)
+    console.log('🧠 [GPT] Generating execution plan...');
+    const plan = await generateExecutionPlan(userMessage, canvasShapes, userStyleGuide);
     
     // Step 3: Convert plan to actions for AIChat.jsx to execute
     // Don't execute here - let React components handle it for proper state management

@@ -1,17 +1,14 @@
 import { tool } from '@langchain/core/tools';
 import { z } from 'zod';
 import { CANVAS_WIDTH, CANVAS_HEIGHT } from '@/utils/constants';
+import { textCenterToTopLeft } from '@/utils/shapes';
 
 // COORDINATE SYSTEM: AI receives CENTER coordinates, we store as TOP-LEFT
 export const createTextTool = tool(
   async ({ x, y, text, fontSize, fill }) => {
     // Convert center coordinates to top-left corner for storage
-    // Width estimation is approximate (0.6 * fontSize per character)
-    const estimatedWidth = text.length * fontSize * 0.6;
-    const height = fontSize + 8;
-    
-    const topLeftX = x - (estimatedWidth / 2);
-    const topLeftY = y - (height / 2);
+    // Uses standardized text dimension formula (fontSize * 1.2 for height)
+    const { x: topLeftX, y: topLeftY, width: estimatedWidth, height } = textCenterToTopLeft(x, y, text, fontSize);
     
     // Return batch_operations format for unified execution
     return JSON.stringify({

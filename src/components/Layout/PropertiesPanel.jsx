@@ -3,6 +3,7 @@ import { useCanvas } from '../../hooks/useCanvas';
 import { useTheme } from '../../contexts/ThemeContext';
 import { COLORS, LAYOUT, SPACING, BORDER_RADIUS, TYPOGRAPHY } from '../../utils/designSystem';
 import { CANVAS_WIDTH, CANVAS_HEIGHT } from '../../utils/constants';
+import { isRotationValid as checkRotationValid, findMaxValidRotation as findMaxRotation } from '../../utils/shapes';
 
 const PropertiesPanel = () => {
   const { shapes, selectedShapeId, updateShape } = useCanvas();
@@ -40,156 +41,23 @@ const PropertiesPanel = () => {
         strokeWidth: selectedShape.strokeWidth || 2,
         text: selectedShape.text || 'Text',
         fontSize: selectedShape.fontSize || 48,
-        rotation: Math.round(selectedShape.rotation || 0),
+        rotation: selectedShape.type === 'circle' ? 0 : Math.round(selectedShape.rotation || 0), // Circles don't rotate
         cornerRadius: Math.round(selectedShape.cornerRadius || 0),
       });
+      
+      // Reset rotation to 0 for circles if it was somehow set
+      if (selectedShape.type === 'circle' && selectedShape.rotation && selectedShape.rotation !== 0) {
+        updateShape(selectedShape.id, { rotation: 0 });
+      }
     }
-  }, [selectedShape]);
+  }, [selectedShape, updateShape]);
   
   const handleInputChange = (field, value) => {
     setLocalValues(prev => ({ ...prev, [field]: value }));
   };
 
-  // Check if a rotation would keep the shape within bounds
-  const isRotationValid = (shape, rotation) => {
-    // For lines and pen, check actual points rotation
-    if ((shape.type === 'line' || shape.type === 'pen') && shape.points && shape.points.length >= 4) {
-      const radians = (rotation * Math.PI) / 180;
-      const cos = Math.cos(radians);
-      const sin = Math.sin(radians);
-      
-      // Calculate center of the shape
-      const xCoords = shape.points.filter((_, i) => i % 2 === 0);
-      const yCoords = shape.points.filter((_, i) => i % 2 === 1);
-      const centerX = (Math.min(...xCoords) + Math.max(...xCoords)) / 2;
-      const centerY = (Math.min(...yCoords) + Math.max(...yCoords)) / 2;
-      
-      // Rotate all points around the center
-      for (let i = 0; i < shape.points.length; i += 2) {
-        const px = shape.points[i];
-        const py = shape.points[i + 1];
-        
-        // Translate to origin (relative to center)
-        const relX = px - centerX;
-        const relY = py - centerY;
-        
-        // Rotate
-        const rotatedX = relX * cos - relY * sin;
-        const rotatedY = relX * sin + relY * cos;
-        
-        // Translate back
-        const finalX = rotatedX + centerX;
-        const finalY = rotatedY + centerY;
-        
-        // Check if this point is within canvas bounds
-        if (finalX < 0 || finalX > CANVAS_WIDTH || finalY < 0 || finalY > CANVAS_HEIGHT) {
-          return false;
-        }
-      }
-      
-      return true;
-    }
-    
-    // For rectangles, circles, and text, use bounding box approach
-    const radians = (rotation * Math.PI) / 180;
-    const cos = Math.cos(radians);
-    const sin = Math.sin(radians);
-    
-    // For text shapes, estimate dimensions based on text content
-    // Text auto-sizes, so we need to approximate width/height
-    let shapeWidth = shape.width;
-    let shapeHeight = shape.height;
-    
-    if (shape.type === 'text') {
-      // Rough estimation: 0.6 * fontSize per character for width
-      const text = shape.text || 'Text';
-      const fontSize = shape.fontSize || 48;
-      shapeWidth = text.length * fontSize * 0.6;
-      shapeHeight = fontSize * 1.2; // Height is roughly 1.2x fontSize
-    }
-    
-    // Four corners of the unrotated rectangle (relative to top-left)
-    const corners = [
-      { x: 0, y: 0 },
-      { x: shapeWidth, y: 0 },
-      { x: shapeWidth, y: shapeHeight },
-      { x: 0, y: shapeHeight }
-    ];
-    
-    // Rotate each corner and find the bounding box
-    const rotatedCorners = corners.map(corner => ({
-      x: corner.x * cos - corner.y * sin,
-      y: corner.x * sin + corner.y * cos
-    }));
-    
-    const minX = Math.min(...rotatedCorners.map(c => c.x));
-    const maxX = Math.max(...rotatedCorners.map(c => c.x));
-    const minY = Math.min(...rotatedCorners.map(c => c.y));
-    const maxY = Math.max(...rotatedCorners.map(c => c.y));
-    
-    // Check if rotated bounding box fits within canvas
-    const adjustedX = shape.x + minX;
-    const adjustedY = shape.y + minY;
-    const rotatedWidth = maxX - minX;
-    const rotatedHeight = maxY - minY;
-    
-    return (
-      adjustedX >= 0 &&
-      adjustedY >= 0 &&
-      adjustedX + rotatedWidth <= CANVAS_WIDTH &&
-      adjustedY + rotatedHeight <= CANVAS_HEIGHT
-    );
-  };
-
-  // Find the maximum valid rotation in the direction of targetRotation
-  const findMaxValidRotation = (shape, currentRotation, targetRotation) => {
-    // If target is valid, return it
-    if (isRotationValid(shape, targetRotation)) {
-      return targetRotation;
-    }
-    
-    // Binary search for the maximum valid rotation
-    let low = currentRotation;
-    let high = targetRotation;
-    
-    // Determine direction
-    const direction = targetRotation > currentRotation ? 1 : -1;
-    
-    // Handle wrapping around 360
-    if (Math.abs(targetRotation - currentRotation) > 180) {
-      // User is rotating the "short way" around the circle
-      if (direction > 0) {
-        high = targetRotation - 360;
-      } else {
-        high = targetRotation + 360;
-      }
-    }
-    
-    let maxValid = currentRotation;
-    const iterations = 20; // Precision: ~0.18 degrees with 360/2^20
-    
-    for (let i = 0; i < iterations; i++) {
-      const mid = (low + high) / 2;
-      const normalizedMid = ((mid % 360) + 360) % 360;
-      
-      if (isRotationValid(shape, normalizedMid)) {
-        maxValid = normalizedMid;
-        if (direction > 0) {
-          low = mid;
-        } else {
-          high = mid;
-        }
-      } else {
-        if (direction > 0) {
-          high = mid;
-        } else {
-          low = mid;
-        }
-      }
-    }
-    
-    return Math.round(maxValid);
-  };
+  // Rotation validation - now using consolidated utilities
+  // (Eliminated ~140 lines of complex rotation matrix math)
   
   const handleInputBlur = (field) => {
     if (!selectedShape) return;
@@ -464,64 +332,66 @@ const PropertiesPanel = () => {
               </div>
             </div>
             
-            {/* Rotation Section */}
-            <div style={sectionStyle}>
-              <div style={labelStyle}>Rotation</div>
-              <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                <input
-                  type="range"
-                  min="0"
-                  max="360"
-                  value={localValues.rotation}
-                  onChange={(e) => {
-                    const targetRotation = parseInt(e.target.value);
-                    const currentRotation = selectedShape.rotation || 0;
-                    
-                    // Find max valid rotation in the target direction
-                    const validRotation = findMaxValidRotation(selectedShape, currentRotation, targetRotation);
-                    
-                    handleInputChange('rotation', validRotation);
-                    updateShape(selectedShape.id, { rotation: validRotation });
-                  }}
-                  style={{
-                    flex: 1,
-                    accentColor: colors.accent,
-                  }}
-                />
-                <input
-                  type="number"
-                  min="0"
-                  max="360"
-                  value={localValues.rotation}
-                  onChange={(e) => handleInputChange('rotation', e.target.value)}
-                  onBlur={() => {
-                    let targetRotation = parseInt(localValues.rotation);
-                    if (isNaN(targetRotation)) targetRotation = 0;
-                    targetRotation = ((targetRotation % 360) + 360) % 360; // Normalize to 0-360
-                    
-                    const currentRotation = selectedShape.rotation || 0;
-                    
-                    // Find max valid rotation in the target direction
-                    const validRotation = findMaxValidRotation(selectedShape, currentRotation, targetRotation);
-                    
-                    handleInputChange('rotation', validRotation);
-                    updateShape(selectedShape.id, { rotation: validRotation });
-                  }}
-                  style={{
-                    ...inputStyle,
-                    width: '50px',
+            {/* Rotation Section - Hidden for circles (rotationally symmetric) */}
+            {selectedShape.type !== 'circle' && (
+              <div style={sectionStyle}>
+                <div style={labelStyle}>Rotation</div>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                  <input
+                    type="range"
+                    min="0"
+                    max="360"
+                    value={localValues.rotation}
+                    onChange={(e) => {
+                      const targetRotation = parseInt(e.target.value);
+                      const currentRotation = selectedShape.rotation || 0;
+                      
+                      // Find max valid rotation in the target direction using utility
+                      const validRotation = findMaxRotation(selectedShape, currentRotation, targetRotation);
+                      
+                      handleInputChange('rotation', validRotation);
+                      updateShape(selectedShape.id, { rotation: validRotation });
+                    }}
+                    style={{
+                      flex: 1,
+                      accentColor: colors.accent,
+                    }}
+                  />
+                  <input
+                    type="number"
+                    min="0"
+                    max="360"
+                    value={localValues.rotation}
+                    onChange={(e) => handleInputChange('rotation', e.target.value)}
+                    onBlur={() => {
+                      let targetRotation = parseInt(localValues.rotation);
+                      if (isNaN(targetRotation)) targetRotation = 0;
+                      targetRotation = ((targetRotation % 360) + 360) % 360; // Normalize to 0-360
+                      
+                      const currentRotation = selectedShape.rotation || 0;
+                      
+                      // Find max valid rotation in the target direction using utility
+                      const validRotation = findMaxRotation(selectedShape, currentRotation, targetRotation);
+                      
+                      handleInputChange('rotation', validRotation);
+                      updateShape(selectedShape.id, { rotation: validRotation });
+                    }}
+                    style={{
+                      ...inputStyle,
+                      width: '50px',
+                      fontSize: '11px',
+                    }}
+                  />
+                  <span style={{
                     fontSize: '11px',
-                  }}
-                />
-                <span style={{
-                  fontSize: '11px',
-                  fontFamily: TYPOGRAPHY.fontFamily.mono,
-                  color: colors.textSecondary,
-                }}>
-                  °
-                </span>
+                    fontFamily: TYPOGRAPHY.fontFamily.mono,
+                    color: colors.textSecondary,
+                  }}>
+                    °
+                  </span>
+                </div>
               </div>
-            </div>
+            )}
             
             {/* Corner Radius Section - Only for rectangles */}
             {selectedShape.type === 'rectangle' && (

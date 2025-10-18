@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from 'react';
 import { useCanvas } from '../../hooks/useCanvas';
 import { useTheme } from '../../contexts/ThemeContext';
 import { COLORS, SPACING, BORDER_RADIUS, SHADOWS, TRANSITIONS } from '../../utils/designSystem';
+import { getShapeBounds } from '../../utils/shapes';
 
 const MINIMAP_WIDTH = 200;
 const MINIMAP_HEIGHT = 150;
@@ -59,29 +60,21 @@ const Minimap = () => {
     shapes.forEach(shape => {
       ctx.save();
       
-      // Scale shape coordinates and add offset
-      const x = (shape.x * scale) + offsetX;
-      const y = (shape.y * scale) + offsetY;
+      // Get shape bounds using consolidated utility (handles all types including text)
+      const bounds = getShapeBounds(shape);
       
-      // Calculate dimensions - text shapes need estimation since they auto-size
-      let width, height;
-      if (shape.type === 'text') {
-        // Estimate text dimensions using same formula as PropertiesPanel
-        const textContent = shape.text || 'Text';
-        const fontSize = shape.fontSize || 48;
-        width = (textContent.length * fontSize * 0.6) * scale;
-        height = (fontSize * 1.2) * scale;
-      } else {
-        width = shape.width * scale;
-        height = shape.height * scale;
-      }
+      // Scale shape coordinates and add offset
+      const x = (bounds.x * scale) + offsetX;
+      const y = (bounds.y * scale) + offsetY;
+      const width = bounds.width * scale;
+      const height = bounds.height * scale;
 
       // Set fill color
       ctx.fillStyle = shape.fill || '#cccccc';
       ctx.globalAlpha = shape.opacity || 1.0;
 
-      // Apply rotation if present - ALL shapes now rotate around their center
-      if (shape.rotation && shape.rotation !== 0) {
+      // Apply rotation if present - EXCEPT for circles (they're rotationally symmetric)
+      if (shape.type !== 'circle' && shape.rotation && shape.rotation !== 0) {
         // Translate to shape center, rotate, then draw offset by half dimensions
         ctx.translate(x + width / 2, y + height / 2);
         ctx.rotate((shape.rotation * Math.PI) / 180);
@@ -89,11 +82,12 @@ const Minimap = () => {
 
       // Draw based on shape type
       if (shape.type === 'circle') {
-        const centerX = shape.rotation ? 0 : x + width / 2;
-        const centerY = shape.rotation ? 0 : y + height / 2;
+        // Circles never rotate, always draw at bounding box center
+        const centerX = width / 2;
+        const centerY = height / 2;
         const radius = Math.min(width, height) / 2;
         ctx.beginPath();
-        ctx.arc(centerX, centerY, radius, 0, Math.PI * 2);
+        ctx.arc(x + centerX, y + centerY, radius, 0, Math.PI * 2);
         ctx.fill();
       } else if (shape.type === 'line' && shape.points && shape.points.length >= 4) {
         ctx.strokeStyle = shape.stroke || shape.fill || '#cccccc';
@@ -150,7 +144,26 @@ const Minimap = () => {
         // Rectangle (draw as rectangle) - rotate around center
         const rectX = shape.rotation ? -width / 2 : x;
         const rectY = shape.rotation ? -height / 2 : y;
-        ctx.fillRect(rectX, rectY, width, height);
+        const cornerRadius = (shape.cornerRadius || 0) * scale;
+        
+        if (cornerRadius > 0) {
+          // Draw rounded rectangle using path
+          ctx.beginPath();
+          ctx.moveTo(rectX + cornerRadius, rectY);
+          ctx.lineTo(rectX + width - cornerRadius, rectY);
+          ctx.arcTo(rectX + width, rectY, rectX + width, rectY + cornerRadius, cornerRadius);
+          ctx.lineTo(rectX + width, rectY + height - cornerRadius);
+          ctx.arcTo(rectX + width, rectY + height, rectX + width - cornerRadius, rectY + height, cornerRadius);
+          ctx.lineTo(rectX + cornerRadius, rectY + height);
+          ctx.arcTo(rectX, rectY + height, rectX, rectY + height - cornerRadius, cornerRadius);
+          ctx.lineTo(rectX, rectY + cornerRadius);
+          ctx.arcTo(rectX, rectY, rectX + cornerRadius, rectY, cornerRadius);
+          ctx.closePath();
+          ctx.fill();
+        } else {
+          // Simple rectangle (no rounded corners)
+          ctx.fillRect(rectX, rectY, width, height);
+        }
       }
 
       ctx.restore();

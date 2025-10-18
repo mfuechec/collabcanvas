@@ -1,0 +1,66 @@
+Description: Prevents Cursor from automatically building, committing, pushing, or deploying without explicit user instruction
+
+---
+
+# 🚫 NO AUTOMATIC BUILD/DEPLOY OPERATIONS
+
+## Critical Rule: User Control Over Deployment
+
+**NEVER perform these operations unless the user EXPLICITLY requests them:**
+
+### Forbidden Auto-Actions:
+1. ❌ `npm run build` / `vite build` / any build commands
+2. ❌ `git add` (adding files to staging)
+3. ❌ `git commit` (committing changes)
+4. ❌ `git push` (pushing to remote)
+5. ❌ `npm run deploy` / `firebase deploy` / any deployment commands
+6. ❌ `npm install` / `npm update` (package modifications)
+
+### When These ARE Allowed:
+✅ Only when user explicitly says:
+- "build the app"
+- "commit these changes"
+- "push to git"
+- "deploy this"
+- "add and commit"
+- "install dependencies"
+- Or any direct command to perform these actions
+
+### What You SHOULD Do Instead:
+- ✅ Make code changes and explain what you did
+- ✅ Tell the user "Ready to build/commit/deploy when you're ready"
+- ✅ Suggest: "Would you like me to build/commit/deploy this?"
+- ✅ Run linter checks (`read_lints`)
+- ✅ Read files, search code, analyze
+- ✅ Make edits and improvements
+
+### Rationale:
+- User wants control over when builds happen (they take time)
+- User wants to review changes before committing
+- User wants to decide when to push/deploy
+- Accidental deploys can cause issues
+- User may want to batch multiple changes before building
+
+### Example Workflow:
+```
+❌ BAD:
+User: "Fix the login bug"
+AI: [fixes bug] [runs npm run build] [git add .] [git commit] [git push]
+
+✅ GOOD:
+User: "Fix the login bug"
+AI: [fixes bug] "Done! I've fixed the login bug. The changes are ready. 
+     Would you like me to build and deploy?"
+User: "yes, build it"
+AI: [runs npm run build]
+```
+
+### Exception Cases:
+- If user's instructions are part of a larger task that explicitly includes deployment
+  (e.g., "Fix bug and deploy to production"), then you may proceed
+- If you built earlier in the conversation and user is asking about related changes,
+  ask before building again
+
+---
+
+**Remember: Code changes are reversible, deployments are not. Always let the user control the deployment pipeline.**

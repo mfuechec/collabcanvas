@@ -1,4 +1,4 @@
-import { gpt4oStructured, gpt4oMiniStructured } from '../config/models.js';
+import { gpt4oStructured } from '../config/models.js';
 import { buildSmartContext } from '../context/contextBuilder.js';
 import { buildStaticSystemPrompt, buildDynamicContext } from './prompts/systemPrompt.js';
 
@@ -11,20 +11,21 @@ const STATIC_SYSTEM_PROMPT = buildStaticSystemPrompt();
 
 /**
  * Generate an execution plan for a user request
- * Uses structured outputs and prompt caching for 50% speed boost
+ * Uses GPT-4o with structured outputs and prompt caching for optimal performance
+ * 
+ * OPTIMIZATION: No classification overhead - always use GPT-4o for best quality
  * 
  * CACHING STRATEGY:
  * - Static prompt (design system, rules, examples) → cached by OpenAI
  * - Dynamic context (canvas state, user style) → prepended to user message
- * - Result: First request ~10s, subsequent requests ~5s (50% faster!)
+ * - Result: First request ~3-6s, subsequent requests ~1.5-3s (50% faster with cache!)
  * 
  * @param {string} userMessage - User's natural language request
  * @param {Array} canvasShapes - Current shapes on the canvas
- * @param {string} complexity - Task complexity ('simple', 'creative', or 'complex')
  * @param {string} userStyleGuide - User's inferred style preferences
  * @returns {Object} Execution plan with steps and reasoning
  */
-export async function generateExecutionPlan(userMessage, canvasShapes, complexity, userStyleGuide = '') {
+export async function generateExecutionPlan(userMessage, canvasShapes, userStyleGuide = '') {
   // Build smart context (only includes relevant canvas information)
   const currentCanvasState = buildSmartContext(userMessage, canvasShapes, true);
   
@@ -36,42 +37,56 @@ export async function generateExecutionPlan(userMessage, canvasShapes, complexit
     ? `${dynamicContext}User request: ${userMessage}`
     : userMessage;
   
-  // Select model based on complexity
-  // Use mini for simple tasks only, GPT-4o for creative/complex (better quality)
-  const selectedModel = (complexity === 'simple') ? gpt4oMiniStructured : gpt4oStructured;
+  // Always use GPT-4o for best quality (no classification overhead)
+  const selectedModel = gpt4oStructured;
   
-  console.log(`🤖 [ROUTING] ${complexity.toUpperCase()} task → Using ${complexity === 'simple' ? 'GPT-4o-mini' : 'GPT-4o'}`);
+  console.log(`🤖 [MODEL] Using GPT-4o (best quality, no classification overhead)`);
   console.log(`🔄 [CACHE] Static prompt (~8K tokens) cacheable, dynamic context (~${Math.round(dynamicContext.length / 4)} tokens)`);
   
-  // Generate plan using structured output
+  // Generate plan using structured output with raw response metadata
   // OpenAI automatically caches the static system message across requests
   const startTime = performance.now();
-  const response = await selectedModel.invoke([
+  const rawResponse = await selectedModel.invoke([
     { role: 'system', content: STATIC_SYSTEM_PROMPT }, // ← Cached!
     { role: 'user', content: fullUserMessage }          // ← Fresh each time
   ]);
   const inferenceTime = performance.now() - startTime;
   
-  // Debug: Log full response structure to find cache info
-  console.log(`🔍 [CACHE-DEBUG] Response keys:`, Object.keys(response));
-  console.log(`🔍 [CACHE-DEBUG] Response metadata:`, JSON.stringify(response.response_metadata, null, 2));
-  console.log(`🔍 [CACHE-DEBUG] Full response:`, response);
+  // With includeRaw: true, response structure is { parsed: {...}, raw: {...} }
+  const response = rawResponse.parsed || rawResponse;  // Fallback for compatibility
+  const raw = rawResponse.raw || rawResponse;
   
-  // Check for cache hit/miss in response metadata
-  // OpenAI includes usage info with cache details
-  if (response.response_metadata?.usage) {
-    const usage = response.response_metadata.usage;
-    const promptTokens = usage.prompt_tokens || 0;
-    const cachedTokens = usage.prompt_tokens_details?.cached_tokens || 0;
+  // Debug: Log response structure
+  console.log(`🔍 [CACHE-DEBUG] Response type:`, typeof rawResponse);
+  console.log(`🔍 [CACHE-DEBUG] Has 'raw' field:`, 'raw' in rawResponse);
+  console.log(`🔍 [CACHE-DEBUG] Has 'parsed' field:`, 'parsed' in rawResponse);
+  
+  // Access metadata from raw response
+  const metadata = raw.response_metadata || raw.usage_metadata || {};
+  
+  if (metadata.usage || metadata.token_usage) {
+    const usage = metadata.usage || metadata.token_usage;
+    const promptTokens = usage.prompt_tokens || usage.input_tokens || 0;
+    const cachedTokens = usage.prompt_tokens_details?.cached_tokens || 
+                        usage.cached_tokens || 
+                        usage.prompt_cache_hit_tokens || 0;
+    
+    console.log(`📊 [CACHE-DEBUG] Usage info:`, JSON.stringify(usage, null, 2));
     
     if (cachedTokens > 0) {
       const cachePercent = Math.round((cachedTokens / promptTokens) * 100);
-      console.log(`✅ [CACHE-HIT] ${cachedTokens}/${promptTokens} tokens cached (${cachePercent}%) → ${Math.round(inferenceTime)}ms`);
+      const savedTime = Math.round((cachedTokens / promptTokens) * inferenceTime);
+      console.log(`✅ [CACHE-HIT] ${cachedTokens}/${promptTokens} tokens cached (${cachePercent}%)`);
+      console.log(`   ├─ Inference time: ${Math.round(inferenceTime)}ms`);
+      console.log(`   └─ Estimated time saved: ~${savedTime}ms`);
     } else {
-      console.log(`❌ [CACHE-MISS] No cached tokens → ${Math.round(inferenceTime)}ms (expect ~50% speedup on next request)`);
+      console.log(`❌ [CACHE-MISS] 0/${promptTokens} tokens cached`);
+      console.log(`   ├─ Inference time: ${Math.round(inferenceTime)}ms`);
+      console.log(`   └─ Next request should be ~50% faster with cache`);
     }
   } else {
-    console.log(`⚠️ [CACHE] No usage metadata available → ${Math.round(inferenceTime)}ms`);
+    console.log(`⚠️ [CACHE] No usage metadata found → ${Math.round(inferenceTime)}ms`);
+    console.log(`   Available keys:`, Object.keys(metadata));
   }
   
   return response;

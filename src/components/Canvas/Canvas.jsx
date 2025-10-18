@@ -1,6 +1,6 @@
 // Canvas Component - Modern canvas with drawing functionality and theme support
 import { useEffect, useCallback, useRef, useState, useMemo } from 'react';
-import { Stage, Layer, Rect, Circle, Line } from 'react-konva';
+import { Stage, Layer, Rect, Circle, Line, Text } from 'react-konva';
 import { useCanvas } from '../../hooks/useCanvas';
 import { useCursors } from '../../hooks/useCursors';
 import { useCanvasMode, SHAPE_TYPES } from '../../contexts/CanvasModeContext';
@@ -738,6 +738,20 @@ const Canvas = () => {
 
               {/* Other Users' Drag Previews */}
               {Object.entries(otherUsersDragPreviews).map(([userId, dragPreview]) => {
+                // 🐛 DEBUG: Log drag preview data
+                console.log('🔍 [DRAG_PREVIEW] Rendering drag preview:', {
+                  userId,
+                  type: dragPreview.type,
+                  x: dragPreview.x,
+                  y: dragPreview.y,
+                  width: dragPreview.width,
+                  height: dragPreview.height,
+                  text: dragPreview.text,
+                  fontSize: dragPreview.fontSize,
+                  hasText: !!dragPreview.text,
+                  allData: dragPreview
+                });
+                
                 // Use user's color with enhanced visual feedback for dragging
                 const userColor = dragPreview.userColor || '#ef4444'; // Default to red if no color
                 const fillColor = `${userColor}44`; // Add transparency (27%)
@@ -761,10 +775,43 @@ const Canvas = () => {
                 
                 // Render based on shape type
                 if (dragPreview.type === 'circle') {
+                  console.log('✅ [DRAG_PREVIEW] Rendering circle preview');
+                } else if (dragPreview.type === 'text') {
+                  console.log('🔍 [DRAG_PREVIEW] Text type detected!', {
+                    hasText: !!dragPreview.text,
+                    text: dragPreview.text,
+                    fontSize: dragPreview.fontSize,
+                    width: dragPreview.width,
+                    height: dragPreview.height
+                  });
+                }
+                
+                if (dragPreview.type === 'circle') {
+                  // Circles are rotationally symmetric - don't apply rotation
+                  const { rotation: _unused, ...circleProps } = dragProps;
                   const centerX = dragPreview.x + dragPreview.width / 2;
                   const centerY = dragPreview.y + dragPreview.height / 2;
                   const radius = Math.min(dragPreview.width, dragPreview.height) / 2;
-                  return <Circle x={centerX} y={centerY} radius={radius} {...dragProps} />;
+                  return <Circle x={centerX} y={centerY} radius={radius} {...circleProps} />;
+                } else if (dragPreview.type === 'text') {
+                  console.log('✅ [DRAG_PREVIEW] Rendering text preview');
+                  // Text uses top-left positioning, Konva auto-sizes based on content
+                  return (
+                    <Text
+                      x={dragPreview.x}
+                      y={dragPreview.y}
+                      text={dragPreview.text || 'Text'}
+                      fontSize={dragPreview.fontSize || 48}
+                      fill={userColor} // Use userColor directly for text
+                      opacity={0.7} // Slightly transparent for preview
+                      rotation={dragPreview.rotation || 0}
+                      shadowColor={userColor}
+                      shadowBlur={8}
+                      shadowOpacity={0.3}
+                      perfectDrawEnabled={false}
+                      listening={false}
+                    />
+                  );
                 } else if (dragPreview.type === 'line' && dragPreview.points && dragPreview.points.length === 4) {
                   // For line drag preview, match actual line rendering with center position and offsets
                   const centerX = (dragPreview.points[0] + dragPreview.points[2]) / 2;
@@ -811,6 +858,7 @@ const Canvas = () => {
                     height={dragPreview.height}
                     offsetX={dragPreview.width / 2}
                     offsetY={dragPreview.height / 2}
+                    cornerRadius={dragPreview.cornerRadius || 0}
                     {...dragProps}
                   />
                 );

@@ -29,6 +29,11 @@ export const gpt4oMini = new ChatOpenAI({
 });
 
 // Structured output models (with schema validation)
-export const gpt4oStructured = gpt4o.withStructuredOutput(executionPlanSchema);
-export const gpt4oMiniStructured = gpt4oMini.withStructuredOutput(executionPlanSchema);
+// ⚠️ IMPORTANT: Use includeRaw: true to preserve response_metadata for cache monitoring
+export const gpt4oStructured = gpt4o.withStructuredOutput(executionPlanSchema, { 
+  includeRaw: true  // Preserves response_metadata with usage stats
+});
+export const gpt4oMiniStructured = gpt4oMini.withStructuredOutput(executionPlanSchema, { 
+  includeRaw: true  // Preserves response_metadata with usage stats
+});
 
