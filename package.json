@@ -13,7 +13,11 @@
     "test:coverage": "vitest --coverage",
     "dry-check": "node scripts/dry-agent.js",
     "dry-check:verbose": "node scripts/dry-agent.js --verbose",
-    "dry-check:incremental": "node scripts/dry-agent.js --incremental"
+    "dry-check:incremental": "node scripts/dry-agent.js --incremental",
+    "analyze-todos": "node scripts/agents/analyze-todos.js",
+    "watch-todos": "node scripts/agents/watch-todos.js",
+    "archive-todos": "node scripts/agents/archive-todos.js",
+    "todo": "code TODO.md"
   },
   "dependencies": {
     "@dnd-kit/core": "^6.3.1",
