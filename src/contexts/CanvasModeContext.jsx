@@ -1,6 +1,7 @@
 // Canvas Mode Context - Drawing and interaction mode management
 import { createContext, useContext, useState, useCallback } from 'react';
 import { useDrawingPreviews } from '../hooks/useDrawingPreviews';
+import { circleCenterToTopLeft } from '../utils/shapes';
 
 const CanvasModeContext = createContext();
 
@@ -166,13 +167,11 @@ export const CanvasModeProvider = ({ children }) => {
           Math.pow(drawPreview.currentY - drawPreview.startY, 2)
         );
         
-        // Convert to bounding box for storage (x, y = top-left corner)
+        // Convert to bounding box for storage (x, y = top-left corner) using utility
+        const topLeft = circleCenterToTopLeft(centerX, centerY, radius);
         result = {
           type: 'circle',
-          x: centerX - radius,
-          y: centerY - radius,
-          width: radius * 2,
-          height: radius * 2
+          ...topLeft
         };
       } else if (drawPreview.type === 'line') {
         // For lines: store start and end points

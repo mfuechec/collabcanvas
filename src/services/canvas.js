@@ -25,6 +25,7 @@ import {
 } from 'firebase/database';
 import { getAuth } from 'firebase/auth';
 import { db, rtdb } from './firebase';
+import { circleCenterToTopLeft, circleTopLeftToCenter } from '../utils/shapes';
 
 // Enhanced error handling wrapper for canvas operations
 const handleCanvasError = (error, operation, context = {}) => {
@@ -544,11 +545,12 @@ const batchOperations = async (operations, canvasId = CANVAS_DOC_ID) => {
               y: 0
             } : shapeType === 'circle' ? {
               // Circles: use radius to calculate width/height
-              // AI provides CENTER coordinates, convert to TOP-LEFT for storage
-              width: (shapeData.radius || 50) * 2,
-              height: (shapeData.radius || 50) * 2,
-              x: (shapeData.x !== undefined ? shapeData.x : 100) - (shapeData.radius || 50),
-              y: (shapeData.y !== undefined ? shapeData.y : 100) - (shapeData.radius || 50),
+              // AI provides CENTER coordinates, convert to TOP-LEFT for storage using utility
+              ...circleCenterToTopLeft(
+                shapeData.x !== undefined ? shapeData.x : 100,
+                shapeData.y !== undefined ? shapeData.y : 100,
+                shapeData.radius || 50
+              ),
               fill: shapeData.fill || '#cccccc'
             } : {
               // Rectangles and text: standard defaults
@@ -1011,22 +1013,31 @@ export const executeSmartOperation = async (action, data, canvasId = CANVAS_DOC_
           const currentShape = shapeDoc.data();
           
           if (currentShape.type === 'circle') {
-            const oldRadius = Math.min(currentShape.width || 0, currentShape.height || 0) / 2;
-            const newRadius = radius;
-            const newDiameter = newRadius * 2;
+            // Use consolidated utilities for circle coordinate handling
+            // Convert current top-left to center
+            const currentCenter = circleTopLeftToCenter(
+              currentShape.x,
+              currentShape.y,
+              currentShape.width,
+              currentShape.height
+            );
             
-            // Calculate position adjustment to keep center in same place
-            const radiusDiff = oldRadius - newRadius;
+            // Convert back to top-left with new radius
+            const newTopLeft = circleCenterToTopLeft(
+              currentCenter.centerX,
+              currentCenter.centerY,
+              radius
+            );
             
             const updates = {
               ...otherUpdates,
-              x: currentShape.x + radiusDiff,
-              y: currentShape.y + radiusDiff,
-              width: newDiameter,
-              height: newDiameter,
+              x: newTopLeft.x,
+              y: newTopLeft.y,
+              width: newTopLeft.width,
+              height: newTopLeft.height,
             };
             
-            console.log(`🔵 [SMART-OP] Adjusted position: (${updates.x}, ${updates.y}) for radius ${newRadius}`);
+            console.log(`🔵 [SMART-OP] Adjusted position: (${updates.x}, ${updates.y}) for radius ${radius}`);
             return await updateShape(shapeId, updates, canvasId);
           }
         }

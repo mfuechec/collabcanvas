@@ -9,7 +9,12 @@ import {
   getLineBounds,
   getPenBounds,
   translateLinePoints,
-  translatePenPoints
+  translatePenPoints,
+  getRectangleRenderProps,
+  getCircleRenderProps,
+  getLineRenderProps,
+  getPenRenderProps,
+  getTextRenderProps
 } from '../../utils/shapes';
 
 const Shape = ({ 
@@ -599,40 +604,33 @@ const Shape = ({
 
   // Render different shapes based on type
   if (type === 'circle') {
-    // For circles, use the bounding box to calculate center and radius
-    // Circles are rotationally symmetric - don't apply rotation
-    const centerX = x + width / 2;
-    const centerY = y + height / 2;
-    const radius = Math.min(width, height) / 2;
-    
+    // Use consolidated utility for circle render props
+    const circleRenderProps = getCircleRenderProps({ type, x, y, width, height });
     const { rotation: _unused, ...circleProps } = commonProps; // Remove rotation from props
     
     return (
       <Circle
-        x={centerX}
-        y={centerY}
-        radius={radius}
+        x={circleRenderProps.x}
+        y={circleRenderProps.y}
+        radius={circleRenderProps.radius}
         {...circleProps}
       />
     );
   }
   
   if (type === 'line' && points && points.length === 4) {
-    // Calculate the center of the line for rotation
-    const centerX = (points[0] + points[2]) / 2;
-    const centerY = (points[1] + points[3]) / 2;
+    // Use consolidated utility for line render props
+    const lineRenderProps = getLineRenderProps({ type, points, stroke, strokeWidth });
     
-    // For lines, use points array (absolute coordinates)
-    // Position at center and use offset so rotation happens around center
     const lineProps = {
       ...commonProps,
-      x: centerX,
-      y: centerY,
-      offsetX: centerX,
-      offsetY: centerY,
+      x: lineRenderProps.x,
+      y: lineRenderProps.y,
+      offsetX: lineRenderProps.offsetX,
+      offsetY: lineRenderProps.offsetY,
       fill: undefined, // Lines don't have fill
-      stroke: stroke || visualStyles.stroke || '#cccccc', // Same default as other shapes
-      strokeWidth: strokeWidth || visualStyles.strokeWidth || 2
+      stroke: lineRenderProps.stroke || visualStyles.stroke,
+      strokeWidth: lineRenderProps.strokeWidth || visualStyles.strokeWidth
     };
     
     return (
@@ -644,23 +642,18 @@ const Shape = ({
   }
   
   if (type === 'pen' && points && points.length >= 4) {
-    // Calculate the center of the pen drawing for rotation
-    const xCoords = points.filter((_, i) => i % 2 === 0);
-    const yCoords = points.filter((_, i) => i % 2 === 1);
-    const centerX = (Math.min(...xCoords) + Math.max(...xCoords)) / 2;
-    const centerY = (Math.min(...yCoords) + Math.max(...yCoords)) / 2;
+    // Use consolidated utility for pen render props
+    const penRenderProps = getPenRenderProps({ type, points, stroke, strokeWidth });
     
-    // For pen (freehand), use points array (absolute coordinates)
-    // Position at center and use offset so rotation happens around center
     const penProps = {
       ...commonProps,
-      x: centerX,
-      y: centerY,
-      offsetX: centerX,
-      offsetY: centerY,
+      x: penRenderProps.x,
+      y: penRenderProps.y,
+      offsetX: penRenderProps.offsetX,
+      offsetY: penRenderProps.offsetY,
       fill: undefined, // Pen strokes don't have fill
-      stroke: stroke || visualStyles.stroke || '#cccccc', // Same default as other shapes
-      strokeWidth: strokeWidth || visualStyles.strokeWidth || 2,
+      stroke: penRenderProps.stroke || visualStyles.stroke,
+      strokeWidth: penRenderProps.strokeWidth || visualStyles.strokeWidth,
       tension: 0.5, // Smooth the path
       lineCap: 'round',
       lineJoin: 'round'
@@ -700,15 +693,18 @@ const Shape = ({
   }
   
   // Default to rectangle - rotate around center
+  // Use consolidated utility for rectangle render props
+  const rectRenderProps = getRectangleRenderProps({ type, x, y, width, height, cornerRadius });
+  
   return (
     <Rect
-      x={x + width / 2}
-      y={y + height / 2}
-      width={width}
-      height={height}
-      cornerRadius={cornerRadius}
-      offsetX={width / 2}
-      offsetY={height / 2}
+      x={rectRenderProps.x}
+      y={rectRenderProps.y}
+      width={rectRenderProps.width}
+      height={rectRenderProps.height}
+      cornerRadius={rectRenderProps.cornerRadius}
+      offsetX={rectRenderProps.offsetX}
+      offsetY={rectRenderProps.offsetY}
       {...commonProps}
     />
   );

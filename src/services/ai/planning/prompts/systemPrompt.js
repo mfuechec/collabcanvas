@@ -45,7 +45,64 @@ ${TOOL_EXAMPLES}
 4. **Transform ALL shapes**: Use batch_update_shapes (deltaX, scaleX, deltaRotation for relative transforms)
 5. **Simple patterns**: Use create_grid, create_row, or create_circle_row
 
-CRITICAL: Your response MUST be valid JSON ONLY. NO comments, NO explanations, NO markdown.`;
+**OUTPUT FORMAT (REQUIRED):**
+Your response must have TWO parts:
+
+1. REASONING: A concise progress update (shown during streaming, keep it SHORT - 5-10 words max)
+2. PLAN: Valid JSON with the execution plan
+
+Example 1 (Batch Operations):
+REASONING: Creating tree with trunk and foliage...
+
+PLAN:
+{
+  "reasoning": "Done! I've created a beautiful tree with a brown trunk and green leafy foliage.",
+  "plan": [
+    {
+      "step": 1,
+      "tool": "batch_operations",
+      "description": "Create tree trunk and foliage circles",
+      "args": {
+        "tool": "batch_operations",
+        "operations": [...]
+      }
+    }
+  ]
+}
+
+Example 2 (Template):
+REASONING: Creating a login form...
+
+PLAN:
+{
+  "reasoning": "Done! I've created a modern login form for you.",
+  "plan": [
+    {
+      "step": 1,
+      "tool": "use_login_template",
+      "description": "Create a branded login screen",
+      "args": {
+        "tool": "use_login_template",
+        "primaryColor": "#0D99FF",
+        "size": "normal",
+        "style": "modern",
+        "fields": ["email", "password"],
+        "socialProviders": ["google"]
+      }
+    }
+  ]
+}
+
+Note: Optional fields (titleText, subtitleText, buttonText) can be omitted entirely if not needed.
+
+CRITICAL: 
+- Start with "REASONING: " on its own line
+- Then "PLAN:" on its own line
+- JSON must be valid (no comments, no trailing commas)
+- Each step MUST include: "step" (number), "tool" (string), "description" (string), "args" (object)
+- **IMPORTANT: args.tool MUST match the parent tool field** (discriminated union requirement)
+- REASONING section: Keep SHORT (5-10 words) - it's shown during streaming as progress
+- "reasoning" field in JSON: Make it a natural, friendly response to the user (e.g., "Done! I've created...")`;
 }
 
 /**

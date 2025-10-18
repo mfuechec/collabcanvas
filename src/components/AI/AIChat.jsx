@@ -268,6 +268,10 @@ const AIChat = () => {
     setMessages(prev => [...prev, { role: 'user', content: userMessage }]);
     setIsLoading(true);
     
+    // Add placeholder for streaming AI response
+    const streamingMessageIndex = messages.length + 1;
+    setMessages(prev => [...prev, { role: 'assistant', content: '💭 Thinking...', streaming: true }]);
+    
     // ⏱️ PERFORMANCE: Start timing
     const startTime = performance.now();
     console.log(`\n🚀 [AI-PERF] User submitted: "${userMessage}" at ${new Date().toLocaleTimeString()}`);
@@ -279,13 +283,28 @@ const AIChat = () => {
         content: m.content,
       }));
       
-      // ✅ Call AI Agent - It handles smart context building internally
+      // Streaming progress callback - receives extracted reasoning text
+      const onStreamProgress = (text) => {
+        // Display the streaming reasoning text in real-time
+        setMessages(prev => {
+          const updated = [...prev];
+          updated[streamingMessageIndex] = {
+            role: 'assistant',
+            content: `💭 ${text}`,
+            streaming: true
+          };
+          return updated;
+        });
+      };
+      
+      // ✅ Call AI Agent with streaming support
       const aiStartTime = performance.now();
       const { response, actions } = await executeAICommandWithPlanAndExecute(
         userMessage, 
         chatHistory, 
         shapes,  // Pass full shapes array - aiAgent.js builds smart context internally
-        currentUserId  // Pass current user ID for personalized style learning
+        currentUserId,  // Pass current user ID for personalized style learning
+        onStreamProgress  // Streaming callback
       );
       const aiEndTime = performance.now();
       
@@ -304,18 +323,25 @@ const AIChat = () => {
       const totalTime = performance.now() - startTime;
       console.log(`✅ [AI-PERF] Total request completed in ${totalTime.toFixed(0)}ms\n`);
       
-      // Add AI response
-      setMessages(prev => [...prev, { role: 'assistant', content: response }]);
+      // Update streaming message with final response
+      setMessages(prev => {
+        const updated = [...prev];
+        updated[streamingMessageIndex] = { role: 'assistant', content: response, streaming: false };
+        return updated;
+      });
     } catch (error) {
       const errorTime = performance.now() - startTime;
       console.error(`❌ [AI-PERF] Request failed after ${errorTime.toFixed(0)}ms:`, error.message);
-      setMessages(prev => [
-        ...prev,
-        {
+      // Update streaming message with error
+      setMessages(prev => {
+        const updated = [...prev];
+        updated[streamingMessageIndex] = {
           role: 'assistant',
           content: `❌ Sorry, I encountered an error: ${error.message}`,
-        },
-      ]);
+          streaming: false
+        };
+        return updated;
+      });
     } finally {
       setIsLoading(false);
       // Refocus input after command completes (slight delay for state to settle)

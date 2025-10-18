@@ -80,38 +80,38 @@ export const toolArgsSchema = z.discriminatedUnion('tool', [
   // Template tools (fastest for common UI patterns, 100-300x faster than batch_operations)
   z.object({
     tool: z.literal('use_login_template'),
-    primaryColor: z.string().nullable(),
-    size: z.enum(['small', 'normal', 'large']).nullable(),
-    style: z.enum(['modern', 'minimal', 'bold']).nullable(),
-    fields: z.array(z.enum(['email', 'username', 'password', 'phone', 'name'])).nullable(),
-    socialProviders: z.array(z.enum(['google', 'facebook', 'twitter', 'github'])).nullable(),
-    titleText: z.string().nullable(),
-    subtitleText: z.string().nullable(),
-    buttonText: z.string().nullable()
+    primaryColor: z.string().nullish(),
+    size: z.enum(['small', 'normal', 'large']).nullish(),
+    style: z.enum(['modern', 'minimal', 'bold']).nullish(),
+    fields: z.array(z.enum(['email', 'username', 'password', 'phone', 'name'])).nullish(),
+    socialProviders: z.array(z.enum(['google', 'facebook', 'twitter', 'github'])).nullish(),
+    titleText: z.string().nullish(),
+    subtitleText: z.string().nullish(),
+    buttonText: z.string().nullish()
   }),
   z.object({
     tool: z.literal('use_navbar_template'),
-    primaryColor: z.string().nullable(),
-    backgroundColor: z.string().nullable(),
-    items: z.array(z.string()).nullable(),
-    itemCount: z.number().nullable(),
-    logoText: z.string().nullable(),
-    height: z.number().nullable(),
-    size: z.enum(['small', 'normal', 'large']).nullable(),
-    style: z.enum(['modern', 'minimal', 'bold']).nullable()
+    primaryColor: z.string().nullish(),
+    backgroundColor: z.string().nullish(),
+    items: z.array(z.string()).nullish(),
+    itemCount: z.number().nullish(),
+    logoText: z.string().nullish(),
+    height: z.number().nullish(),
+    size: z.enum(['small', 'normal', 'large']).nullish(),
+    style: z.enum(['modern', 'minimal', 'bold']).nullish()
   }),
   z.object({
     tool: z.literal('use_card_template'),
-    primaryColor: z.string().nullable(),
-    style: z.enum(['modern', 'minimal', 'bold']).nullable(),
-    size: z.enum(['small', 'normal', 'large']).nullable(),
-    titleText: z.string().nullable(),
-    buttonText: z.string().nullable(),
-    imageAspectRatio: z.enum(['16:9', '4:3', '1:1', 'square']).nullable(),
-    hasImage: z.boolean().nullable(),
-    hasTitle: z.boolean().nullable(),
-    hasDescription: z.boolean().nullable(),
-    hasButton: z.boolean().nullable()
+    primaryColor: z.string().nullish(),
+    style: z.enum(['modern', 'minimal', 'bold']).nullish(),
+    size: z.enum(['small', 'normal', 'large']).nullish(),
+    titleText: z.string().nullish(),
+    buttonText: z.string().nullish(),
+    imageAspectRatio: z.enum(['16:9', '4:3', '1:1', 'square']).nullish(),
+    hasImage: z.boolean().nullish(),
+    hasTitle: z.boolean().nullish(),
+    hasDescription: z.boolean().nullish(),
+    hasButton: z.boolean().nullish()
   }),
   
   // Batch tools (handles all create/update/delete)
@@ -133,33 +133,33 @@ export const toolArgsSchema = z.discriminatedUnion('tool', [
   // Pattern tools (specialized)
   z.object({
     tool: z.literal('create_grid'),
-    startX: z.number().nullable(),
-    startY: z.number().nullable(),
+    startX: z.number().nullish(),
+    startY: z.number().nullish(),
     rows: z.number(),
     cols: z.number(),
-    cellWidth: z.number().nullable(),
-    cellHeight: z.number().nullable(),
-    spacing: z.number().nullable(),
-    fill: z.string().nullable()
+    cellWidth: z.number().nullish(),
+    cellHeight: z.number().nullish(),
+    spacing: z.number().nullish(),
+    fill: z.string().nullish()
   }),
   z.object({
     tool: z.literal('create_row'),
-    startX: z.number().nullable(),
-    startY: z.number().nullable(),
+    startX: z.number().nullish(),
+    startY: z.number().nullish(),
     count: z.number(),
-    width: z.number().nullable(),
-    height: z.number().nullable(),
-    spacing: z.number().nullable(),
-    fill: z.string().nullable()
+    width: z.number().nullish(),
+    height: z.number().nullish(),
+    spacing: z.number().nullish(),
+    fill: z.string().nullish()
   }),
   z.object({
     tool: z.literal('create_circle_row'),
-    startX: z.number().nullable(),
-    startY: z.number().nullable(),
+    startX: z.number().nullish(),
+    startY: z.number().nullish(),
     count: z.number(),
-    radius: z.number().nullable(),
-    spacing: z.number().nullable(),
-    fill: z.string().nullable()
+    radius: z.number().nullish(),
+    spacing: z.number().nullish(),
+    fill: z.string().nullish()
   }),
   
   // Utility tools
@@ -169,8 +169,8 @@ export const toolArgsSchema = z.discriminatedUnion('tool', [
   z.object({
     tool: z.literal('add_random_shapes'),
     count: z.number(),
-    types: z.array(z.enum(['rectangle', 'circle', 'text', 'line'])).nullable(),
-    balanced: z.boolean().nullable()
+    types: z.array(z.enum(['rectangle', 'circle', 'text', 'line'])).nullish(),
+    balanced: z.boolean().nullish()
   })
 ]);
 

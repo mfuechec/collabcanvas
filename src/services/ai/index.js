@@ -8,6 +8,7 @@
 import { inferUserStyle } from './context/styleInference.js';
 import { checkSingleCommandHeuristic } from './routing/heuristics.js';
 import { generateExecutionPlan } from './planning/planner.js';
+import { generateExecutionPlanStreaming } from './planning/streamingPlanner.js';
 import { detectTemplate, executeTemplate } from './templates/index.js';
 
 /**
@@ -18,9 +19,10 @@ import { detectTemplate, executeTemplate } from './templates/index.js';
  * @param {Array} chatHistory - Previous chat messages (for context)
  * @param {Array} canvasShapes - Current shapes on the canvas
  * @param {string} currentUserId - Current user's ID (for style inference)
+ * @param {Function} onStreamProgress - Optional callback for streaming progress
  * @returns {Object} { response: string, actions: Array }
  */
-export async function executeAICommandWithPlanAndExecute(userMessage, chatHistory = [], canvasShapes = [], currentUserId = null) {
+export async function executeAICommandWithPlanAndExecute(userMessage, chatHistory = [], canvasShapes = [], currentUserId = null, onStreamProgress = null) {
   try {
     // Filter shapes to only those created by current user (for style inference)
     const userShapes = currentUserId 
@@ -245,9 +247,11 @@ export async function executeAICommandWithPlanAndExecute(userMessage, chatHistor
       }
     }
     
-    // Step 5: Generate execution plan using GPT-4o (no classification overhead)
+    // Step 5: Generate execution plan using GPT-4o (with optional streaming)
     console.log('🧠 [GPT] Generating execution plan...');
-    const plan = await generateExecutionPlan(userMessage, canvasShapes, userStyleGuide);
+    const plan = onStreamProgress 
+      ? await generateExecutionPlanStreaming(userMessage, canvasShapes, userStyleGuide, onStreamProgress)
+      : await generateExecutionPlan(userMessage, canvasShapes, userStyleGuide);
     
     // Step 3: Convert plan to actions for AIChat.jsx to execute
     // Don't execute here - let React components handle it for proper state management

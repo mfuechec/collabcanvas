@@ -149,15 +149,67 @@
 
 ---
 
+### 9. `Shape.jsx` - Shape Rendering Components ✅
+**File:** `src/components/Canvas/Shape.jsx`  
+**Changes:**
+- Replaced manual circle center/radius calculations with `getCircleRenderProps()`
+- Replaced manual line center calculations with `getLineRenderProps()`
+- Replaced manual pen center calculations with `getPenRenderProps()`
+- Replaced manual rectangle center positioning with `getRectangleRenderProps()`
+
+**Impact:**
+- ✅ **4 duplicate render prop calculations eliminated**
+- ✅ All shape types now use consistent render prop generation
+- ✅ ~30 lines of manual coordinate math replaced with utility calls
+- ✅ No linting errors
+
+**Risk Level:** MEDIUM ✅  
+**Testing Status:** Test rendering of all shape types with rotation
+
+---
+
+### 10. `canvas.js` - Canvas State Management Service ✅
+**File:** `src/services/canvas.js`  
+**Changes:**
+- Replaced manual circle center-to-top-left conversion in `batchOperations()` with `circleCenterToTopLeft()`
+- Replaced manual circle radius adjustment in `executeSmartOperation()` with `circleTopLeftToCenter()` and `circleCenterToTopLeft()`
+
+**Impact:**
+- ✅ **2 duplicate circle coordinate conversions eliminated**
+- ✅ Smart circle radius updates now use utilities
+- ✅ Consistent circle handling across all operations
+- ✅ No linting errors
+
+**Risk Level:** MEDIUM ✅  
+**Testing Status:** Test AI circle creation and radius updates
+
+---
+
+### 11. `CanvasModeContext.jsx` - Drawing Mode Context ✅
+**File:** `src/contexts/CanvasModeContext.jsx`  
+**Changes:**
+- Replaced manual circle center-to-top-left conversion in `finishDrawing()` with `circleCenterToTopLeft()`
+
+**Impact:**
+- ✅ **1 duplicate circle coordinate conversion eliminated**
+- ✅ Circle drawing now consistent with other circle operations
+- ✅ No linting errors
+
+**Risk Level:** LOW ✅  
+**Testing Status:** Test drawing circles in draw mode
+
+---
+
 ## 📊 Migration Statistics
 
-### Files Migrated: 8 / 8 (100%) ✅✅✅
-### Duplicates Eliminated: 33+ / 33+ (100%) ✅
-### Bugs Fixed: 2 / 2 (100%)
+### Files Migrated: 11 / 11 (100%) ✅✅✅
+### Duplicates Eliminated: 40+ / 40+ (100%) ✅
+### Bugs Fixed: 3 / 3 (100%)
 - ✅ Circle collision detection (critical)
 - ✅ Text dimension inconsistency
+- ✅ Text drag preview rendering (critical)
 
-### Lines of Code Removed: ~500+ lines
+### Lines of Code Removed: ~600+ lines
 ### Linting Errors: 0
 
 ---
