@@ -24,7 +24,7 @@
 - **@langchain/openai 0.6.16** - OpenAI integration
 - **OpenAI GPT-4o** - Language model for AI assistant (via API)
 - **Claude 3.5 Haiku** - Selected for background code analysis (not yet implemented)
-- **Zod 3.25.76** - Schema validation for AI tools
+- **Zod 3.25.76** - Schema validation for AI tools (with partial update support)
 
 **Model Selection Rationale**:
 - **GPT-4o**: Canvas AI assistant - Complex reasoning, tool calling
@@ -163,6 +163,8 @@ npm run build
 firebase deploy --only hosting              # Production
 firebase hosting:channel:deploy beta        # Beta
 ```
+
+**Current Production URL**: https://collabcanvas-5b9fb.web.app
 
 ## Project Structure
 

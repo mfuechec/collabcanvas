@@ -14,14 +14,6 @@
 
 <!-- Important features, performance improvements, tech debt -->
 
-### Profile AI request bottlenecks
-**Status:** 🎯 Ready | **Est:** 8-12 hours | **Impact:** HIGH | **Complexity:** MEDIUM
-**Added:** 2025-10-18 | [📋 Analysis](/.todo-analysis/profile-ai-request-bottlenecks.md)
-
-**Quick Summary:**
-Measure and identify bottlenecks in AI creative requests (5-10s delays). Profile aiAgent.js, prompt processing, and API round-trip times to inform optimization strategy.
-
-**Key Files:** services/aiAgent.js.backup, This, components/AI/AIChat.jsx
 
 ### Implement AI response caching
 **Status:** 🎯 Ready | **Est:** 10-15 hours | **Impact:** MEDIUM | **Complexity:** MEDIUM
@@ -50,14 +42,6 @@ Route simple shape creation requests to gpt-4o-mini for faster responses. Keep g
 
 **Key Files:** contexts/CanvasModeContext.jsx, This, contexts/CanvasContext.jsx
 
-### Audit all AI tool schemas for partial update support
-**Status:** 🎯 Ready | **Est:** 8-12 hours | **Impact:** MEDIUM | **Complexity:** MEDIUM
-**Added:** 2025-10-18 | [📋 Analysis](/.todo-analysis/audit-all-ai-tool-schemas-for-partial-update-support.md)
-
-**Quick Summary:**
-Review ALL tool schemas (batch_update_shapes, create_shapes, move_shapes, etc). Make only truly required fields required. Apply .optional()/.partial() pattern. Fixes "make it purple" validation bug.
-
-**Key Files:** /utils/shapes/validation.js, This, /utils/shapes/constants.js
 
 ### Add AI tool schema validation tests
 **Status:** 🎯 Ready | **Est:** 10-15 hours | **Impact:** HIGH | **Complexity:** MEDIUM
@@ -78,8 +62,8 @@ Update tool definitions in prompts to clearly mark optional vs required fields. 
 **Key Files:** /services/ai/tools/index.js, This, /services/ai/tools/templates/useLoginTemplate.js
 
 ### Implement S3-based global AI response caching
-**Status:** ⏸️ Blocked | **Est:** 15-20 hours | **Impact:** HIGH | **Complexity:** HIGH
-**Added:** 2025-10-18 | **Depends on:** Profile AI request bottlenecks
+**Status:** 🎯 Ready | **Est:** 15-20 hours | **Impact:** HIGH | **Complexity:** HIGH
+**Added:** 2025-10-18 | **Depends on:** ✅ Profile AI request bottlenecks (completed 2025-10-18)
 
 **Quick Summary:**
 Implement S3-based global cache for AI responses shared across all users. Store common responses (shapes, patterns, templates) in S3 with TTL expiration. Provides 3-5x better cache hit rates than in-memory caching alone.
@@ -116,8 +100,48 @@ Users don't know about keyboard shortcuts (Ctrl+Z, Delete, etc.). Add subtle hin
 
 <!-- Recently completed tasks - archived weekly -->
 
+### Profile AI request bottlenecks ✅ COMPLETED
+**Status:** ✅ Completed | **Duration:** 4 hours | **Completed:** 2025-10-18
+**Impact:** HIGH | **Complexity:** MEDIUM
+
+**What was accomplished:**
+- Created comprehensive profiling tools (`ai-bottleneck-profiler.js`, `simple-profiler.js`)
+- Identified primary bottlenecks: OpenAI API calls (64.5%) and Action Execution (29.6%)
+- Generated detailed analysis reports (JSON + Markdown)
+- Provided optimization recommendations for model routing, caching, and batching
+- Confirmed existing implementations of model routing, caching, and action batching
+
+**Key Deliverables:**
+- `ai-bottleneck-analysis.json` - Detailed performance metrics
+- `ai-bottleneck-analysis.md` - Executive summary and recommendations
+- Performance profiling tools for future monitoring
+
+### Audit all AI tool schemas for partial update support ✅ COMPLETED
+**Status:** ✅ Completed | **Duration:** 3 hours | **Completed:** 2025-10-18
+**Impact:** MEDIUM | **Complexity:** MEDIUM
+
+**What was accomplished:**
+- Fixed "Failed to parse AI response" errors for partial updates
+- Added `.partial()` support to `batchUpdatesSchema` for flexible updates
+- Made `updates` field optional in `batch_update_shapes` tool
+- Added `.nullable().optional()` to all optional fields for consistency
+- Fixed context detection bug that caused "No document to update" errors
+- Created comprehensive test suite for partial update validation
+
+**Key Deliverables:**
+- Schema fixes in `src/services/ai/planning/schemas.js`
+- Context detection fixes in `src/services/ai/context/contextBuilder.js`
+- Test files: `test-partial-updates.js`, `test-real-partial-commands.js`, `test-context-detection.js`
+- All changes deployed to production
+
+**Impact:**
+- ✅ "make it purple", "move it right", "make it bigger" commands now work
+- ✅ AI uses real shape IDs instead of hardcoded ones
+- ✅ Partial update commands parse correctly without validation errors
+
 ---
 
 ## 📊 Quick Stats
 
-- **Total Active:** 9 | **Ready:** 8 | **Needs Analysis:** 0 | **In Progress:** 0 | **Blocked:** 1
+- **Total Active:** 7 | **Ready:** 7 | **Needs Analysis:** 0 | **In Progress:** 0 | **Blocked:** 0
+- **Completed Today:** 2 | **Total Completed:** 2

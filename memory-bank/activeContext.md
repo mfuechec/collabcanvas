@@ -1,9 +1,80 @@
 # Active Context
 
 ## Current Focus
-**Status**: AI streaming implementation COMPLETE! Two-part output format with real-time reasoning display. Perceived speed improved 3x. Pushed to main branch, ready for deployment.
+**Status**: AI schema validation and context detection fixes COMPLETE! Fixed "Failed to parse AI response" and "No document to update" errors. Deployed to production successfully.
 
 ## Recent Changes (Latest Session)
+
+### 🔧 AI Schema Validation & Context Detection Fixes ✅
+
+**Goal**: Fix critical AI response parsing errors and shape ID resolution issues.
+
+**Problems Solved**:
+1. **"Failed to parse AI response" errors** for partial update commands
+2. **"No document to update: shape_1" errors** due to hardcoded shape IDs
+3. **Schema validation too strict** for partial updates like "make it purple"
+
+**Root Causes Identified**:
+
+1. **Schema Validation Issues**:
+   - Schemas required all fields even for partial updates
+   - Inconsistent use of `.nullable()` vs `.optional()`
+   - Missing `.partial()` support for flexible updates
+
+2. **Context Detection Bug**:
+   - "make the text bigger" misclassified as CREATE operation
+   - AI received minimal context (shape count only) instead of actual shape IDs
+   - AI used hardcoded `shape_1` instead of real shape IDs from canvas
+
+**Solutions Implemented**:
+
+### 1. Schema Fixes
+- **Added `.partial()` support** to `batchUpdatesSchema` for flexible updates
+- **Made `updates` field optional** in `batch_update_shapes` tool
+- **Added `.nullable().optional()`** to all optional fields for consistency
+- **Added `.partial()`** to individual tool schemas (update, move, resize)
+- **Fixed discriminated union** to support partial update operations
+
+### 2. Context Detection Fix
+- **Improved CREATE operation regex** to exclude update patterns
+- **Added explicit UPDATE operation detection** for "make [shape] [property]"
+- **Now provides actual shape IDs** for update operations
+
+**Files Modified**:
+- `src/services/ai/planning/schemas.js` - Main schema definitions
+- `src/services/ai/tools/modify/update.js` - Update tool schema
+- `src/services/ai/tools/modify/move.js` - Move tool schema  
+- `src/services/ai/tools/modify/resize.js` - Resize tool schema
+- `src/services/ai/tools/batch/batchUpdate.js` - Batch update schema
+- `src/services/ai/context/contextBuilder.js` - Context detection logic
+
+**Test Files Created**:
+- `test-partial-updates.js` - Schema validation tests
+- `test-real-partial-commands.js` - Real-world command tests
+- `test-context-detection.js` - Context detection tests
+
+**Test Results**:
+- ✅ 6/6 partial update test cases pass
+- ✅ 6/6 real-world command scenarios pass
+- ✅ 9/9 UPDATE operation detection tests pass
+- ✅ Commands like "make the text bigger" now provide actual shape IDs
+
+**Deployment**:
+- ✅ Successfully deployed to beta channel
+- ✅ Merged to main branch
+- ✅ Deployed to production
+- ✅ Branch cleaned up (local and remote deleted)
+
+**Impact**:
+- ✅ "Failed to parse AI response" errors resolved
+- ✅ "No document to update" errors resolved
+- ✅ Partial update commands work correctly
+- ✅ AI uses real shape IDs instead of hardcoded ones
+- ✅ Better user experience for update commands
+
+**Status**: ✅ Complete and deployed to production
+
+---
 
 ### 🚀 AI Streaming Responses - Two-Part Output Format ✅
 
