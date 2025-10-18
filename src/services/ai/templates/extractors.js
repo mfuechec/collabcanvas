@@ -123,8 +123,8 @@ export function detectMultiTemplate(message) {
     if (lower.includes(keyword)) matchCount++;
   }
   
-  // Also check for explicit "and" between requests
-  if (matchCount > 1 || /\b(and|plus|with a)\b/.test(lower)) {
+  // Multi-template only if we have multiple keywords AND connectors
+  if (matchCount > 1) {
     return true;
   }
   
