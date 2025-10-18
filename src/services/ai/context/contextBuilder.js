@@ -27,7 +27,9 @@ export function buildSmartContext(userQuery, canvasShapes, includeHeader = true)
   // ========================================
   // Pattern: "create", "add", "draw", "make" + numbers/shapes
   // Only need: shape count
-  const isCreateOperation = /^(create|add|draw|make|generate|build)\s+(a\s+|an\s+|the\s+)?\d*\s*(random\s+)?(shape|circle|rectangle|square|line|text|grid|row)/i.test(lowerQuery);
+  // EXCLUDE: "make [existing shape] [property]" (e.g., "make the text bigger")
+  const isCreateOperation = /^(create|add|draw|make|generate|build)\s+(a\s+|an\s+|the\s+)?\d*\s*(random\s+)?(shape|circle|rectangle|square|line|text|grid|row)(\s|$)/i.test(lowerQuery) && 
+                           !/^(make|change|update|modify|set|resize|rotate|scale|enlarge|shrink)\s+(the\s+)?(existing\s+)?(shape|circle|rectangle|square|line|text|grid|row)\s+(bigger|smaller|larger|red|blue|green|yellow|orange|purple|pink|black|white|transparent|opaque|rotated|moved|positioned)/i.test(lowerQuery);
   
   if (isCreateOperation) {
     console.log('🎯 [SMART-CONTEXT] CREATE operation detected → Minimal context (shape count only)');
@@ -150,7 +152,9 @@ export function buildSmartContext(userQuery, canvasShapes, includeHeader = true)
   // ========================================
   // Pattern: "change", "update", "make bigger/smaller", "resize"
   // Need: IDs + relevant properties only
-  const isUpdateOperation = /^(change|update|modify|make|set|resize|rotate|scale|enlarge|shrink)\s+/i.test(lowerQuery);
+  const isUpdateOperation = /^(change|update|modify|make|set|resize|rotate|scale|enlarge|shrink)\s+/i.test(lowerQuery) ||
+                           // Catch "make [shape] [property]" patterns that were misclassified as CREATE
+                           /^(make|change|update|modify|set|resize|rotate|scale|enlarge|shrink)\s+(the\s+)?(existing\s+)?(shape|circle|rectangle|square|line|text|grid|row)\s+(bigger|smaller|larger|red|blue|green|yellow|orange|purple|pink|black|white|transparent|opaque|rotated|moved|positioned)/i.test(lowerQuery);
   
   if (isUpdateOperation) {
     console.log('🎯 [SMART-CONTEXT] UPDATE operation detected → Property context');
