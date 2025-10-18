@@ -22,7 +22,8 @@ export const LOGIN_FORM_TEMPLATE = {
   name: 'login_form',
   
   patterns: [
-    /\b(create|make|build|design|generate|add)\s+(a|an)?\s*(login|signin|sign-in|sign\s+in)(\s+(form|page|screen|ui))?\b/i,
+    // Matches: "create a login form", "create a purple login screen", "make a minimal login", etc.
+    /\b(create|make|build|design|generate|add)\s+(a|an)?\s*(?:\w+\s+)*(login|signin|sign-in|sign\s+in)(\s+(?:form|page|screen|ui))?\b/i,
   ],
   
   defaults: {

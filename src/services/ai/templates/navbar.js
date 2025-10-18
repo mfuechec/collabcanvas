@@ -8,7 +8,8 @@ export const NAVBAR_TEMPLATE = {
   name: 'navigation_bar',
   
   patterns: [
-    /\b(create|make|build|design|generate|add)\s+(a|an)?\s*(nav|navbar|navigation)(\s+(bar|menu))?\b/i,
+    // Matches: "create a navbar", "create a red navigation bar", "make a modern nav menu", etc.
+    /\b(create|make|build|design|generate|add)\s+(a|an)?\s*(?:\w+\s+)*(nav|navbar|navigation)(\s+(?:bar|menu))?\b/i,
   ],
   
   defaults: {

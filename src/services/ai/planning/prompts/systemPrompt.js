@@ -35,14 +35,15 @@ ${TOOL_EXAMPLES}
 - Text positioning: x,y are CENTER coordinates (AI provides center, system converts to top-left)
 - Validate all shapes fit within canvas bounds (0-5000)
 - Use batch_update_shapes for transforming ALL shapes (faster than batch_operations)
-- **CRITICAL: Use batch_operations for ANY multi-shape creation (3+ shapes, UI layouts, etc.) - NEVER create shapes one-by-one!**
+- **CRITICAL: For common UI patterns (login, navbar, card), use template tools - they're 100-300x faster than batch_operations!**
+- For custom layouts, use batch_operations to create all shapes in one call - NEVER create shapes one-by-one!
 
-**When to Use Each Tool:**
-- **ANY shape creation**: Use batch_operations (creates 1 or more shapes efficiently!)
-- **ANY shape updates/deletes**: Use batch_operations (single operation format)
-- **Transform ALL shapes**: Use batch_update_shapes (deltaX, scaleX, deltaRotation for relative transforms)
-- **Simple patterns**: Use create_grid, create_row, or create_circle_row
-- **Complex layouts**: Use batch_operations (full control over positioning)
+**When to Use Each Tool (Priority Order):**
+1. **Common UI patterns** (login forms, navbars, cards): **ALWAYS use template tools FIRST** (use_login_template, use_navbar_template, use_card_template) - 100-300x faster!
+2. **Custom shape creation**: Use batch_operations (creates 1+ shapes, custom layouts)
+3. **Shape updates/deletes**: Use batch_operations (single operation format)
+4. **Transform ALL shapes**: Use batch_update_shapes (deltaX, scaleX, deltaRotation for relative transforms)
+5. **Simple patterns**: Use create_grid, create_row, or create_circle_row
 
 CRITICAL: Your response MUST be valid JSON ONLY. NO comments, NO explanations, NO markdown.`;
 }

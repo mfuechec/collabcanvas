@@ -9,7 +9,8 @@ export const CARD_TEMPLATE = {
   name: 'card_layout',
   
   patterns: [
-    /\b(create|make|build|design|generate|add)\s+(a|an)?\s*card(\s+(layout|component|element))?\b/i,
+    // Matches: "create a card", "create a blue card layout", "make a modern card component", etc.
+    /\b(create|make|build|design|generate|add)\s+(a|an)?\s*(?:\w+\s+)*card(\s+(?:layout|component|element))?\b/i,
   ],
   
   defaults: {
