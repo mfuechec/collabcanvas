@@ -1,0 +1,89 @@
+Description: Deployment procedures for CollabCanvas
+Globs: deploy-*.sh, docs/DEPLOYMENT.md
+
+# CollabCanvas Deployment
+
+## Quick Reference
+
+### Deploy to Production
+```bash
+./deploy-production.sh
+```
+- **URL**: https://collabcanvas-5b9fb.web.app
+- **Deploys**: Hosting + Security rules (Firestore & Realtime Database)
+- **Purpose**: Public production site
+
+### Deploy to Beta
+```bash
+./deploy-beta.sh
+```
+- **URL**: `https://collabcanvas-5b9fb--beta-[UNIQUE_ID].web.app`
+- **Get URL**: `firebase hosting:channel:open beta`
+- **Deploys**: Hosting only (uses same database as production)
+- **Purpose**: Testing before production
+- **Expires**: 30 days (redeploy to extend)
+
+## Deployment Scripts
+
+Both scripts are located in the project root:
+- `deploy-production.sh` - Production deployment
+- `deploy-beta.sh` - Beta channel deployment
+
+Both scripts are executable and handle:
+- Firebase CLI verification
+- Authentication check
+- Environment variable verification
+- Build process
+- Deployment
+
+## Important Notes
+
+1. **Same Database**: Beta and production use the **same** Firestore and Realtime Database
+2. **Security Rules**: Only deployed with production (beta inherits them)
+3. **Testing Workflow**: Always test on beta before deploying to production
+4. **No User Input Required**: Scripts are fully automated
+
+## Firebase Project
+
+- **Project ID**: collabcanvas-5b9fb
+- **Configuration**: `.firebaserc` and `firebase.json`
+
+## Useful Commands
+
+```bash
+# Get beta URL
+firebase hosting:channel:open beta
+
+# List all channels
+firebase hosting:channel:list
+
+# Delete beta channel
+firebase hosting:channel:delete beta
+
+# Manual build
+npm run build
+
+# Manual deploy to production
+firebase deploy --only hosting
+
+# Manual deploy to beta
+firebase hosting:channel:deploy beta
+```
+
+## When to Deploy
+
+### Production
+- After thorough testing on beta
+- For bug fixes affecting users
+- For new features ready for release
+- After security rule changes
+
+### Beta
+- For testing new features
+- For UI/UX changes
+- Before any production deployment
+- As often as needed for iteration
+
+## Documentation
+
+Full deployment guide: `docs/DEPLOYMENT.md`

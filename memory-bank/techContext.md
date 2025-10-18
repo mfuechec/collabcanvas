@@ -152,12 +152,16 @@ npm run build
 
 #### Deploy to Firebase
 ```bash
-# Build + deploy
-npm run build
-firebase deploy --only hosting
+# Production deployment (includes security rules)
+./deploy-production.sh
 
-# Or use deploy script
-./deploy.sh
+# Beta deployment (testing channel)
+./deploy-beta.sh
+
+# Or manually:
+npm run build
+firebase deploy --only hosting              # Production
+firebase hosting:channel:deploy beta        # Beta
 ```
 
 ## Project Structure
@@ -322,17 +326,19 @@ git push origin main
 
 ### Deployment Process
 ```bash
-# 1. Build
-npm run build
+# Option 1: Deploy to beta for testing
+./deploy-beta.sh
+# Test at: https://collabcanvas-5b9fb--beta-[UNIQUE_ID].web.app
 
-# 2. Test build locally
-npm run preview
+# Option 2: Deploy to production
+./deploy-production.sh
+# Live at: https://collabcanvas-5b9fb.web.app
 
-# 3. Deploy to Firebase
-firebase deploy --only hosting
-
-# 4. Verify production
-# Open https://collabcanvas-xxxxx.web.app
+# Both scripts handle:
+# - Build process
+# - Firebase authentication
+# - Environment validation
+# - Deployment
 ```
 
 ### Debugging Tools

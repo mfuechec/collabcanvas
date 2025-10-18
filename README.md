@@ -238,6 +238,22 @@ The app is deployed on Firebase Hosting with the following architecture:
   - Realtime Database for live updates (cursors, presence)
 - **Security**: Production-ready Firestore and Database security rules
 
+### Quick Deploy
+
+**Deploy to Beta (for testing)**
+```bash
+./deploy-beta.sh
+# Get beta URL: firebase hosting:channel:open beta
+```
+
+**Deploy to Production**
+```bash
+./deploy-production.sh
+# Live at: https://collabcanvas-5b9fb.web.app
+```
+
+Both scripts handle build, authentication, and deployment automatically. See `docs/DEPLOYMENT.md` for details.
+
 ### Deploy Your Own Instance
 
 1. **Install Firebase CLI**
@@ -256,15 +272,13 @@ The app is deployed on Firebase Hosting with the following architecture:
    - Create `.env` with your Firebase config
    - Update `.firebaserc` with your project ID
 
-4. **Deploy security rules**
+4. **Deploy using scripts**
    ```bash
-   firebase deploy --only firestore:rules,database
-   ```
-
-5. **Build and deploy app**
-   ```bash
-   npm run build
-   firebase deploy --only hosting
+   # Deploy to beta for testing
+   ./deploy-beta.sh
+   
+   # Deploy to production when ready
+   ./deploy-production.sh
    ```
 
 ### Environment Variables for Production

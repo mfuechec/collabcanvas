@@ -1,10 +1,10 @@
 #!/bin/bash
 
-# CollabCanvas Deployment Script
-# Run this script to deploy to Firebase Hosting
+# CollabCanvas Beta Deployment Script
+# Deploy to beta channel for testing before production
 
-echo "🚀 CollabCanvas Deployment Script"
-echo "================================="
+echo "🧪 CollabCanvas Beta Deployment Script"
+echo "======================================="
 
 # Check if Firebase CLI is installed
 if ! command -v firebase &> /dev/null; then
@@ -45,34 +45,27 @@ fi
 
 echo "✅ Build completed successfully"
 
-# Deploy security rules first
-echo "🔒 Deploying security rules..."
-firebase deploy --only firestore:rules,database
+# Deploy to beta channel (no need to deploy rules - same database)
+echo "🌐 Deploying to beta channel..."
+firebase hosting:channel:deploy beta --expires 30d
 
 if [ $? -ne 0 ]; then
-    echo "❌ Security rules deployment failed"
-    exit 1
-fi
-
-echo "✅ Security rules deployed"
-
-# Deploy hosting
-echo "🌐 Deploying to Firebase Hosting..."
-firebase deploy --only hosting
-
-if [ $? -ne 0 ]; then
-    echo "❌ Hosting deployment failed"
+    echo "❌ Beta deployment failed"
     exit 1
 fi
 
 echo ""
-echo "🎉 Deployment completed successfully!"
+echo "🎉 Beta deployment completed successfully!"
 echo ""
-echo "Your app is now live at:"
-firebase hosting:channel:open live 2>/dev/null || echo "https://$(firebase use | grep -o '[^ ]*$').web.app"
+echo "🧪 Your beta site is now live!"
 echo ""
-echo "Next steps:"
-echo "1. Test the deployed app with multiple browser tabs/windows"
-echo "2. Verify authentication works"
-echo "3. Test real-time features with multiple users"
-echo "4. Update README.md with your actual live demo URL"
+echo "To get the beta URL, run:"
+echo "  firebase hosting:channel:open beta"
+echo ""
+echo "Or list all channels:"
+echo "  firebase hosting:channel:list"
+echo ""
+echo "Note: Beta channel expires in 30 days. Redeploy to extend."
+echo "      Uses same Firestore & Realtime Database as production."
+echo ""
+
