@@ -121,7 +121,7 @@ export const LOGIN_FORM_TEMPLATE = {
       cornerRadius: params.cornerRadius,
       shadowLayers: 3
     });
-    operations.push(...cardOps.map(shape => ({ type: 'create', shape })));
+    operations.push(...cardOps);
     
     // Accent strip
     operations.push({
@@ -144,7 +144,7 @@ export const LOGIN_FORM_TEMPLATE = {
       type: 'create',
       shape: {
         type: 'text',
-        x: cardContentLeft + 20,
+        x: cardContentLeft,
         y: contentY,
         text: params.titleText,
         fontSize: params.fontSize,
@@ -158,7 +158,7 @@ export const LOGIN_FORM_TEMPLATE = {
       type: 'create',
       shape: {
         type: 'text',
-        x: cardContentLeft + 10,
+        x: cardContentLeft,
         y: contentY,
         text: params.subtitleText,
         fontSize: 18,
