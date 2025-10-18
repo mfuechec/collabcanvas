@@ -25,9 +25,9 @@ export const resizeShapeTool = tool(
     description: 'Resizes a shape to new dimensions. Use when the user asks to make something bigger, smaller, or change its size. You must provide the exact shape ID from the Canvas Objects list.',
     schema: z.object({
       shapeId: z.string().describe('The exact ID of the shape from the Canvas Objects list'),
-      width: z.number().min(10).max(1000).optional().describe('New width in pixels'),
-      height: z.number().min(10).max(1000).optional().describe('New height in pixels'),
-    }),
+      width: z.number().min(10).max(1000).nullable().optional().describe('New width in pixels'),
+      height: z.number().min(10).max(1000).nullable().optional().describe('New height in pixels'),
+    }).partial(), // Allow partial updates - only include fields that are being updated
   }
 );
 

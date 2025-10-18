@@ -26,9 +26,9 @@ export const moveShapeTool = tool(
     description: 'Moves a shape to a new position. Use this when the user asks to move, reposition, or relocate a shape. You must provide the exact shape ID from the Canvas Objects list. You can provide just x, just y, or both to update position.',
     schema: z.object({
       shapeId: z.string().describe('The exact ID of the shape from the Canvas Objects list'),
-      x: z.number().min(0).max(CANVAS_WIDTH).optional().describe('New X position (0 to 5000). Omit to keep current X. Use 2500 for center.'),
-      y: z.number().min(0).max(CANVAS_HEIGHT).optional().describe('New Y position (0 to 5000). Omit to keep current Y. Use 2500 for center.'),
-    }),
+      x: z.number().min(0).max(CANVAS_WIDTH).nullable().optional().describe('New X position (0 to 5000). Omit to keep current X. Use 2500 for center.'),
+      y: z.number().min(0).max(CANVAS_HEIGHT).nullable().optional().describe('New Y position (0 to 5000). Omit to keep current Y. Use 2500 for center.'),
+    }).partial(), // Allow partial updates - only include fields that are being updated
   }
 );
 

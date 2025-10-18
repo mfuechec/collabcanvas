@@ -48,18 +48,18 @@ export const batchOperationSchema = z.discriminatedUnion('type', [
     type: z.literal('update'),
     shapeId: z.string(),
     updates: z.object({
-      x: z.number().nullable(),
-      y: z.number().nullable(),
-      width: z.number().nullable(),
-      height: z.number().nullable(),
-      fill: z.string().nullable(),
-      fontSize: z.number().nullable(),
-      text: z.string().nullable(),
-      rotation: z.number().nullable(),
-      opacity: z.number().nullable(),
-      cornerRadius: z.number().nullable(),
-      radius: z.number().nullable(),
-    })
+      x: z.number().nullable().optional(),
+      y: z.number().nullable().optional(),
+      width: z.number().nullable().optional(),
+      height: z.number().nullable().optional(),
+      fill: z.string().nullable().optional(),
+      fontSize: z.number().nullable().optional(),
+      text: z.string().nullable().optional(),
+      rotation: z.number().nullable().optional(),
+      opacity: z.number().nullable().optional(),
+      cornerRadius: z.number().nullable().optional(),
+      radius: z.number().nullable().optional(),
+    }).partial() // Allow partial updates - only include fields that are being updated
   }),
   // DELETE operation - has 'shapeId' field only
   z.object({
@@ -69,10 +69,10 @@ export const batchOperationSchema = z.discriminatedUnion('type', [
 ]);
 
 export const batchUpdatesSchema = z.object({
-  fill: z.string().nullable(),
-  fontSize: z.number().nullable(),
-  opacity: z.number().nullable()
-}).nullable();
+  fill: z.string().nullable().optional(),
+  fontSize: z.number().nullable().optional(),
+  opacity: z.number().nullable().optional()
+}).partial().nullable(); // Allow partial updates for batch operations
 
 // Discriminated union of all tool argument schemas
 // OPTIMIZED: Only 9 tools exposed (3 templates + batch + patterns + utility)
@@ -122,12 +122,12 @@ export const toolArgsSchema = z.discriminatedUnion('tool', [
   z.object({
     tool: z.literal('batch_update_shapes'),
     shapeIds: z.array(z.string()),
-    updates: batchUpdatesSchema,
-    deltaX: z.number().nullable(),
-    deltaY: z.number().nullable(),
-    deltaRotation: z.number().nullable(),
-    scaleX: z.number().nullable(),
-    scaleY: z.number().nullable()
+    updates: batchUpdatesSchema.optional(), // Make updates optional
+    deltaX: z.number().nullable().optional(),
+    deltaY: z.number().nullable().optional(),
+    deltaRotation: z.number().nullable().optional(),
+    scaleX: z.number().nullable().optional(),
+    scaleY: z.number().nullable().optional()
   }),
   
   // Pattern tools (specialized)
