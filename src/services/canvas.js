@@ -1282,7 +1282,12 @@ export const executeSmartOperation = async (action, data, canvasId = CANVAS_DOC_
           canvasShapes: [], // Templates have their own positioning logic
           userStyleGuide: null
         });
-        return await executeSmartOperation(result.action, result.data, canvasId);
+        const batchResult = await executeSmartOperation(result.action, result.data, canvasId);
+        // Return batch result with human-readable message
+        return {
+          ...batchResult,
+          message: result.response || batchResult.message
+        };
       }
       
       case 'use_navbar_template': {
@@ -1292,7 +1297,12 @@ export const executeSmartOperation = async (action, data, canvasId = CANVAS_DOC_
           canvasShapes: [], // Templates have their own positioning logic
           userStyleGuide: null
         });
-        return await executeSmartOperation(result.action, result.data, canvasId);
+        const batchResult = await executeSmartOperation(result.action, result.data, canvasId);
+        // Return batch result with human-readable message
+        return {
+          ...batchResult,
+          message: result.response || batchResult.message
+        };
       }
       
       case 'use_card_template': {
@@ -1302,7 +1312,12 @@ export const executeSmartOperation = async (action, data, canvasId = CANVAS_DOC_
           canvasShapes: [], // Templates have their own positioning logic
           userStyleGuide: null
         });
-        return await executeSmartOperation(result.action, result.data, canvasId);
+        const batchResult = await executeSmartOperation(result.action, result.data, canvasId);
+        // Return batch result with human-readable message
+        return {
+          ...batchResult,
+          message: result.response || batchResult.message
+        };
       }
       
       default:

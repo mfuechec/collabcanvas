@@ -14,6 +14,7 @@ export const TOOL_DEFINITIONS = `**Available Tools with Parameters:**
    - "create a purple login form with email and phone" → {primaryColor: '#8B5CF6', fields: ['email', 'phone']}
    - "create a minimal login with google signin" → {style: 'minimal', socialProviders: ['google']}
    Performance: ~10-15ms vs ~3-5s for batch_operations (300x faster!)
+   **RESPONSE FORMAT**: Describe what was created: "I've created a [style] login form with [fields] fields!" (e.g., "I've created a modern login form with email, password fields!")
 
 2. **use_navbar_template** - Instantly generate professional navigation bars
    Args: { primaryColor: string (hex), backgroundColor: string (hex), items: ['Home', 'About', ...], itemCount: number, height: number, style: 'modern'|'minimal'|'bold' }
@@ -22,6 +23,7 @@ export const TOOL_DEFINITIONS = `**Available Tools with Parameters:**
    - "create a navbar" → {primaryColor: null, items: null}
    - "create a red navbar with 5 items" → {primaryColor: '#EF4444', itemCount: 5}
    Performance: ~10-15ms vs ~2-3s for batch_operations (200x faster!)
+   **RESPONSE FORMAT**: Describe what was created: "I've created a [style] navigation bar with [N] items!" (e.g., "I've created a modern navigation bar with 5 items!")
 
 3. **use_card_template** - Instantly generate professional card layouts
    Args: { primaryColor: string (hex), style: 'modern'|'minimal'|'bold', hasImage: boolean, hasTitle: boolean, hasDescription: boolean, hasButton: boolean }
@@ -30,6 +32,7 @@ export const TOOL_DEFINITIONS = `**Available Tools with Parameters:**
    - "create a card" → {primaryColor: null, style: null}
    - "create a blue card with image and button" → {primaryColor: '#3B82F6', hasImage: true, hasButton: true}
    Performance: ~10-15ms vs ~2-3s for batch_operations (200x faster!)
+   **RESPONSE FORMAT**: Describe what was created: "I've created a [style] card with [components]!" (e.g., "I've created a modern card with image, title, description, and button!")
 
 **GENERAL TOOLS (Use when templates don't fit)**
 

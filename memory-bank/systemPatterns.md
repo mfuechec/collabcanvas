@@ -173,9 +173,119 @@ Konva:   { x: 0, y: 0, points: [100, 100, 200, 200] }
 
 **Framework**: LangChain + OpenAI GPT-4o
 
-**Pattern**: Tool-based agent with Zod schemas
+**Pattern**: 3-tier performance optimization system
 
-**Tool Structure**:
+**3-Tier Execution Strategy**:
+
+**Tier 1: Heuristic Path** (instant, <10ms)
+- Simple, unambiguous commands
+- Pattern matching: "clear", "make a circle", "create a text"
+- Direct execution without LLM
+- Fastest response time
+
+**Tier 2: AI-Guided Templates** (fast, ~3s total)
+- Common UI patterns: login forms, navbars, cards
+- AI extracts parameters from natural language
+- Template generates professional layouts instantly
+- 100-300x faster than full GPT generation
+- Examples:
+  - "create a purple login form" → AI calls `use_login_template` with `{primaryColor: '#8B5CF6'}`
+  - "create a navbar with 5 items" → AI calls `use_navbar_template` with `{itemCount: 5}`
+
+**Tier 3: GPT Freeform** (full custom, 6-8s)
+- Novel designs, complex layouts
+- Full AI creativity with `batch_operations`
+- Used when templates don't match
+
+**Template System Architecture**:
+```
+src/services/ai/templates/
+├── index.js              # Orchestrator: detectTemplate(), executeTemplate()
+├── helpers.js            # Reusable shape creation functions
+├── extractors.js         # Parameter extraction (color, size, style)
+├── positioning.js        # Smart positioning with collision detection
+├── loginForm.js          # Login template: 21+ shapes, customizable
+├── navbar.js             # Navbar template: 8+ shapes, customizable
+└── card.js               # Card template: 6-10 shapes, customizable
+
+src/services/ai/tools/templates/
+├── useLoginTemplate.js   # AI tool wrapper for login
+├── useNavbarTemplate.js  # AI tool wrapper for navbar
+└── useCardTemplate.js    # AI tool wrapper for card
+```
+
+**Template Structure**:
+```javascript
+export const LOGIN_FORM_TEMPLATE = {
+  patterns: [/\b(create|make).*login.*(form|screen)\b/i],
+  
+  defaults: {
+    primaryColor: '#0D99FF',
+    cardWidth: 442,
+    cardHeight: 580,
+    fields: ['email', 'password'],
+    socialProviders: [],
+    style: 'modern'
+  },
+  
+  extract(message) {
+    // Extract parameters from user message
+    const params = { ...this.defaults };
+    const color = paramExtractors.color(message);
+    if (color) params.primaryColor = color;
+    // ... more extraction
+    return params;
+  },
+  
+  generate(params, position) {
+    // Generate batch_operations JSON
+    const operations = [];
+    // ... shape creation logic
+    return {
+      plan: [{ step: 1, tool: 'batch_operations', args: { operations } }],
+      reasoning: 'Generated login form with custom parameters'
+    };
+  }
+};
+```
+
+**Parameter Extractors**:
+- `color(message)` - Detects blue, red, green, purple, etc.
+- `size(message)` - Extracts large, small, normal
+- `style(message)` - Detects modern, minimal, bold
+- `count(message)` - Parses numbers (e.g., "5 items")
+- `fields(message)` - Finds email, password, username, phone
+- `socialAuth(message)` - Detects google, facebook, twitter, github
+
+**AI Tool Integration**:
+```javascript
+// src/services/ai/tools/templates/useLoginTemplate.js
+export const USE_LOGIN_TEMPLATE_TOOL = {
+  name: 'use_login_template',
+  description: 'Instantly generate professional login forms',
+  schema: z.object({
+    primaryColor: z.string().nullable(),
+    size: z.enum(['small', 'normal', 'large']).nullable(),
+    style: z.enum(['modern', 'minimal', 'bold']).nullable(),
+    fields: z.array(z.enum(['email', 'username', 'password', 'phone'])).nullable(),
+    socialProviders: z.array(z.enum(['google', 'facebook', 'twitter', 'github'])).nullable(),
+    titleText: z.string().nullable(),
+    subtitleText: z.string().nullable()
+  }),
+  async execute(args, context) {
+    const params = { ...LOGIN_FORM_TEMPLATE.defaults, ...args };
+    const position = calculateOptimalPosition({ ... });
+    const templatePlan = LOGIN_FORM_TEMPLATE.generate(params, position);
+    return {
+      action: 'batch_operations',
+      data: { operations: templatePlan.plan[0].args.operations },
+      response: templatePlan.reasoning
+    };
+  }
+};
+```
+
+**Legacy Tool Structure** (still used for Tier 3):
 ```javascript
 const createRectangleTool = new DynamicStructuredTool({
   name: "create_rectangle",
@@ -196,23 +306,36 @@ const createRectangleTool = new DynamicStructuredTool({
 ```
 
 **Batch Operations**:
-- `batch_create_shapes` - Create multiple shapes at once
-- `batch_update_shapes` - Update multiple shapes
-- `batch_delete_shapes` - Delete multiple shapes
-- `generate_random_coordinates` - Calculate valid positions
+- `batch_operations` - Unified create/update/delete
+- `batch_update_shapes` - Update multiple shapes with relative transforms
+- `create_grid` - Grid layout pattern
+- `create_row` - Horizontal row pattern
+- `create_circle_row` - Circle row pattern
+- `clear_canvas` - Remove all shapes
+- `add_random_shapes` - Generate random shapes
+- `use_login_template` - AI-guided login form **[NEW]**
+- `use_navbar_template` - AI-guided navigation bar **[NEW]**
+- `use_card_template` - AI-guided card layout **[NEW]**
 
 **Context Awareness**:
 - AI receives current `shapes` array with each command
 - Can reference shapes by ID, color, type, position
 - Understands spatial relationships
+- Style inference from existing shapes (prepared for future)
 
 **Execution Flow**:
 1. User types command in chat
-2. `executeAICommand(text, shapes)` sends to LangChain
-3. AI chooses appropriate tool(s)
-4. Tools execute canvas operations
+2. **Tier 1 Check**: Heuristic pattern match → instant execution
+3. **Tier 2 Check**: Template pattern match → AI extracts params, template generates
+4. **Tier 3**: Full GPT reasoning → tool selection → execution
 5. `AIChat.jsx` receives actions and applies to canvas
 6. All users see changes via Firebase sync
+
+**Performance Comparison**:
+- Heuristic: <10ms total
+- Template: ~3s AI + ~15ms generation = ~3s total
+- GPT Freeform: ~6-8s total
+- **Speedup for common patterns: 2-3x overall, 100-300x for template execution**
 
 ### 6. React Context Architecture
 
@@ -358,7 +481,9 @@ Output: Prioritized, categorized findings with code examples
 - `src/services/canvas.js` - All Firestore shape operations
 - `src/services/presence.js` - RTDB presence/activity
 - `src/services/cursors.js` - RTDB cursor sync
-- `src/services/aiAgent.js` - LangChain AI integration
+- `src/services/ai/index.js` - AI orchestration (refactored from `aiAgent.js`)
+- `src/services/ai/templates/` - Template system for common UI patterns **[NEW]**
+- `src/services/ai/tools/templates/` - AI tool wrappers for templates **[NEW]**
 
 ### State Management
 - `src/contexts/CanvasContext.jsx` - Canvas state + operations

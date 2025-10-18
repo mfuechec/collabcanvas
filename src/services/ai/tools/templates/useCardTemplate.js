@@ -59,7 +59,8 @@ export const USE_CARD_TEMPLATE_TOOL = {
       action: 'batch_operations',
       data: {
         operations: plan.plan[0].args.operations
-      }
+      },
+      response: plan.reasoning // Human-readable message from template
     };
   }
 };
