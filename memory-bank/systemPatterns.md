@@ -23,6 +23,92 @@
 └─────────────────────────────────────────────┘
 ```
 
+## Shape Utilities Architecture
+
+### Centralized Shape Logic (`src/utils/shapes/`)
+
+**Problem Solved**: 600+ lines of duplicate shape calculations scattered across 11 files, leading to bugs and inconsistencies.
+
+**Solution**: Single source of truth for all shape-related operations.
+
+**Module Structure**:
+```
+src/utils/shapes/
+├── index.js              # Public API - exports all utilities
+├── constants.js          # SHAPE_TYPES, MIN_DIMENSIONS, CANVAS_DIMENSIONS
+├── coordinates.js        # Center ↔ top-left conversions
+├── bounds.js             # Bounding box calculations, constraints
+├── rendering.js          # Konva render props generation
+├── rotation.js           # Rotation validation & max valid rotation
+├── collision.js          # Collision detection, findEmptySpace
+└── validation.js         # Shape validation & normalization
+```
+
+**Key Functions**:
+
+**Coordinate Conversions** (`coordinates.js`):
+- `centerToTopLeft()` - Convert center coords to top-left (storage format)
+- `topLeftToCenter()` - Convert top-left to center (AI/Konva format)
+- `circleCenterToTopLeft()` - Circle-specific conversion (handles radius → diameter)
+- `circleTopLeftToCenter()` - Inverse circle conversion
+- `textCenterToTopLeft()` - Text with dimension estimation
+
+**Bounding Boxes** (`bounds.js`):
+- `getShapeBounds()` - Get bounding box for any shape type
+- `getRotatedBounds()` - Calculate axis-aligned bounds for rotated shapes
+- `constrainToBounds()` - Keep shapes within canvas boundaries
+- `isShapeWithinCanvas()` - Check if shape is fully in bounds
+- `getLineBounds()`, `getPenBounds()` - Point-based shape bounds
+
+**Rendering Props** (`rendering.js`):
+- `getRectangleRenderProps()` - Konva props for rectangles
+- `getCircleRenderProps()` - Konva props for circles (center + radius)
+- `getLineRenderProps()` - Konva props for lines (center + offsets)
+- `getPenRenderProps()` - Konva props for pen strokes
+- `getTextRenderProps()` - Konva props for text (with auto-sizing)
+
+**Rotation Handling** (`rotation.js`):
+- `rotatePoint()` - Rotate a point around origin
+- `isRotationValid()` - Check if rotation keeps shape in bounds
+- `findMaxValidRotation()` - Find maximum valid rotation angle
+
+**Collision Detection** (`collision.js`):
+- `rectanglesIntersect()` - Check if two rectangles overlap
+- `hasCollision()` - Check if shape collides with any existing shapes
+- `findEmptySpace()` - Find collision-free position using spiral search
+
+**Benefits**:
+- ✅ Zero duplicate calculations across codebase
+- ✅ Consistent shape handling in AI tools, rendering, and state management
+- ✅ Single place to fix bugs (e.g., circle coordinate bug)
+- ✅ Easy to test in isolation
+- ✅ Clear module boundaries and responsibilities
+
+**Usage Examples**:
+```javascript
+// AI tool converting center coords to storage
+import { circleCenterToTopLeft } from '@/utils/shapes';
+const topLeft = circleCenterToTopLeft(centerX, centerY, radius);
+// Returns: { x, y, width, height }
+
+// Component rendering a shape
+import { getCircleRenderProps } from '@/utils/shapes';
+const props = getCircleRenderProps(shape);
+return <Circle {...props} />;
+
+// Check if rotation is valid
+import { isRotationValid } from '@/utils/shapes';
+if (isRotationValid(shape, newRotation)) {
+  updateShape(shape.id, { rotation: newRotation });
+}
+```
+
+**Files Using Utilities** (11 total):
+- AI tools: positioning.js, rectangle.js, circle.js, text.js
+- Components: Canvas.jsx, Shape.jsx, Minimap.jsx, PropertiesPanel.jsx
+- Services: canvas.js
+- Contexts: CanvasContext.jsx, CanvasModeContext.jsx
+
 ## Key Technical Decisions
 
 ### 1. Dual Firebase Strategy
