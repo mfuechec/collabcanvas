@@ -19,42 +19,54 @@ import { z } from 'zod';
  * - ✅ AI can't send wrong arguments to tools
  */
 
-// Helper schemas for nested structures
-export const batchOperationSchema = z.object({
-  type: z.enum(['create', 'update', 'delete']),
-  shape: z.object({
-    type: z.enum(['rectangle', 'circle', 'text', 'line']).nullable(),
-    x: z.number().nullable(),
-    y: z.number().nullable(),
-    width: z.number().nullable(),
-    height: z.number().nullable(),
-    radius: z.number().nullable(),
-    text: z.string().nullable(),
-    fontSize: z.number().nullable(),
-    fill: z.string().nullable(),
-    stroke: z.string().nullable(),
-    strokeWidth: z.number().nullable(),
-    // opacity removed from CREATE - use backend default (0.8) for new shapes
-    cornerRadius: z.number().nullable(),
-    x1: z.number().nullable(),
-    y1: z.number().nullable(),
-    x2: z.number().nullable(),
-    y2: z.number().nullable(),
-  }).nullable(),
-  shapeId: z.string().nullable(),
-  updates: z.object({
-    x: z.number().nullable(),
-    y: z.number().nullable(),
-    width: z.number().nullable(),
-    height: z.number().nullable(),
-    fill: z.string().nullable(),
-    fontSize: z.number().nullable(),
-    text: z.string().nullable(),
-    rotation: z.number().nullable(),
-    opacity: z.number().nullable(),
-    cornerRadius: z.number().nullable(),
-  }).nullable()
-});
+// Helper schemas for nested structures - Use discriminated union for clear operation types
+export const batchOperationSchema = z.discriminatedUnion('type', [
+  // CREATE operation - has 'shape' field only
+  z.object({
+    type: z.literal('create'),
+    shape: z.object({
+      type: z.enum(['rectangle', 'circle', 'text', 'line']),
+      x: z.number(),
+      y: z.number(),
+      width: z.number().nullable(),
+      height: z.number().nullable(),
+      radius: z.number().nullable(),
+      text: z.string().nullable(),
+      fontSize: z.number().nullable(),
+      fill: z.string().nullable(),
+      stroke: z.string().nullable(),
+      strokeWidth: z.number().nullable(),
+      cornerRadius: z.number().nullable(),
+      x1: z.number().nullable(),
+      y1: z.number().nullable(),
+      x2: z.number().nullable(),
+      y2: z.number().nullable(),
+    })
+  }),
+  // UPDATE operation - has 'shapeId' and 'updates' fields only
+  z.object({
+    type: z.literal('update'),
+    shapeId: z.string(),
+    updates: z.object({
+      x: z.number().nullable(),
+      y: z.number().nullable(),
+      width: z.number().nullable(),
+      height: z.number().nullable(),
+      fill: z.string().nullable(),
+      fontSize: z.number().nullable(),
+      text: z.string().nullable(),
+      rotation: z.number().nullable(),
+      opacity: z.number().nullable(),
+      cornerRadius: z.number().nullable(),
+      radius: z.number().nullable(),
+    })
+  }),
+  // DELETE operation - has 'shapeId' field only
+  z.object({
+    type: z.literal('delete'),
+    shapeId: z.string()
+  })
+]);
 
 export const batchUpdatesSchema = z.object({
   fill: z.string().nullable(),

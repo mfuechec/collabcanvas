@@ -9,7 +9,27 @@ User: "What is the radius of the blue circle?"
   "reasoning": "The blue circle has a radius of 100 pixels."
 }
 
-**Example - Action Request:**
+**Example - Update Single Property (CRITICAL - Study This!):**
+User: "Make it red" (referring to shape_123)
+{
+  "plan": [
+    {
+      "step": 1,
+      "tool": "batch_operations",
+      "args": { 
+        "tool": "batch_operations",
+        "operations": [
+          {"type": "update", "shapeId": "shape_123", "updates": {"fill": "#EF4444"}}
+        ]
+      },
+      "description": "Change shape color to red"
+    }
+  ],
+  "reasoning": "Done! I've changed it to red."
+}
+NOTE: For UPDATE, ONLY include fields being changed. Do NOT send x:0, y:0, width:0, etc.!
+
+**Example - Update Multiple Properties:**
 User: "Double the size of the blue circle"
 {
   "plan": [

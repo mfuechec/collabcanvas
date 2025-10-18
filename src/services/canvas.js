@@ -576,8 +576,44 @@ const batchOperations = async (operations, canvasId = CANVAS_DOC_ID) => {
         } else if (op.type === 'update' && op.shapeId && op.updates) {
           // UPDATE OPERATION
           const shapeRef = getShapeRef(op.shapeId, canvasId);
+          
+          // Filter out "empty" values (OpenAI's structured outputs forces AI to send all fields)
+          // AI sends: 0 for unused numbers, "" for unused strings, null for unused values
+          // We only want to update fields that have actual values
+          const cleanUpdates = {};
+          Object.keys(op.updates).forEach(key => {
+            const value = op.updates[key];
+            // Keep the value if it's:
+            // - A non-empty string (but allow "0" as a string)
+            // - A non-zero number (but this might break legitimate 0 values!)
+            // - NOT null/undefined
+            // Actually, let's be more specific: exclude null, undefined, 0, and ""
+            // BUT only if the field is typically non-zero (x, y, width, height, fontSize, rotation, cornerRadius)
+            // For fill/text/opacity, keep any value
+            
+            if (value === null || value === undefined) {
+              return; // Skip null/undefined
+            }
+            
+            if (value === 0 || value === "") {
+              // For these fields, 0/"" is likely a placeholder, not a real value
+              const placeholderFields = ['x', 'y', 'width', 'height', 'fontSize', 'rotation', 'cornerRadius', 'radius', 'text'];
+              if (placeholderFields.includes(key)) {
+                return; // Skip placeholder 0/""
+              }
+            }
+            
+            // For opacity, 0 is valid (fully transparent), but AI shouldn't be setting it to 0 by default
+            if (key === 'opacity' && value === 0) {
+              return; // Skip opacity: 0 (AI placeholder)
+            }
+            
+            // Keep this value
+            cleanUpdates[key] = value;
+          });
+          
           const updateData = {
-            ...op.updates,
+            ...cleanUpdates,
             lastModifiedBy: userId,
             lastModifiedAt: now + i
           };

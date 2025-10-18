@@ -151,11 +151,11 @@ export async function executeAICommandWithPlanAndExecute(userMessage, chatHistor
         } else if (shapeType === 'rectangle' || shapeType === 'square') {
           tool = 'create_rectangle';
           const size = shapeType === 'square' ? 100 : null;
-          args = { tool: 'create_rectangle', x: centerX, y: centerY, width: size || 150, height: size || 100, fill, cornerRadius: null };
+          args = { tool: 'create_rectangle', type: 'rectangle', x: centerX, y: centerY, width: size || 150, height: size || 100, fill, cornerRadius: null };
           shapeDescription = colorName ? `${colorName} ${shapeType}` : shapeType;
         } else if (shapeType === 'text') {
           tool = 'create_text';
-          args = { tool: 'create_text', x: centerX, y: centerY, text: 'Text', fontSize: 48, fill };
+          args = { tool: 'create_text', type: 'text', x: centerX, y: centerY, text: 'Text', fontSize: 48, fill };
           shapeDescription = colorName ? `${colorName} text` : 'text';
         } else if (shapeType === 'line') {
           tool = 'create_line';

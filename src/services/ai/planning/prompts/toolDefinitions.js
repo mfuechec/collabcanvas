@@ -11,6 +11,12 @@ export const TOOL_DEFINITIONS = `**Available Tools with Parameters:**
    - **ALWAYS use this for UI layouts (login, dashboard, forms, etc.)** - Create ALL shapes in ONE batch!
    - ONLY valid types: 'create', 'update', 'delete' (NO 'rotate', 'move', 'resize', etc.!)
    - For rotating/moving ALL shapes → Use batch_update_shapes instead (MUCH FASTER!)
+   - **UPDATE FORMAT (CRITICAL - READ CAREFULLY):**
+     * ✅ CORRECT: {type: 'update', shapeId: 'shape_123', updates: {fill: '#EF4444'}}
+     * ❌ WRONG: {type: 'update', shape: {type:'text', x:0, y:0, fill:'#EF4444', ...}} - DO NOT USE 'shape' FIELD!
+     * ❌ WRONG: {type: 'update', shapeId: 'shape_123', updates: {x:0, y:0, width:0, ...}} - ONLY include changed fields!
+     * The 'updates' object should ONLY contain fields you want to change (e.g., just {fill: '#FF0000'} to change color)
+     * NEVER send x:0, y:0, width:0, fontSize:0, etc. for fields you don't want to change!
    - For CREATE operations, specify shape properties:
      * Circles: use 'radius' parameter (e.g., {type:'circle', x:100, y:100, radius:50, fill:'#FF0000'})
      * Rectangles: use 'width' and 'height' (e.g., {type:'rectangle', x:100, y:100, width:100, height:80, fill:'#FF0000'})
