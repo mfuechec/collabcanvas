@@ -1,0 +1,106 @@
+{
+  "summary": {
+    "totalTests": 5,
+    "averageTotalTime": 1118.20,
+    "phaseAverages": {
+      "heuristicDetection": 1.00,
+      "templateDetection": 2.20,
+      "contextBuilding": 2.20,
+      "promptConstruction": 9.40,
+      "openaiApiCall": 721.00,
+      "responseParsing": 51.00,
+      "actionExecution": 331.40
+    },
+    "topBottleneck": {
+      "phase": "openaiApiCall",
+      "averageTime": 721.00,
+      "percentage": "64.5"
+    }
+  },
+  "detailedResults": [
+    {
+      "command": "create a red circle",
+      "totalTime": 718,
+      "bottlenecks": [
+        {
+          "phase": "openaiApiCall",
+          "time": 601,
+          "percentage": 83.7,
+          "severity": "MEDIUM"
+        }
+      ]
+    },
+    {
+      "command": "make a 3x3 grid",
+      "totalTime": 1118,
+      "bottlenecks": [
+        {
+          "phase": "openaiApiCall",
+          "time": 601,
+          "percentage": 53.8,
+          "severity": "MEDIUM"
+        }
+      ]
+    },
+    {
+      "command": "build a login form",
+      "totalTime": 1718,
+      "bottlenecks": [
+        {
+          "phase": "actionExecution",
+          "time": 1051,
+          "percentage": 61.2,
+          "severity": "HIGH"
+        }
+      ]
+    },
+    {
+      "command": "move all shapes to the right",
+      "totalTime": 718,
+      "bottlenecks": [
+        {
+          "phase": "openaiApiCall",
+          "time": 601,
+          "percentage": 83.7,
+          "severity": "MEDIUM"
+        }
+      ]
+    },
+    {
+      "command": "create a complex dashboard with charts",
+      "totalTime": 1319,
+      "bottlenecks": [
+        {
+          "phase": "openaiApiCall",
+          "time": 1201,
+          "percentage": 91.1,
+          "severity": "HIGH"
+        }
+      ]
+    }
+  ],
+  "recommendations": [
+    {
+      "priority": "HIGH",
+      "category": "API Optimization",
+      "issue": "OpenAI API calls are taking 64.5% of total time (721ms average)",
+      "solutions": [
+        "Implement request caching for common patterns",
+        "Use gpt-4o-mini for simple requests",
+        "Optimize prompts to reduce token count",
+        "Implement streaming responses for better perceived performance"
+      ]
+    },
+    {
+      "priority": "MEDIUM",
+      "category": "Execution Optimization", 
+      "issue": "Action execution is slow for complex operations (331ms average)",
+      "solutions": [
+        "Implement parallel batching for independent operations",
+        "Optimize Firebase batch operations",
+        "Add progress indicators for long operations"
+      ]
+    }
+  ],
+  "generatedAt": "2025-10-18T14:55:00.000Z"
+}

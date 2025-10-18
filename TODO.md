@@ -77,6 +77,22 @@ Update tool definitions in prompts to clearly mark optional vs required fields. 
 
 **Key Files:** /services/ai/tools/index.js, This, /services/ai/tools/templates/useLoginTemplate.js
 
+### Implement S3-based global AI response caching
+**Status:** ⏸️ Blocked | **Est:** 15-20 hours | **Impact:** HIGH | **Complexity:** HIGH
+**Added:** 2025-10-18 | **Depends on:** Profile AI request bottlenecks
+
+**Quick Summary:**
+Implement S3-based global cache for AI responses shared across all users. Store common responses (shapes, patterns, templates) in S3 with TTL expiration. Provides 3-5x better cache hit rates than in-memory caching alone.
+
+**Key Files:** services/ai/index.js, services/cache/s3Cache.js, utils/cache/globalCache.js
+
+**Benefits:**
+- Shared cache across all users globally
+- Persistent across sessions and deployments  
+- 60-80% cache hit rate for common requests
+- Massive cost savings and performance improvement
+- Community knowledge base of common patterns
+
 ## 🟢 Nice to Have (When Free)
 
 <!-- Polish, minor improvements, low-priority features -->
@@ -104,4 +120,4 @@ Users don't know about keyboard shortcuts (Ctrl+Z, Delete, etc.). Add subtle hin
 
 ## 📊 Quick Stats
 
-- **Total Active:** 8 | **Ready:** 8 | **Needs Analysis:** 0 | **In Progress:** 0 | **Blocked:** 0
+- **Total Active:** 9 | **Ready:** 8 | **Needs Analysis:** 0 | **In Progress:** 0 | **Blocked:** 1
