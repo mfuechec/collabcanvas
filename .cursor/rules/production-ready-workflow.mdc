@@ -1,0 +1,77 @@
+# Production Ready Workflow
+
+## Description
+When the user says a branch is "production ready", execute the following automated workflow to move the ticket to Done, merge to master, and deploy to production.
+
+## Workflow Steps
+
+### 1. Move Ticket to Done in Jira
+```bash
+# Find the current branch's Jira ticket from .jira-mapping.json
+# Update ticket status to "Done" with completion comment
+node scripts/jira/update-ticket.js [TICKET_KEY] --status="Done" --comment="✅ Production Ready - Deployed to master and production"
+```
+
+### 2. Push Current Branch
+```bash
+# Ensure all changes are committed and pushed
+git add .
+git commit -m "Production ready - final commit before merge"
+git push origin [CURRENT_BRANCH]
+```
+
+### 3. Switch to Master and Merge
+```bash
+# Switch to master branch
+git checkout main
+git pull origin main
+
+# Merge the production-ready branch
+git merge [CURRENT_BRANCH] --no-ff -m "Merge [BRANCH_NAME] to main - Production Ready
+
+- [Brief description of changes]
+- [Key features implemented]
+- [Performance improvements]
+- [Testing completed]"
+
+# Push merged changes to main
+git push origin main
+```
+
+### 4. Deploy to Production
+```bash
+# Deploy to production using Firebase
+npm run deploy
+```
+
+### 5. Clean Up Feature Branch (Required)
+```bash
+# Delete the feature branch after successful merge and deployment
+git branch -d [CURRENT_BRANCH]
+git push origin --delete [CURRENT_BRANCH]
+```
+
+## Implementation Notes
+
+- Always confirm with user before executing destructive operations
+- Check for uncommitted changes before proceeding
+- Verify all tests pass before merging
+- Ensure proper commit messages with meaningful descriptions
+- Handle merge conflicts gracefully
+- Verify deployment success before cleanup
+- **Feature branch cleanup is MANDATORY** - never leave feature branches after production deployment
+
+## Error Handling
+
+- If Jira update fails, continue with git operations but notify user
+- If merge conflicts occur, pause and ask user to resolve
+- If deployment fails, rollback merge and notify user
+- Always provide clear status updates throughout the process
+
+## Success Criteria
+
+- ✅ Jira ticket moved to "Done"
+- ✅ Branch pushed to remote
+- ✅ Changes merged to main branch
+- ✅ Production deployment successful
+- ✅ **Feature branch cleaned up (MANDATORY)**
