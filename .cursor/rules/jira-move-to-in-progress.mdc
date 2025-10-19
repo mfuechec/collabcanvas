@@ -47,6 +47,13 @@ Examples:
 git checkout -b CRM-19-keyboard-shortcuts
 ```
 
+**Set terminal tab title:**
+```bash
+printf '\033]0;CRM-19: Add keyboard shortcuts\007'
+```
+
+This names the current terminal tab with the ticket key and title for easy identification.
+
 ### 2. Update Jira Ticket
 
 **Transition to In Progress:**
@@ -207,6 +214,7 @@ User: "move CRM-19 to in progress"
 
 AI: [Runs git commands]
 "Switched to a new branch 'CRM-19-keyboard-shortcuts'
+[Terminal tab title changes to: CRM-19: Add keyboard shortcuts]
 
 Updating Jira...
 ✅ Status: SCOPED → In Progress
