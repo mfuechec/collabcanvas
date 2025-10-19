@@ -430,6 +430,32 @@ MIT License - see LICENSE file for details
 
 This project was built as part of the Gauntlet AI Bootcamp. The codebase demonstrates real-time collaborative design principles and is open for learning and contributions.
 
+### Jira Workflow (Global Commands)
+
+This project uses global Jira workflow commands for ticket management:
+
+```bash
+# Create ticket
+jira-create "Add feature X" "Feature description"
+
+# Start work (creates worktree + auto-setup)
+jira-start CRM-35
+
+# OR: Launch full agent (new iTerm tab + Cursor)
+launch-agent CRM-35
+
+# Move to review
+jira-review CRM-35
+
+# Complete ticket
+jira-complete CRM-35
+```
+
+**Multi-Agent Development:**
+- Each `launch-agent` opens a new iTerm tab with isolated worktree
+- No git conflicts between agents
+- See `~/bin/jira-workflow/README.md` for full documentation
+
 ### Development Guidelines
 - Follow existing code patterns and CSS variable usage
 - Add tests for new features
