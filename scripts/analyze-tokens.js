@@ -1,8 +1,8 @@
 // Quick token analysis script
-import { TOOL_DEFINITIONS } from './src/services/ai/planning/prompts/toolDefinitions.js';
-import { DESIGN_SYSTEM } from './src/services/ai/planning/prompts/designSystem.js';
-import { LAYOUT_RULES } from './src/services/ai/planning/prompts/layoutRules.js';
-import { TOOL_EXAMPLES } from './src/services/ai/planning/prompts/examples.js';
+import { TOOL_DEFINITIONS } from '../src/services/ai/planning/prompts/toolDefinitions.js';
+import { DESIGN_SYSTEM } from '../src/services/ai/planning/prompts/designSystem.js';
+import { LAYOUT_RULES } from '../src/services/ai/planning/prompts/layoutRules.js';
+import { TOOL_EXAMPLES } from '../src/services/ai/planning/prompts/examples.js';
 
 // Rough token estimation (1 token ≈ 4 characters)
 function estimateTokens(text) {

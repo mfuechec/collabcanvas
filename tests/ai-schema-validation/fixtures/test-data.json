@@ -1,0 +1,202 @@
+{
+  "validToolArgs": {
+    "use_login_template": {
+      "tool": "use_login_template",
+      "primaryColor": "#8B5CF6",
+      "size": "normal",
+      "style": "modern",
+      "fields": ["email", "password"],
+      "socialProviders": ["google"],
+      "titleText": "Welcome Back",
+      "subtitleText": "Sign in to continue",
+      "buttonText": "Sign In"
+    },
+    "batch_operations": {
+      "tool": "batch_operations",
+      "operations": [
+        {
+          "type": "create",
+          "shape": {
+            "type": "rectangle",
+            "x": 100,
+            "y": 100,
+            "width": 200,
+            "height": 150,
+            "fill": "#FF0000"
+          }
+        },
+        {
+          "type": "update",
+          "shapeId": "shape_123",
+          "updates": {
+            "fill": "#00FF00"
+          }
+        },
+        {
+          "type": "delete",
+          "shapeId": "shape_456"
+        }
+      ]
+    },
+    "create_grid": {
+      "tool": "create_grid",
+      "rows": 3,
+      "cols": 3,
+      "startX": 100,
+      "startY": 100,
+      "cellWidth": 80,
+      "cellHeight": 80,
+      "spacing": 10,
+      "fill": "#3B82F6"
+    }
+  },
+  "partialUpdateScenarios": {
+    "colorOnly": {
+      "tool": "batch_update_shapes",
+      "shapeIds": ["shape_1"],
+      "updates": {
+        "fill": "#FF0000"
+      }
+    },
+    "positionOnly": {
+      "tool": "batch_update_shapes",
+      "shapeIds": ["shape_1"],
+      "deltaX": 100
+    },
+    "sizeOnly": {
+      "tool": "batch_update_shapes",
+      "shapeIds": ["shape_1"],
+      "scaleX": 1.5,
+      "scaleY": 1.5
+    },
+    "textOnly": {
+      "tool": "batch_operations",
+      "operations": [
+        {
+          "type": "update",
+          "shapeId": "shape_123",
+          "updates": {
+            "text": "New Text"
+          }
+        }
+      ]
+    }
+  },
+  "errorScenarios": {
+    "missingRequired": {
+      "tool": "create_grid"
+    },
+    "wrongType": {
+      "tool": "create_grid",
+      "rows": "not_a_number",
+      "cols": 3
+    },
+    "invalidEnum": {
+      "tool": "use_login_template",
+      "size": "invalid_size"
+    },
+    "invalidTool": {
+      "tool": "unknown_tool",
+      "someArg": "value"
+    }
+  },
+  "executionPlans": {
+    "simple": {
+      "plan": [
+        {
+          "step": 1,
+          "tool": "clear_canvas",
+          "args": {
+            "tool": "clear_canvas"
+          },
+          "description": "Clear the canvas"
+        }
+      ],
+      "reasoning": "I've cleared the canvas to start fresh."
+    },
+    "multiStep": {
+      "plan": [
+        {
+          "step": 1,
+          "tool": "create_grid",
+          "args": {
+            "tool": "create_grid",
+            "rows": 3,
+            "cols": 3
+          },
+          "description": "Create a 3x3 grid"
+        },
+        {
+          "step": 2,
+          "tool": "batch_update_shapes",
+          "args": {
+            "tool": "batch_update_shapes",
+            "shapeIds": ["shape_1", "shape_2"],
+            "updates": {
+              "fill": "#00FF00"
+            }
+          },
+          "description": "Make first two shapes green"
+        }
+      ],
+      "reasoning": "I've created a 3x3 grid and colored the first two shapes green."
+    }
+  },
+  "realWorldCommands": [
+    {
+      "command": "make it purple",
+      "expectedResponse": {
+        "plan": [
+          {
+            "step": 1,
+            "tool": "batch_update_shapes",
+            "args": {
+              "tool": "batch_update_shapes",
+              "shapeIds": ["shape_1"],
+              "updates": { "fill": "#800080" }
+            },
+            "description": "Change color to purple"
+          }
+        ],
+        "reasoning": "I've changed the selected shape to purple."
+      }
+    },
+    {
+      "command": "move it right",
+      "expectedResponse": {
+        "plan": [
+          {
+            "step": 1,
+            "tool": "batch_update_shapes",
+            "args": {
+              "tool": "batch_update_shapes",
+              "shapeIds": ["shape_1"],
+              "deltaX": 100
+            },
+            "description": "Move shape to the right"
+          }
+        ],
+        "reasoning": "I've moved the shape 100 pixels to the right."
+      }
+    },
+    {
+      "command": "create a login form",
+      "expectedResponse": {
+        "plan": [
+          {
+            "step": 1,
+            "tool": "use_login_template",
+            "args": {
+              "tool": "use_login_template",
+              "primaryColor": "#3B82F6",
+              "size": "normal",
+              "style": "modern"
+            },
+            "description": "Create a modern login form"
+          }
+        ],
+        "reasoning": "I've created a modern login form with the default styling."
+      }
+    }
+  ]
+}
