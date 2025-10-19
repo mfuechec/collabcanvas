@@ -12,8 +12,13 @@
  */
 
 import { execSync } from 'child_process';
+import path from 'path';
+import { fileURLToPath } from 'url';
 import dotenv from 'dotenv';
 dotenv.config();
+
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
 
 const JIRA_HOST = process.env.JIRA_HOST;
 const JIRA_EMAIL = process.env.JIRA_EMAIL;
@@ -138,6 +143,26 @@ async function completeTicket() {
     process.exit(1);
   }
 
+  // Detect if we're in a worktree
+  let isWorktree = false;
+  let worktreePath = null;
+  let mainRepoPath = null;
+  
+  try {
+    const gitDir = execSync('git rev-parse --git-dir', { encoding: 'utf8' }).trim();
+    isWorktree = !gitDir.endsWith('.git');
+    
+    if (isWorktree) {
+      worktreePath = process.cwd();
+      const commonDir = execSync('git rev-parse --git-common-dir', { encoding: 'utf8' }).trim();
+      mainRepoPath = path.dirname(commonDir);
+      console.log('📂 Running in worktree\n');
+    }
+  } catch (error) {
+    console.error('❌ Failed to detect git environment:', error.message);
+    process.exit(1);
+  }
+
   // Get current branch
   const branchName = execSync('git branch --show-current', { encoding: 'utf8' }).trim();
   console.log(`🌿 Branch: ${branchName}\n`);
@@ -160,6 +185,12 @@ async function completeTicket() {
     console.log('✅ Preview channel deleted\n');
   } catch {
     console.log('⚠️  Preview channel not found or already deleted\n');
+  }
+
+  // Switch to main repo if in worktree
+  if (isWorktree) {
+    console.log(`📂 Switching to main repo: ${mainRepoPath}\n`);
+    process.chdir(mainRepoPath);
   }
 
   // Merge to main (squash all commits into one)
@@ -200,11 +231,33 @@ async function completeTicket() {
   await jira.addComment(ticketKey, prodUrl);
   console.log('✅ Added completion comment\n');
 
-  // Clean up branch (force delete since we squashed)
-  console.log('🧹 Cleaning up feature branch...');
-  execSync(`git branch -D ${branchName}`, { stdio: 'inherit' });
-  execSync(`git push origin --delete ${branchName}`, { stdio: 'inherit' });
-  console.log('✅ Branch deleted\n');
+  // Clean up branch/worktree (force delete since we squashed)
+  console.log('🧹 Cleaning up...');
+  
+  if (isWorktree && worktreePath) {
+    // Remove worktree (this also deletes the branch)
+    try {
+      execSync(`git worktree remove "${worktreePath}" --force`, { stdio: 'inherit' });
+      console.log('✅ Worktree removed');
+    } catch (error) {
+      console.log('⚠️  Worktree cleanup may require manual action');
+    }
+  }
+  
+  // Delete branch locally and remotely
+  try {
+    execSync(`git branch -D ${branchName}`, { stdio: 'pipe' });
+    console.log('✅ Local branch deleted');
+  } catch {
+    console.log('⚠️  Local branch already deleted');
+  }
+  
+  try {
+    execSync(`git push origin --delete ${branchName}`, { stdio: 'inherit' });
+    console.log('✅ Remote branch deleted\n');
+  } catch {
+    console.log('⚠️  Remote branch already deleted\n');
+  }
 
   console.log('━'.repeat(60));
   console.log(`✅ ${ticketKey} completed and deployed to production`);

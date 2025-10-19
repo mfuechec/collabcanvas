@@ -67,11 +67,15 @@ AI:
 Run: `node scripts/jira/start-ticket.js {TICKET-KEY}`
 
 **What it does:**
-- Creates git branch from main
+- Ensures main branch is up to date (pulls latest)
+- Creates git worktree in `../.git-worktrees/{branch-name}/`
 - Moves Jira ticket to "In Progress"
 - Sets terminal title
 - Displays task recap (approach, files, complexity, estimate)
+- Outputs cd command to switch to worktree
 - Asks "Ready to start implementation?"
+
+**Note:** Worktrees enable multiple agents to work on different tickets simultaneously without git conflicts.
 
 **Example:**
 ```
@@ -143,11 +147,13 @@ Run: `node scripts/jira/complete-ticket.js {TICKET-KEY}`
 Or if no ticket specified, script auto-detects from current branch.
 
 **What it does:**
+- Auto-commits any uncommitted changes
 - Deletes Firebase preview channel
+- Switches to main repo (if in worktree)
 - Squash merges to main (all commits → 1 clean commit)
 - Deploys to production
 - Moves Jira to "Done"
-- Cleans up feature branch
+- Removes worktree (if used) and deletes branch
 
 **Example:**
 ```

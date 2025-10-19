@@ -10,8 +10,13 @@
  */
 
 import { execSync } from 'child_process';
+import path from 'path';
+import { fileURLToPath } from 'url';
 import dotenv from 'dotenv';
 dotenv.config();
+
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
 
 const JIRA_HOST = process.env.JIRA_HOST;
 const JIRA_EMAIL = process.env.JIRA_EMAIL;
@@ -124,6 +129,35 @@ function extractTextFromDescription(desc) {
   return text;
 }
 
+// Helper to detect if we're in a worktree and get paths
+function getWorktreeInfo() {
+  try {
+    // Check if .git is a file (worktree) or directory (main repo)
+    const gitDir = execSync('git rev-parse --git-dir', { encoding: 'utf8' }).trim();
+    const isWorktree = !gitDir.endsWith('.git');
+    
+    if (isWorktree) {
+      // Get the main repo root (where .git-worktrees lives)
+      const commonDir = execSync('git rev-parse --git-common-dir', { encoding: 'utf8' }).trim();
+      const mainRepoPath = path.dirname(commonDir);
+      return {
+        isWorktree: true,
+        mainRepoPath,
+        deployScriptPath: path.join(mainRepoPath, 'scripts/deploy/deploy-test.sh')
+      };
+    }
+    
+    return {
+      isWorktree: false,
+      mainRepoPath: process.cwd(),
+      deployScriptPath: './scripts/deploy/deploy-test.sh'
+    };
+  } catch (error) {
+    console.error('❌ Failed to detect git environment:', error.message);
+    process.exit(1);
+  }
+}
+
 function determineTestingInstructions(ticket) {
   const desc = extractTextFromDescription(ticket.fields.description);
   const summary = ticket.fields.summary.toLowerCase();
@@ -184,12 +218,18 @@ async function reviewTicket() {
     console.log('✅ No uncommitted changes\n');
   }
 
+  // Detect worktree environment
+  const worktreeInfo = getWorktreeInfo();
+  if (worktreeInfo.isWorktree) {
+    console.log('📂 Running in worktree\n');
+  }
+
   // Deploy to preview channel using deploy-test.sh
   console.log(`🚀 Deploying to preview channel for ${ticketKey}...\n`);
   
   try {
     const deployOutput = execSync(
-      `./scripts/deploy/deploy-test.sh ${ticketKey}`,
+      `"${worktreeInfo.deployScriptPath}" ${ticketKey}`,
       { encoding: 'utf8' }
     );
     

@@ -3,7 +3,8 @@
 /**
  * Start Jira Ticket Script
  * 
- * Moves ticket from SCOPED → In Progress, creates feature branch, and updates Jira.
+ * Moves ticket from SCOPED → In Progress, creates git worktree with feature branch, and updates Jira.
+ * Creates isolated workspace in ../.git-worktrees/ for parallel development.
  * 
  * Usage:
  *   node scripts/jira/start-ticket.js CRM-19
@@ -11,8 +12,13 @@
  */
 
 import { execSync } from 'child_process';
+import path from 'path';
+import { fileURLToPath } from 'url';
 import dotenv from 'dotenv';
 dotenv.config();
+
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
 
 const JIRA_HOST = process.env.JIRA_HOST;
 const JIRA_EMAIL = process.env.JIRA_EMAIL;
@@ -114,17 +120,30 @@ async function startTicket() {
   console.log(`📋 ${ticket.fields.summary}`);
   console.log(`   Current status: ${ticket.fields.status.name}\n`);
 
-  // Create git branch
-  const branchName = createBranchName(ticketKey, ticket.fields.summary);
-  console.log(`🌿 Creating branch: ${branchName}`);
-  
+  // Ensure we're on main and up to date
+  console.log('🔄 Ensuring main branch is up to date...');
   try {
     execSync('git checkout main', { stdio: 'inherit' });
     execSync('git pull origin main', { stdio: 'inherit' });
-    execSync(`git checkout -b ${branchName}`, { stdio: 'inherit' });
-    console.log('✅ Branch created and checked out\n');
+    console.log('✅ Main branch updated\n');
   } catch (error) {
-    console.error('❌ Git operation failed:', error.message);
+    console.error('❌ Failed to update main branch:', error.message);
+    process.exit(1);
+  }
+
+  // Create worktree
+  const branchName = createBranchName(ticketKey, ticket.fields.summary);
+  const worktreePath = path.resolve(__dirname, '../../..', '.git-worktrees', branchName);
+  
+  console.log(`🌿 Creating worktree: ${branchName}`);
+  console.log(`📂 Location: ${worktreePath}\n`);
+  
+  try {
+    // Create worktree with new branch
+    execSync(`git worktree add "${worktreePath}" -b ${branchName}`, { stdio: 'inherit' });
+    console.log('✅ Worktree created\n');
+  } catch (error) {
+    console.error('❌ Failed to create worktree:', error.message);
     process.exit(1);
   }
 
@@ -183,6 +202,9 @@ async function startTicket() {
   console.log('\n' + '─'.repeat(60));
   console.log('Ready to start implementation? 🚀');
   console.log('─'.repeat(60));
+  console.log('\n🚀 To switch to the worktree, run:\n');
+  console.log(`   cd "${worktreePath}"`);
+  console.log('');
 }
 
 // Helper function to extract text from Atlassian Document Format
