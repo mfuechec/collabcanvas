@@ -103,23 +103,26 @@ export async function classifyRequestComplexity(userMessage, canvasShapes = []) 
     return 'simple';
   }
   
-  // Creative: UI layouts and composite objects (use GPT-4o for quality)
+  // Creative: Artistic tasks and composite objects (use optimized creative prompt)
   const creativePatterns = [
-    // UI/Form elements (structured layouts)
+    // Artistic/creative requests (enhanced patterns)
+    /(draw|create|make|design)\s+(sunset|galaxy|face|tree|house|flower|sun|moon|star|smiley|emoji)/i,
+    /(draw|create|make|design)\s+(a|an)?\s*(beautiful|pretty|cool|awesome|amazing|artistic)/i,
+    /(create|make)\s+(art|abstract|composition|pattern|design)/i,
+    /(draw|paint|sketch)\s+(something|anything)\s+(beautiful|pretty|cool|nice)/i,
+    /(design|create)\s+(something|anything)\s+(beautiful|pretty|cool|nice|amazing)/i,
+    
+    // Composite objects (multiple shapes aligned, requires spatial reasoning)
+    /(face|smiley|emoji|person|stick\s+figure|character)/i,
+    /(tree|flower|plant|sun|moon|star|nature|landscape)/i,
+    /(house|building|car|vehicle|boat|ship|architecture)/i,
+    
+    // UI/Form elements (structured layouts) - keep for template tools
     /(form|login|signup|register|sign\s+in|sign\s+up)/i,
     /(button|input|card|panel|modal|dialog)/i,
     /(dashboard|layout|screen|interface|ui|page)/i,
     /(navbar|sidebar|menu|header|footer)/i,
     /(profile|settings|checkout|contact|pricing)/i,
-    
-    // Composite objects (multiple shapes aligned, requires spatial reasoning)
-    /(face|smiley|emoji|person|stick\s+figure)/i,
-    /(tree|flower|plant|sun|moon|star)/i,
-    /(house|building|car|vehicle|boat|ship)/i,
-    
-    // Creative/artistic requests
-    /(draw|design|build|create)\s+(a|an)?\s*\w+\s+(with|using|that\s+has)/i,
-    /(make|create)\s+(something|anything)\s+(cool|nice|pretty|beautiful|interesting)/i,
   ];
   if (creativePatterns.some(pattern => pattern.test(lowerMsg))) {
     console.log(`   └─ Fast heuristic: creative task → GPT-4o (${(performance.now() - startTime).toFixed(1)}ms)`);

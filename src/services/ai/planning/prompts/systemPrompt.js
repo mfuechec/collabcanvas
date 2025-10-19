@@ -2,7 +2,7 @@ import { TOOL_DEFINITIONS } from './toolDefinitions.js';
 import { DESIGN_SYSTEM } from './designSystem.js';
 import { LAYOUT_RULES } from './layoutRules.js';
 import { TOOL_EXAMPLES } from './examples.js';
-import { CREATIVE_DESIGN_SYSTEM } from './creativeDesignSystem.js';
+// import { CREATIVE_DESIGN_SYSTEM } from './creativeDesignSystem.js';
 
 // ========================================
 // SYSTEM PROMPT BUILDER
@@ -25,7 +25,7 @@ ${TOOL_DEFINITIONS}
 
 ${DESIGN_SYSTEM}
 
-${CREATIVE_DESIGN_SYSTEM}
+${DESIGN_SYSTEM}
 
 ${LAYOUT_RULES}
 

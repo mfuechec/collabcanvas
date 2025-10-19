@@ -1,24 +1,52 @@
 import { gpt4oStructured } from '../config/models.js';
 import { buildSmartContext } from '../context/contextBuilder.js';
 import { buildStaticSystemPrompt, buildDynamicContext } from './prompts/systemPrompt.js';
+import { buildCreativeSystemPrompt } from './prompts/creativePrompt.js';
 
 // ========================================
 // EXECUTION PLAN GENERATION
 // ========================================
 
-// Cache the static prompt (computed once, reused for all requests)
+// Cache the static prompts (computed once, reused for all requests)
 const STATIC_SYSTEM_PROMPT = buildStaticSystemPrompt();
+const CREATIVE_SYSTEM_PROMPT = buildCreativeSystemPrompt();
+
+/**
+ * Check if a request is a creative task that should use the optimized creative prompt
+ * @param {string} userMessage - User's natural language request
+ * @returns {boolean} True if this is a creative task
+ */
+function isCreativeTask(userMessage) {
+  const lowerMsg = userMessage.toLowerCase();
+  
+  // Enhanced creative patterns for artistic tasks
+  const creativePatterns = [
+    // Artistic/creative requests
+    /(draw|create|make|design)\s+(sunset|galaxy|face|tree|house|flower|sun|moon|star|smiley|emoji)/i,
+    /(draw|create|make|design)\s+(a|an)?\s*(beautiful|pretty|cool|awesome|amazing|artistic)/i,
+    /(create|make)\s+(art|abstract|composition|pattern|design)/i,
+    /(draw|paint|sketch)\s+(something|anything)\s+(beautiful|pretty|cool|nice)/i,
+    
+    // Composite objects
+    /(face|smiley|emoji|person|stick\s+figure|character)/i,
+    /(tree|flower|plant|sun|moon|star|nature|landscape)/i,
+    /(house|building|car|vehicle|boat|ship|architecture)/i,
+  ];
+  
+  return creativePatterns.some(pattern => pattern.test(lowerMsg));
+}
 
 /**
  * Generate an execution plan for a user request
- * Uses GPT-4o with structured outputs and prompt caching for optimal performance
+ * Uses optimized prompts based on task type for maximum efficiency
  * 
- * OPTIMIZATION: No classification overhead - always use GPT-4o for best quality
+ * CREATIVE TASKS: Use streamlined creative prompt (~1,500 tokens vs 3,767)
+ * OTHER TASKS: Use full system prompt for comprehensive guidance
  * 
  * CACHING STRATEGY:
- * - Static prompt (design system, rules, examples) → cached by OpenAI
- * - Dynamic context (canvas state, user style) → prepended to user message
- * - Result: First request ~3-6s, subsequent requests ~1.5-3s (50% faster with cache!)
+ * - Static prompts → cached by OpenAI
+ * - Dynamic context → prepended to user message
+ * - Result: Creative tasks ~1.5-2.5s, other tasks ~2-4s
  * 
  * @param {string} userMessage - User's natural language request
  * @param {Array} canvasShapes - Current shapes on the canvas
@@ -26,6 +54,9 @@ const STATIC_SYSTEM_PROMPT = buildStaticSystemPrompt();
  * @returns {Object} Execution plan with steps and reasoning
  */
 export async function generateExecutionPlan(userMessage, canvasShapes, userStyleGuide = '') {
+  // Check if this is a creative task
+  const isCreative = isCreativeTask(userMessage);
+  
   // Build smart context (only includes relevant canvas information)
   const currentCanvasState = buildSmartContext(userMessage, canvasShapes, true);
   
@@ -37,17 +68,20 @@ export async function generateExecutionPlan(userMessage, canvasShapes, userStyle
     ? `${dynamicContext}User request: ${userMessage}`
     : userMessage;
   
-  // Always use GPT-4o for best quality (no classification overhead)
+  // Select appropriate prompt and model
   const selectedModel = gpt4oStructured;
+  const systemPrompt = isCreative ? CREATIVE_SYSTEM_PROMPT : STATIC_SYSTEM_PROMPT;
+  const promptType = isCreative ? 'creative' : 'standard';
+  const estimatedTokens = isCreative ? '~1.5K' : '~3.8K';
   
-  console.log(`🤖 [MODEL] Using GPT-4o (best quality, no classification overhead)`);
-  console.log(`🔄 [CACHE] Static prompt (~8K tokens) cacheable, dynamic context (~${Math.round(dynamicContext.length / 4)} tokens)`);
+  console.log(`🤖 [MODEL] Using GPT-4o with ${promptType} prompt (${estimatedTokens} tokens)`);
+  console.log(`🔄 [CACHE] ${promptType} prompt cacheable, dynamic context (~${Math.round(dynamicContext.length / 4)} tokens)`);
   
   // Generate plan using structured output with raw response metadata
   // OpenAI automatically caches the static system message across requests
   const startTime = performance.now();
   const rawResponse = await selectedModel.invoke([
-    { role: 'system', content: STATIC_SYSTEM_PROMPT }, // ← Cached!
+    { role: 'system', content: systemPrompt }, // ← Cached!
     { role: 'user', content: fullUserMessage }          // ← Fresh each time
   ]);
   const inferenceTime = performance.now() - startTime;

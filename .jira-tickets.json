@@ -16,20 +16,6 @@
       "link": "https://fuechecmark.atlassian.net/browse/CRM-18"
     },
     {
-      "key": "CRM-16",
-      "summary": "Add AI tool schema validation tests",
-      "status": "To Do",
-      "priority": "High",
-      "assignee": "Unassigned",
-      "labels": [
-        "ai",
-        "testing"
-      ],
-      "created": "2025-10-18T18:07:48.149-0500",
-      "updated": "2025-10-18T18:17:38.849-0500",
-      "link": "https://fuechecmark.atlassian.net/browse/CRM-16"
-    },
-    {
       "key": "CRM-15",
       "summary": "Add fast model routing for simple AI requests",
       "status": "To Do",
@@ -84,5 +70,5 @@
       "link": "https://fuechecmark.atlassian.net/browse/CRM-17"
     }
   ],
-  "fetched": "2025-10-19T00:46:27.684Z"
+  "fetched": "2025-10-19T02:46:43.764Z"
 }

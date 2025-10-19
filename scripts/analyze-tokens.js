@@ -1,7 +1,7 @@
 // Quick token analysis script
 import { TOOL_DEFINITIONS } from '../src/services/ai/planning/prompts/toolDefinitions.js';
 import { DESIGN_SYSTEM } from '../src/services/ai/planning/prompts/designSystem.js';
-import { CREATIVE_DESIGN_SYSTEM } from '../src/services/ai/planning/prompts/creativeDesignSystem.js';
+// import { CREATIVE_DESIGN_SYSTEM } from '../src/services/ai/planning/prompts/creativeDesignSystem.js';
 import { LAYOUT_RULES } from '../src/services/ai/planning/prompts/layoutRules.js';
 import { TOOL_EXAMPLES } from '../src/services/ai/planning/prompts/examples.js';
 
@@ -14,7 +14,7 @@ console.log('=== CURRENT PROMPT TOKEN ANALYSIS ===\n');
 
 const toolDefs = TOOL_DEFINITIONS;
 const designSystem = DESIGN_SYSTEM;
-const creativeDesignSystem = CREATIVE_DESIGN_SYSTEM;
+const creativeDesignSystem = ''; // CREATIVE_DESIGN_SYSTEM;
 const layoutRules = LAYOUT_RULES;
 const examples = TOOL_EXAMPLES;
 
