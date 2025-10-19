@@ -1,6 +1,7 @@
 // Quick token analysis script
 import { TOOL_DEFINITIONS } from '../src/services/ai/planning/prompts/toolDefinitions.js';
 import { DESIGN_SYSTEM } from '../src/services/ai/planning/prompts/designSystem.js';
+import { CREATIVE_DESIGN_SYSTEM } from '../src/services/ai/planning/prompts/creativeDesignSystem.js';
 import { LAYOUT_RULES } from '../src/services/ai/planning/prompts/layoutRules.js';
 import { TOOL_EXAMPLES } from '../src/services/ai/planning/prompts/examples.js';
 
@@ -13,6 +14,7 @@ console.log('=== CURRENT PROMPT TOKEN ANALYSIS ===\n');
 
 const toolDefs = TOOL_DEFINITIONS;
 const designSystem = DESIGN_SYSTEM;
+const creativeDesignSystem = CREATIVE_DESIGN_SYSTEM;
 const layoutRules = LAYOUT_RULES;
 const examples = TOOL_EXAMPLES;
 
@@ -99,11 +101,12 @@ CRITICAL:
 - REASONING section: Keep SHORT (5-10 words) - it's shown during streaming as progress
 - "reasoning" field in JSON: Make it a natural, friendly response to the user (e.g., "Done! I've created...")`;
 
-const totalPrompt = basePrompt + toolDefs + designSystem + layoutRules + examples;
+const totalPrompt = basePrompt + toolDefs + designSystem + creativeDesignSystem + layoutRules + examples;
 
 console.log('Base prompt:', estimateTokens(basePrompt), 'tokens');
 console.log('Tool definitions:', estimateTokens(toolDefs), 'tokens');
 console.log('Design system:', estimateTokens(designSystem), 'tokens');
+console.log('Creative design system:', estimateTokens(creativeDesignSystem), 'tokens');
 console.log('Layout rules:', estimateTokens(layoutRules), 'tokens');
 console.log('Examples:', estimateTokens(examples), 'tokens');
 console.log('---');
