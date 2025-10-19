@@ -1,0 +1,433 @@
+---
+Description: Move Jira ticket from In Progress to In Review. Builds project, deploys to Firebase preview channel, updates Jira.
+Globs: scripts/jira/*.js
+---
+
+# Move Ticket to In Review
+
+## Workflow Context
+```
+TO DO → SCOPED → In Progress → In Review → Done
+                               ↑ Moving here
+```
+
+## Trigger Phrases
+
+When user says:
+- "move to in review"
+- "move [ticket] to in review"
+- "ready for review"
+- "move to review"
+- "send to review"
+
+## Process
+
+### 1. Verify Ticket State
+
+**Fetch current ticket:**
+```javascript
+const ticket = await fetchTicket(ticketKey);
+const currentStatus = ticket.fields.status.name;
+
+if (currentStatus !== "In Progress") {
+  console.log(`⚠️  ${ticketKey} is in ${currentStatus}, not "In Progress"`);
+  console.log("Can only move to In Review from In Progress.");
+  return;
+}
+```
+
+### 2. Ensure All Changes Are Committed
+
+**Check git status:**
+```bash
+git status --porcelain
+```
+
+**If uncommitted changes exist:**
+```
+"You have uncommitted changes:
+[list files]
+
+Want to:
+1. Commit them now
+2. Stash them
+3. Cancel"
+```
+
+**If user chooses commit:**
+```bash
+git add -A
+git commit -m "Complete [TICKET-KEY]: [Title]"
+```
+
+### 3. Build Project
+
+```bash
+npm run build
+```
+
+**If build fails:**
+```
+"❌ Build failed. Fix errors before moving to review.
+
+[Show build errors]
+
+Canceling review deployment."
+```
+
+### 4. Deploy to Firebase Preview Channel
+
+**Channel name format:** Lowercase ticket key (e.g., `crm-19`)
+
+```bash
+firebase hosting:channel:deploy crm-19 --expires 999d
+```
+
+**Why 999d expiration:**
+- Firebase requires an expiration (max 999 days)
+- We'll manually delete when ticket moves to Done
+- Acts as safety net if we forget to clean up
+
+**Success output:**
+```
+✔ hosting:channel: Channel URL (crm-19): 
+  https://collabcanvas-5b9fb--crm-19.web.app [expires 2027-10-15]
+```
+
+**Extract preview URL** from output and store it.
+
+### 5. Push Branch to GitHub
+
+```bash
+git push origin CRM-19-keyboard-shortcuts
+```
+
+**If branch already pushed:**
+```bash
+git push origin CRM-19-keyboard-shortcuts --force-with-lease
+```
+
+### 6. Update Jira Ticket
+
+**Transition to In Review:**
+```javascript
+// Get available transitions
+const transitions = await getTransitions(ticketKey);
+const reviewTransition = transitions.find(t => 
+  t.to.name === "In Review" || 
+  t.name.toLowerCase().includes("review")
+);
+
+if (reviewTransition) {
+  await transitionIssue(ticketKey, reviewTransition.id);
+  console.log('✅ Status: In Progress → In Review');
+}
+```
+
+**Add comment with preview URL:**
+```javascript
+await addComment(ticketKey, {
+  type: "doc",
+  version: 1,
+  content: [
+    {
+      type: "paragraph",
+      content: [
+        { type: "text", text: "Ready for review! 🚀" }
+      ]
+    },
+    {
+      type: "paragraph",
+      content: [
+        { type: "text", text: "Preview environment: ", marks: [{ type: "strong" }] },
+        { 
+          type: "text", 
+          text: "https://collabcanvas-5b9fb--crm-19.web.app",
+          marks: [{ type: "link", attrs: { href: "https://collabcanvas-5b9fb--crm-19.web.app" } }]
+        }
+      ]
+    },
+    {
+      type: "paragraph",
+      content: [
+        { type: "text", text: "Branch: " },
+        { type: "text", text: "CRM-19-keyboard-shortcuts", marks: [{ type: "code" }] }
+      ]
+    },
+    {
+      type: "paragraph",
+      content: [
+        { type: "text", text: "Uses production database and auth for testing." }
+      ]
+    }
+  ]
+});
+```
+
+### 7. Show Summary
+
+```
+✅ CRM-19: Add keyboard shortcut hints to UI
+
+Deployment complete:
+• Built successfully
+• Deployed to preview: https://collabcanvas-5b9fb--crm-19.web.app
+• Branch pushed: CRM-19-keyboard-shortcuts
+• Status: In Progress → In Review
+
+🔗 Preview: https://collabcanvas-5b9fb--crm-19.web.app
+🔗 Jira: https://fuechecmark.atlassian.net/browse/CRM-19
+
+Ready for testing! Preview uses production database and auth.
+```
+
+## Implementation Script Template
+
+```javascript
+node << 'EOF'
+import('dotenv').then(async dotenv => {
+  dotenv.default.config();
+  const { execSync } = require('child_process');
+  
+  const JIRA_HOST = process.env.JIRA_HOST;
+  const JIRA_EMAIL = process.env.JIRA_EMAIL;
+  const JIRA_API_TOKEN = process.env.JIRA_API_TOKEN;
+  const auth = Buffer.from(`${JIRA_EMAIL}:${JIRA_API_TOKEN}`).toString('base64');
+  
+  const ticketKey = "[TICKET_KEY]"; // e.g., "CRM-19"
+  const channelName = ticketKey.toLowerCase(); // e.g., "crm-19"
+  
+  try {
+    // 1. Check for uncommitted changes
+    const gitStatus = execSync('git status --porcelain', { encoding: 'utf8' });
+    if (gitStatus.trim()) {
+      console.log('⚠️  Uncommitted changes detected:');
+      console.log(gitStatus);
+      console.log('\nCommit changes before moving to review.');
+      process.exit(1);
+    }
+    
+    // 2. Build project
+    console.log('Building project...');
+    execSync('npm run build', { stdio: 'inherit' });
+    console.log('✅ Build successful\n');
+    
+    // 3. Deploy to preview channel
+    console.log(`Deploying to preview channel: ${channelName}...`);
+    const deployOutput = execSync(
+      `firebase hosting:channel:deploy ${channelName} --expires 999d`,
+      { encoding: 'utf8', stdio: 'pipe' }
+    );
+    
+    // Extract preview URL from output
+    const urlMatch = deployOutput.match(/https:\/\/[^\s]+/);
+    const previewUrl = urlMatch ? urlMatch[0] : `https://collabcanvas-5b9fb--${channelName}.web.app`;
+    
+    console.log(`✅ Deployed to: ${previewUrl}\n`);
+    
+    // 4. Push branch
+    const branchName = execSync('git branch --show-current', { encoding: 'utf8' }).trim();
+    console.log(`Pushing branch: ${branchName}...`);
+    try {
+      execSync(`git push origin ${branchName}`, { stdio: 'inherit' });
+    } catch (err) {
+      // Branch might already be pushed, try force-with-lease
+      execSync(`git push origin ${branchName} --force-with-lease`, { stdio: 'inherit' });
+    }
+    console.log('✅ Branch pushed\n');
+    
+    // 5. Update Jira
+    console.log('Updating Jira...');
+    
+    // Get transitions
+    const transitionsResponse = await fetch(
+      `https://${JIRA_HOST}/rest/api/2/issue/${ticketKey}/transitions`,
+      { headers: { 'Authorization': `Basic ${auth}` } }
+    );
+    const { transitions } = await transitionsResponse.json();
+    
+    const reviewTransition = transitions.find(t => 
+      t.to.name === "In Review" || 
+      t.name.toLowerCase().includes("review")
+    );
+    
+    if (!reviewTransition) {
+      console.log('⚠️  No "In Review" transition found');
+      console.log('Available:', transitions.map(t => t.to.name).join(', '));
+      process.exit(1);
+    }
+    
+    // Transition to In Review
+    await fetch(`https://${JIRA_HOST}/rest/api/2/issue/${ticketKey}/transitions`, {
+      method: 'POST',
+      headers: {
+        'Authorization': `Basic ${auth}`,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({ transition: { id: reviewTransition.id } })
+    });
+    console.log('✅ Status: In Progress → In Review');
+    
+    // Add comment with preview URL
+    await fetch(`https://${JIRA_HOST}/rest/api/3/issue/${ticketKey}/comment`, {
+      method: 'POST',
+      headers: {
+        'Authorization': `Basic ${auth}`,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        body: {
+          type: "doc",
+          version: 1,
+          content: [
+            {
+              type: "paragraph",
+              content: [{ type: "text", text: "Ready for review! 🚀" }]
+            },
+            {
+              type: "paragraph",
+              content: [
+                { type: "text", text: "Preview environment: ", marks: [{ type: "strong" }] },
+                { 
+                  type: "text", 
+                  text: previewUrl,
+                  marks: [{ type: "link", attrs: { href: previewUrl } }]
+                }
+              ]
+            },
+            {
+              type: "paragraph",
+              content: [
+                { type: "text", text: "Branch: " },
+                { type: "text", text: branchName, marks: [{ type: "code" }] }
+              ]
+            },
+            {
+              type: "paragraph",
+              content: [
+                { type: "text", text: "Uses production database and auth for testing." }
+              ]
+            }
+          ]
+        }
+      })
+    });
+    console.log('✅ Added preview URL to ticket\n');
+    
+    // Success summary
+    console.log('━'.repeat(60));
+    console.log(`✅ ${ticketKey} moved to In Review\n`);
+    console.log(`🔗 Preview: ${previewUrl}`);
+    console.log(`🔗 Jira: https://${JIRA_HOST}/browse/${ticketKey}`);
+    console.log('━'.repeat(60));
+    
+  } catch (error) {
+    console.error('❌ Error:', error.message);
+    process.exit(1);
+  }
+});
+EOF
+```
+
+## Example Flow
+
+```
+User: "ready for review"
+
+AI: [Checks git status - clean]
+"Building project...
+✅ Build successful
+
+Deploying to preview channel: crm-19...
+✅ Deployed to: https://collabcanvas-5b9fb--crm-19.web.app
+
+Pushing branch: CRM-19-keyboard-shortcuts...
+✅ Branch pushed
+
+Updating Jira...
+✅ Status: In Progress → In Review
+✅ Added preview URL to ticket
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+✅ CRM-19 moved to In Review
+
+🔗 Preview: https://collabcanvas-5b9fb--crm-19.web.app
+🔗 Jira: https://fuechecmark.atlassian.net/browse/CRM-19
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+Ready for testing! Preview uses production database and auth."
+```
+
+## Error Handling
+
+### Uncommitted Changes
+```
+"⚠️  Uncommitted changes detected:
+ M src/components/Canvas/CanvasToolbar.jsx
+ M src/utils/designSystem.js
+
+Want to:
+1. Commit them now (recommended)
+2. Stash them
+3. Cancel"
+```
+
+### Build Failure
+```
+"❌ Build failed:
+
+[error output]
+
+Fix the build errors before moving to review."
+```
+
+### Firebase Deploy Failure
+```
+"❌ Firebase deployment failed:
+
+[error output]
+
+Check Firebase configuration and try again."
+```
+
+### Not in "In Progress"
+```
+"⚠️  CRM-19 is currently in SCOPED, not In Progress.
+Can only move to In Review from In Progress."
+```
+
+### No "In Review" Status
+```
+"⚠️  No 'In Review' transition found.
+Available transitions: Done, To Do, Blocked
+
+Your Jira workflow may not have an 'In Review' status."
+```
+
+## Additional Notes
+
+### Preview Channel Features
+- **Isolated URL**: Each ticket gets unique URL
+- **Production data**: Uses same Firebase project (Firestore, RTDB, Auth)
+- **Long expiration**: 999 days (manual cleanup when moved to Done)
+- **Multiple simultaneous**: Can test CRM-19, CRM-20, CRM-21 at same time
+
+### Database Considerations
+- **⚠️ Warning**: Preview uses PRODUCTION data
+- **Good for**: Testing real scenarios, multi-user testing
+- **Bad for**: Destructive testing, experimenting with data changes
+- **Recommendation**: Test carefully or use test Firebase accounts
+
+### Cleanup
+Preview channels are deleted when ticket moves to Done (handled by `jira-move-to-done.mdc`).
+
+### Firebase CLI Requirements
+Ensure Firebase CLI is installed and authenticated:
+```bash
+npm install -g firebase-tools
+firebase login
+```
+
+---
+
+**Remember:** Preview deployment happens ONLY when explicitly moving to "In Review". It's not automatic.
