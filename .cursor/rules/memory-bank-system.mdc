@@ -1,0 +1,80 @@
+Description: Memory Bank system for project documentation. Only activate when user says "create memory bank", "update memory bank", "initialize memory bank", or "setup memory bank".
+
+---
+
+# Cursor's Memory Bank System
+
+**⚠️ Only use this system when explicitly requested by the user.**
+
+## When to Activate
+User says:
+- "create memory bank"
+- "update memory bank" 
+- "initialize memory bank"
+- "setup memory bank"
+
+## Memory Bank Structure
+
+The Memory Bank consists of required core files in `memory-bank/` directory:
+
+### Core Files (Required)
+1. **projectbrief.md** - Foundation document (core requirements, goals, scope)
+2. **productContext.md** - Why project exists, problems solved, UX goals
+3. **activeContext.md** - Current work focus, recent changes, next steps
+4. **systemPatterns.md** - Architecture, technical decisions, design patterns
+5. **techContext.md** - Technologies, setup, constraints, dependencies
+6. **progress.md** - Current status, what works, what's left, known issues
+
+### File Hierarchy
+```
+projectbrief.md → productContext.md → activeContext.md → progress.md
+projectbrief.md → systemPatterns.md → activeContext.md
+projectbrief.md → techContext.md → activeContext.md
+```
+
+### Additional Context
+Create additional files/folders when needed:
+- Complex feature docs
+- Integration specs
+- API documentation
+- Testing strategies
+- Deployment procedures
+
+## When User Says "Update Memory Bank"
+
+1. **Read ALL memory bank files** (even if no changes needed)
+2. **Focus particularly on:** `activeContext.md` and `progress.md`
+3. **Update files** that need changes based on recent work
+4. **Update .cursor/rules/** if new patterns emerged
+5. **Summarize changes** made to each file
+
+## When User Says "Create Memory Bank" or "Initialize Memory Bank"
+
+1. **Create `memory-bank/` directory**
+2. **Generate all 6 core files** based on:
+   - Codebase analysis
+   - Package.json / dependencies
+   - Existing documentation
+   - Recent commits
+   - Project structure
+3. **Ask clarifying questions** if core information is missing
+4. **Create README.md** in memory-bank/ explaining the system
+
+## Best Practices
+
+- Keep files concise and scannable
+- Use bullet points over paragraphs
+- Update after significant changes
+- activeContext.md should reflect current sprint/focus
+- progress.md should be honest about what's done vs in-progress
+- Link to .cursor/rules/ files when referencing project patterns
+
+## Integration with .cursor/rules/
+
+Memory Bank (what/why) ← → .cursor/rules/ (how)
+- Memory Bank: High-level context, decisions, progress
+- Rules: Specific patterns, preferences, workflows
+
+---
+
+**Remember: This system is opt-in. Only activate when user explicitly requests it.**
