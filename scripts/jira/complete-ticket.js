@@ -200,9 +200,9 @@ async function completeTicket() {
   await jira.addComment(ticketKey, prodUrl);
   console.log('✅ Added completion comment\n');
 
-  // Clean up branch
+  // Clean up branch (force delete since we squashed)
   console.log('🧹 Cleaning up feature branch...');
-  execSync(`git branch -d ${branchName}`, { stdio: 'inherit' });
+  execSync(`git branch -D ${branchName}`, { stdio: 'inherit' });
   execSync(`git push origin --delete ${branchName}`, { stdio: 'inherit' });
   console.log('✅ Branch deleted\n');
 
