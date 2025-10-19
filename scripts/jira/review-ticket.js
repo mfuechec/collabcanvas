@@ -228,9 +228,13 @@ async function reviewTicket() {
   console.log(`🚀 Deploying to preview channel for ${ticketKey}...\n`);
   
   try {
+    // Run deploy script from current directory (worktree or main repo)
     const deployOutput = execSync(
       `"${worktreeInfo.deployScriptPath}" ${ticketKey}`,
-      { encoding: 'utf8' }
+      { 
+        encoding: 'utf8',
+        cwd: process.cwd() // Ensure we're in the right directory
+      }
     );
     
     // Extract the actual preview URL from deploy script output

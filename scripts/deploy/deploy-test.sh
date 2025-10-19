@@ -25,6 +25,13 @@ echo "📋 Ticket: $TICKET_KEY"
 echo "🌐 Channel: $CHANNEL_NAME"
 echo ""
 
+# Ensure we're in a directory with firebase.json
+if [ ! -f "firebase.json" ]; then
+    echo "❌ firebase.json not found in current directory"
+    echo "   Make sure you're running this from the project root"
+    exit 1
+fi
+
 # Check if Firebase CLI is installed
 if ! command -v firebase &> /dev/null; then
     echo "❌ Firebase CLI not found. Installing..."
@@ -71,9 +78,12 @@ fi
 
 echo "✅ Build completed successfully"
 
+# Get Firebase project ID (or use default)
+FIREBASE_PROJECT=${FIREBASE_PROJECT_ID:-"collabcanvas-5b9fb"}
+
 # Deploy to preview channel
 echo "🚀 Deploying to preview channel: $CHANNEL_NAME..."
-DEPLOY_OUTPUT=$(firebase hosting:channel:deploy "$CHANNEL_NAME" --expires 30d)
+DEPLOY_OUTPUT=$(firebase hosting:channel:deploy "$CHANNEL_NAME" --expires 30d --project "$FIREBASE_PROJECT")
 
 if [ $? -ne 0 ]; then
     echo "❌ Preview deployment failed"

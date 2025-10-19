@@ -45,9 +45,12 @@ fi
 
 echo "✅ Build completed successfully"
 
+# Get Firebase project ID (or use default)
+FIREBASE_PROJECT=${FIREBASE_PROJECT_ID:-"collabcanvas-5b9fb"}
+
 # Deploy security rules first
 echo "🔒 Deploying security rules..."
-firebase deploy --only firestore:rules,database
+firebase deploy --only firestore:rules,database --project "$FIREBASE_PROJECT"
 
 if [ $? -ne 0 ]; then
     echo "❌ Security rules deployment failed"
@@ -58,7 +61,7 @@ echo "✅ Security rules deployed"
 
 # Deploy hosting
 echo "🌐 Deploying to Firebase Hosting..."
-firebase deploy --only hosting
+firebase deploy --only hosting --project "$FIREBASE_PROJECT"
 
 if [ $? -ne 0 ]; then
     echo "❌ Hosting deployment failed"

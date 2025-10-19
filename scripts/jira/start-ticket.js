@@ -5,14 +5,17 @@
  * 
  * Moves ticket from SCOPED → In Progress, creates git worktree with feature branch, and updates Jira.
  * Creates isolated workspace in ../.git-worktrees/ for parallel development.
+ * Automatically copies .env and installs dependencies in the worktree.
  * 
  * Usage:
  *   node scripts/jira/start-ticket.js CRM-19
  *   node scripts/jira/start-ticket.js CRM-19 --branch-name="custom-branch-name"
+ *   node scripts/jira/start-ticket.js CRM-19 --skip-install  # Skip npm install (use symlinks)
  */
 
 import { execSync } from 'child_process';
 import path from 'path';
+import fs from 'fs';
 import { fileURLToPath } from 'url';
 import dotenv from 'dotenv';
 dotenv.config();
@@ -27,10 +30,11 @@ const JIRA_API_TOKEN = process.env.JIRA_API_TOKEN;
 const args = process.argv.slice(2);
 const ticketKey = args[0];
 const branchNameOverride = args.find(a => a.startsWith('--branch-name='))?.split('=')[1];
+const skipInstall = args.includes('--skip-install');
 
 if (!ticketKey) {
   console.error('❌ Please provide a ticket key\n');
-  console.error('Usage: node scripts/jira/start-ticket.js CRM-19');
+  console.error('Usage: node scripts/jira/start-ticket.js CRM-19 [--skip-install]');
   process.exit(1);
 }
 
@@ -145,6 +149,38 @@ async function startTicket() {
   } catch (error) {
     console.error('❌ Failed to create worktree:', error.message);
     process.exit(1);
+  }
+
+  // Setup worktree environment
+  console.log('⚙️  Setting up worktree environment...\n');
+  
+  // Copy .env file
+  const mainRepoPath = path.resolve(__dirname, '../..');
+  const mainEnvPath = path.join(mainRepoPath, '.env');
+  const worktreeEnvPath = path.join(worktreePath, '.env');
+  
+  if (fs.existsSync(mainEnvPath)) {
+    fs.copyFileSync(mainEnvPath, worktreeEnvPath);
+    console.log('✅ Copied .env file');
+  } else {
+    console.log('⚠️  No .env file found in main repo');
+  }
+  
+  // Install dependencies (unless skipped)
+  if (skipInstall) {
+    console.log('⏭️  Skipping npm install (--skip-install flag)\n');
+  } else {
+    console.log('📦 Installing dependencies (this may take a minute)...');
+    try {
+      execSync('npm install', { 
+        cwd: worktreePath,
+        stdio: 'inherit'
+      });
+      console.log('✅ Dependencies installed\n');
+    } catch (error) {
+      console.error('⚠️  npm install failed:', error.message);
+      console.log('   You may need to run npm install manually\n');
+    }
   }
 
   // Set terminal title

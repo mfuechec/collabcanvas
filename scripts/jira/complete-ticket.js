@@ -207,7 +207,8 @@ async function completeTicket() {
   // Deploy to production
   console.log('🚀 Deploying to production...');
   execSync('npm run build', { stdio: 'inherit' });
-  execSync('firebase deploy --only hosting', { stdio: 'inherit' });
+  const firebaseProject = process.env.FIREBASE_PROJECT_ID || 'collabcanvas-5b9fb';
+  execSync(`firebase deploy --only hosting --project ${firebaseProject}`, { stdio: 'inherit' });
   console.log('✅ Deployed to production\n');
 
   const prodUrl = 'https://collabcanvas-5b9fb.web.app';

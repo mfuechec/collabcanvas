@@ -47,7 +47,10 @@ echo "✅ Build completed successfully"
 
 # Deploy to beta channel (no need to deploy rules - same database)
 echo "🌐 Deploying to beta channel..."
-firebase hosting:channel:deploy beta --expires 30d
+# Get Firebase project ID (or use default)
+FIREBASE_PROJECT=${FIREBASE_PROJECT_ID:-"collabcanvas-5b9fb"}
+
+firebase hosting:channel:deploy beta --expires 30d --project "$FIREBASE_PROJECT"
 
 if [ $? -ne 0 ]; then
     echo "❌ Beta deployment failed"

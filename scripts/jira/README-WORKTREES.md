@@ -26,10 +26,20 @@ Git worktrees allow multiple working directories (with different branches) to sh
 # From main repo or any worktree
 node scripts/jira/start-ticket.js CRM-32
 
+# The script automatically:
+# - Creates worktree with new branch
+# - Copies .env file from main repo
+# - Runs npm install (~500MB per worktree)
+# - Transitions ticket to "In Progress"
+#
 # Output:
 # 🌿 Creating worktree: CRM-32-add-feature
 # 📂 Location: /Users/you/Desktop/.git-worktrees/CRM-32-add-feature
 # ✅ Worktree created
+# ⚙️  Setting up worktree environment...
+# ✅ Copied .env file
+# 📦 Installing dependencies (this may take a minute)...
+# ✅ Dependencies installed
 #
 # 🚀 To switch to the worktree, run:
 #    cd "/Users/you/Desktop/.git-worktrees/CRM-32-add-feature"
@@ -38,6 +48,12 @@ node scripts/jira/start-ticket.js CRM-32
 **Then manually cd to the worktree:**
 ```bash
 cd "/Users/you/Desktop/.git-worktrees/CRM-32-add-feature"
+```
+
+**Skip npm install (for symlink strategy):**
+```bash
+node scripts/jira/start-ticket.js CRM-32 --skip-install
+# Then manually symlink node_modules
 ```
 
 ### 2. Work on Ticket
@@ -118,13 +134,55 @@ git rev-parse --git-dir
 # If output is a path → worktree
 ```
 
+## Disk Space Considerations
+
+Each worktree includes a full copy of your working files plus `node_modules` (~500MB) and `dist/` when built.
+
+**Estimated disk usage per worktree:**
+- Source files: ~50MB
+- node_modules: ~500MB
+- dist (built): ~2MB
+- **Total: ~550MB per worktree**
+
+**For 3 parallel agents:** ~1.6GB total
+
+### Option 1: Default (Isolated npm install)
+
+✅ **Recommended for most users**
+- Each worktree has own `node_modules`
+- No race conditions during parallel builds
+- Clean isolation
+
+```bash
+node scripts/jira/start-ticket.js CRM-32
+# Automatically installs dependencies
+```
+
+### Option 2: Symlinked node_modules (Advanced)
+
+⚠️ **Advanced users only** - Saves disk space but requires careful management
+
+```bash
+# Start ticket without install
+node scripts/jira/start-ticket.js CRM-32 --skip-install
+
+# Create symlink to main repo's node_modules
+cd ../.git-worktrees/CRM-32-feature-name/
+ln -s ~/Desktop/collab\ canvas/node_modules node_modules
+```
+
+**Trade-offs:**
+- ✅ Saves ~500MB per worktree
+- ⚠️ Parallel builds may conflict
+- ⚠️ Dependency changes affect all worktrees
+
 ## Limitations
 
 ⚠️ **Merge conflicts still possible** - If two tickets modify the same files, you'll get conflicts when completing the second ticket. This is normal.
 
 ⚠️ **Scripts must use absolute paths** - When running scripts from worktrees, use absolute paths to the main repo's script folder.
 
-⚠️ **Each worktree needs build** - `npm install` and builds are per-worktree (disk space consideration).
+⚠️ **Each worktree needs build** - `npm run build` creates separate `dist/` folders per worktree.
 
 ## Troubleshooting
 
