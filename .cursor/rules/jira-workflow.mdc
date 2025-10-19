@@ -5,7 +5,7 @@ Globs: []
 
 # Jira Workflow Automation
 
-This rule provides simple trigger detection for Jira workflow scripts. All logic lives in `scripts/jira/*.js`.
+This rule provides simple trigger detection for Jira workflow. All logic lives in global commands (`~/bin/jira-workflow/`).
 
 ## ⚠️ IMPORTANT: User-Driven Workflow
 
@@ -38,7 +38,7 @@ User says "move to done" → Deploy production → WAIT for user
 
 **Action:**
 1. Extract title and description from conversation context
-2. Run: `node scripts/jira/create-ticket.js "{title}" "{description}"`
+2. Run: `jira-create "{title}" "{description}"`
 3. Display output to user
 4. **STOP - Wait for user's next instruction**
 
@@ -64,7 +64,7 @@ AI:
 - "begin work on [TICKET-KEY]"
 
 **Action:**
-Run: `node scripts/jira/start-ticket.js {TICKET-KEY}`
+Run: `jira-start {TICKET-KEY}`
 
 **What it does:**
 - Ensures main branch is up to date (pulls latest)
@@ -81,7 +81,7 @@ Run: `node scripts/jira/start-ticket.js {TICKET-KEY}`
 ```
 User: "start CRM-19"
 
-AI: Runs `node scripts/jira/start-ticket.js CRM-19`
+AI: Runs `jira-start CRM-19`
 
 Output shows:
 ✅ CRM-19 ready for implementation
@@ -110,7 +110,7 @@ Ready to start implementation? 🚀
 
 **Action:**
 1. Extract ticket key (from mention or current branch)
-2. Run: `node scripts/jira/review-ticket.js {TICKET-KEY}`
+2. Run: `jira-review {TICKET-KEY}`
 
 **What it does:**
 - Verifies current branch matches ticket key
@@ -127,7 +127,7 @@ User: "ready for review"
 
 AI: 
 - Detects current branch is CRM-19-keyboard-shortcuts
-- Runs `node scripts/jira/review-ticket.js CRM-19`
+- Runs `jira-review CRM-19`
 - Shows preview URL and Jira link
 ```
 
@@ -142,7 +142,7 @@ AI:
 - "complete [TICKET-KEY]"
 
 **Action:**
-Run: `node scripts/jira/complete-ticket.js {TICKET-KEY}`
+Run: `jira-complete {TICKET-KEY}`
 
 Or if no ticket specified, script auto-detects from current branch.
 
@@ -159,7 +159,7 @@ Or if no ticket specified, script auto-detects from current branch.
 ```
 User: "production ready"
 
-AI: Runs `node scripts/jira/complete-ticket.js`
+AI: Runs `jira-complete`
 Shows completion summary with production URL
 ```
 
@@ -220,7 +220,7 @@ User: [Provides feedback, we iterate]
 
 **Action:**
 1. Extract details from the completed scoping conversation
-2. Run: `node scripts/jira/scope-ticket.js {TICKET-KEY} --approach="..." --files="file1.js,file2.js" --complexity={Low|Medium|High} --estimate="X hours" --risks="..." --testing="..."`
+2. Run: `jira-scope {TICKET-KEY} --approach="..." --files="file1.js,file2.js" --complexity={Low|Medium|High} --estimate="X hours" --risks="..." --testing="..."`
 3. Display confirmation
 
 **Example:**
@@ -269,15 +269,18 @@ If user just says "CRM-42" or talks about a ticket without using a trigger phras
 
 ---
 
-## Related Files
+## Global Commands
 
-- `scripts/jira/create-ticket.js` - Quick ticket creation
-- `scripts/jira/scope-ticket.js` - Add implementation plan
-- `scripts/jira/start-ticket.js` - Start work + git branch
-- `scripts/jira/review-ticket.js` - Deploy preview + move to review
-- `scripts/jira/complete-ticket.js` - Production deploy + close ticket
+- `jira-create` - Quick ticket creation
+- `jira-scope` - Add implementation plan
+- `jira-start` - Start work + create worktree
+- `launch-agent` - Full automation (iTerm + Cursor)
+- `jira-review` - Deploy preview + move to review
+- `jira-complete` - Production deploy + close ticket
 - `.cursor/rules/jira-scoping-conversation.mdc` - Scoping conversation guidance
+
+All commands are global (`~/bin/jira-workflow/`) and work from any git repository with a `.env` file.
 
 ---
 
-**Remember:** Scripts handle all logic. This rule only detects triggers and calls scripts with appropriate arguments.
+**Remember:** Global commands handle all logic. This rule only detects triggers and calls commands with appropriate arguments.
