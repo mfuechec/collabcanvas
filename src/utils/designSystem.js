@@ -221,6 +221,64 @@ export const SHORTCUTS = {
   HELP: '?',
 };
 
+// Keyboard Hints Styling
+export const KEYBOARD_HINTS = {
+  // Badge styles for keyboard shortcuts
+  badge: {
+    backgroundColor: 'var(--hint-bg)',
+    border: '1px solid var(--hint-border)',
+    borderRadius: '4px',
+    padding: '2px 6px',
+    fontSize: '11px',
+    fontFamily: 'var(--font-mono)',
+    color: 'var(--text-secondary)',
+    fontWeight: '500',
+    letterSpacing: '0.5px',
+    display: 'inline-flex',
+    alignItems: 'center',
+    gap: '2px',
+    whiteSpace: 'nowrap',
+  },
+  
+  // Help menu overlay styles
+  helpOverlay: {
+    backgroundColor: 'rgba(0, 0, 0, 0.5)',
+    backdropFilter: 'blur(4px)',
+    zIndex: 1000,
+  },
+  
+  // Help panel styles
+  helpPanel: {
+    backgroundColor: 'var(--sidebar)',
+    border: '1px solid var(--border-primary)',
+    borderRadius: '12px',
+    boxShadow: 'var(--shadow-modal)',
+    maxWidth: '800px',
+    maxHeight: '80vh',
+    overflow: 'auto',
+    padding: '24px',
+  },
+  
+  // Toolbar button shortcut hints
+  toolbarBadge: {
+    position: 'absolute',
+    top: '-8px',
+    right: '-8px',
+    backgroundColor: 'var(--accent-primary)',
+    color: 'var(--accent-text)',
+    border: '1px solid var(--accent-border)',
+    borderRadius: '3px',
+    padding: '1px 4px',
+    fontSize: '9px',
+    fontFamily: 'var(--font-mono)',
+    fontWeight: '600',
+    letterSpacing: '0.5px',
+    zIndex: 1,
+    minWidth: '16px',
+    textAlign: 'center',
+  },
+};
+
 export default {
   COLORS,
   TYPOGRAPHY,
@@ -233,5 +291,6 @@ export default {
   Z_INDEX,
   TOOLS,
   SHORTCUTS,
+  KEYBOARD_HINTS,
 };
 

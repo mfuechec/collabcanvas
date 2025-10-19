@@ -2,6 +2,8 @@
 import { useCanvasMode } from '../../contexts/CanvasModeContext';
 import { useCanvas } from '../../hooks/useCanvas';
 import { clearAllShapes, addRandomShapes } from '../../utils/clearCanvas';
+import { SHORTCUTS } from '../../utils/designSystem';
+import KeyboardHint from '../UI/KeyboardHint';
 
 const CanvasToolbar = () => {
   const { currentMode, setMode, CANVAS_MODES } = useCanvasMode();
@@ -51,52 +53,56 @@ const CanvasToolbar = () => {
       }}
     >
       {/* Draw Mode Button */}
-      <button
-        onClick={() => handleModeChange(CANVAS_MODES.DRAW)}
-        className={`btn-modern btn-icon ${currentMode === CANVAS_MODES.DRAW ? 'active' : ''}`}
-        title="Draw rectangles (D)"
-        aria-label="Draw mode - Press D"
-      >
-        <svg 
-          fill="none" 
-          stroke="currentColor" 
-          viewBox="0 0 24 24" 
-          xmlns="http://www.w3.org/2000/svg" 
-          role="img" 
-          aria-hidden="true" 
-          width="20" 
-          height="20"
-          style={{ width: '20px', height: '20px', display: 'block' }}
+      <KeyboardHint shortcut="D" variant="inline">
+        <button
+          onClick={() => handleModeChange(CANVAS_MODES.DRAW)}
+          className={`btn-modern btn-icon ${currentMode === CANVAS_MODES.DRAW ? 'active' : ''}`}
+          title="Draw rectangles (D)"
+          aria-label="Draw mode - Press D"
         >
-          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" 
-            d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z" />
-        </svg>
-        {/* Safari fallback - hidden by default, shown if SVG fails */}
-        <span style={{ display: 'none', fontSize: '16px' }}>✏️</span>
-      </button>
+          <svg 
+            fill="none" 
+            stroke="currentColor" 
+            viewBox="0 0 24 24" 
+            xmlns="http://www.w3.org/2000/svg" 
+            role="img" 
+            aria-hidden="true" 
+            width="20" 
+            height="20"
+            style={{ width: '20px', height: '20px', display: 'block' }}
+          >
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" 
+              d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z" />
+          </svg>
+          {/* Safari fallback - hidden by default, shown if SVG fails */}
+          <span style={{ display: 'none', fontSize: '16px' }}>✏️</span>
+        </button>
+      </KeyboardHint>
 
       {/* Move Mode Button */}
-      <button
-        onClick={() => handleModeChange(CANVAS_MODES.MOVE)}
-        className={`btn-modern btn-icon ${currentMode === CANVAS_MODES.MOVE ? 'active' : ''}`}
-        title="Move and pan canvas (V)"
-        aria-label="Move mode - Press V"
-      >
-        <svg 
-          fill="none" 
-          stroke="currentColor" 
-          viewBox="0 0 24 24" 
-          xmlns="http://www.w3.org/2000/svg" 
-          role="img" 
-          aria-hidden="true" 
-          width="20" 
-          height="20"
-          style={{ width: '20px', height: '20px' }}
+      <KeyboardHint shortcut="V" variant="inline">
+        <button
+          onClick={() => handleModeChange(CANVAS_MODES.MOVE)}
+          className={`btn-modern btn-icon ${currentMode === CANVAS_MODES.MOVE ? 'active' : ''}`}
+          title="Move and pan canvas (V)"
+          aria-label="Move mode - Press V"
         >
-          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" 
-            d="M7 16l-4-4m0 0l4-4m-4 4h18M17 8l4 4m0 0l-4 4m4-4H3" />
-        </svg>
-      </button>
+          <svg 
+            fill="none" 
+            stroke="currentColor" 
+            viewBox="0 0 24 24" 
+            xmlns="http://www.w3.org/2000/svg" 
+            role="img" 
+            aria-hidden="true" 
+            width="20" 
+            height="20"
+            style={{ width: '20px', height: '20px' }}
+          >
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" 
+              d="M7 16l-4-4m0 0l4-4m-4 4h18M17 8l4 4m0 0l-4 4m4-4H3" />
+          </svg>
+        </button>
+      </KeyboardHint>
 
       {/* Divider */}
       <div 
@@ -105,27 +111,29 @@ const CanvasToolbar = () => {
       ></div>
 
       {/* Reset Button */}
-      <button
-        onClick={handleReset}
-        className="btn-modern btn-icon"
-        title="Reset canvas view (R or Ctrl+0)"
-        aria-label="Reset view - Press R"
-      >
-        <svg 
-          fill="none" 
-          stroke="currentColor" 
-          viewBox="0 0 24 24" 
-          xmlns="http://www.w3.org/2000/svg" 
-          role="img" 
-          aria-hidden="true" 
-          width="20" 
-          height="20"
-          style={{ width: '20px', height: '20px' }}
+      <KeyboardHint shortcut={SHORTCUTS.ZOOM_100} variant="inline">
+        <button
+          onClick={handleReset}
+          className="btn-modern btn-icon"
+          title="Reset canvas view (Ctrl+0)"
+          aria-label="Reset view - Press Ctrl+0"
         >
-          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" 
-            d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
-        </svg>
-      </button>
+          <svg 
+            fill="none" 
+            stroke="currentColor" 
+            viewBox="0 0 24 24" 
+            xmlns="http://www.w3.org/2000/svg" 
+            role="img" 
+            aria-hidden="true" 
+            width="20" 
+            height="20"
+            style={{ width: '20px', height: '20px' }}
+          >
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" 
+              d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+          </svg>
+        </button>
+      </KeyboardHint>
 
       {/* Divider */}
       <div 
