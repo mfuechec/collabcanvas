@@ -7,13 +7,13 @@ CollabCanvas uses Firebase Hosting with multiple deployment channels for product
 ## Deployment Channels
 
 ### Production (`live` channel)
-- **Script**: `./deploy-production.sh`
+- **Script**: `./scripts/deploy/deploy-production.sh`
 - **URL**: https://collabcanvas-5b9fb.web.app
 - **Purpose**: Public production site
 - **Deploys**: Hosting + Security rules
 
 ### Beta (`beta` channel)
-- **Script**: `./deploy-beta.sh`
+- **Script**: `./scripts/deploy/deploy-beta.sh`
 - **URL**: https://collabcanvas-5b9fb--beta-[UNIQUE_ID].web.app
 - **Purpose**: Testing before production
 - **Deploys**: Hosting only (uses same database as production)
@@ -22,12 +22,12 @@ CollabCanvas uses Firebase Hosting with multiple deployment channels for product
 
 ### Deploy to Production
 ```bash
-./deploy-production.sh
+./scripts/deploy/deploy-production.sh
 ```
 
 ### Deploy to Beta
 ```bash
-./deploy-beta.sh
+./scripts/deploy/deploy-beta.sh
 ```
 
 ## Firebase Hosting Channels
@@ -63,7 +63,7 @@ By default, the beta channel is set to expire in 30 days. To extend:
 
 ```bash
 # Redeploy to reset the 30-day timer
-./deploy-beta.sh
+./scripts/deploy/deploy-beta.sh
 ```
 
 Or set a longer expiration:
@@ -84,9 +84,9 @@ This allows you to test new UI/features on beta without affecting the production
 
 ### Testing Strategy
 
-1. **Beta Testing**: Deploy to beta for internal testing (`./deploy-beta.sh`)
+1. **Beta Testing**: Deploy to beta for internal testing (`./scripts/deploy/deploy-beta.sh`)
 2. **Verification**: Test all features on beta URL
-3. **Production Deploy**: Once verified, deploy to production (`./deploy-production.sh`)
+3. **Production Deploy**: Once verified, deploy to production (`./scripts/deploy/deploy-production.sh`)
 
 ## Security Rules
 

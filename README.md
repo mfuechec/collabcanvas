@@ -242,13 +242,13 @@ The app is deployed on Firebase Hosting with the following architecture:
 
 **Deploy to Beta (for testing)**
 ```bash
-./deploy-beta.sh
+./scripts/deploy/deploy-beta.sh
 # Get beta URL: firebase hosting:channel:open beta
 ```
 
 **Deploy to Production**
 ```bash
-./deploy-production.sh
+./scripts/deploy/deploy-production.sh
 # Live at: https://collabcanvas-5b9fb.web.app
 ```
 
@@ -275,10 +275,10 @@ Both scripts handle build, authentication, and deployment automatically. See `do
 4. **Deploy using scripts**
    ```bash
    # Deploy to beta for testing
-   ./deploy-beta.sh
+   ./scripts/deploy/deploy-beta.sh
    
    # Deploy to production when ready
-   ./deploy-production.sh
+   ./scripts/deploy/deploy-production.sh
    ```
 
 ### Environment Variables for Production

@@ -169,10 +169,10 @@ npm run build
 #### Deploy to Firebase
 ```bash
 # Production deployment (includes security rules)
-./deploy-production.sh
+./scripts/deploy/deploy-production.sh
 
 # Beta deployment (testing channel)
-./deploy-beta.sh
+./scripts/deploy/deploy-beta.sh
 
 # Preview channel deployment (per-ticket testing)
 firebase hosting:channel:deploy crm-19 --expires 999d
@@ -363,11 +363,11 @@ git push origin main
 ### Deployment Process
 ```bash
 # Option 1: Deploy to beta for testing
-./deploy-beta.sh
+./scripts/deploy/deploy-beta.sh
 # Test at: https://collabcanvas-5b9fb--beta-[UNIQUE_ID].web.app
 
 # Option 2: Deploy to production
-./deploy-production.sh
+./scripts/deploy/deploy-production.sh
 # Live at: https://collabcanvas-5b9fb.web.app
 
 # Both scripts handle:

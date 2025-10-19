@@ -4,13 +4,13 @@
 
 ### Deploy to Beta (Testing)
 ```bash
-./deploy-beta.sh
+./scripts/deploy/deploy-beta.sh
 ```
 Get URL: `firebase hosting:channel:open beta`
 
 ### Deploy to Production (Live)
 ```bash
-./deploy-production.sh
+./scripts/deploy/deploy-production.sh
 ```
 URL: https://collabcanvas-5b9fb.web.app
 
@@ -36,9 +36,9 @@ URL: https://collabcanvas-5b9fb.web.app
 ## Typical Workflow
 
 1. Make code changes
-2. Deploy to beta: `./deploy-beta.sh`
+2. Deploy to beta: `./scripts/deploy/deploy-beta.sh`
 3. Test thoroughly on beta URL
-4. Deploy to production: `./deploy-production.sh`
+4. Deploy to production: `./scripts/deploy/deploy-production.sh`
 
 ---
 

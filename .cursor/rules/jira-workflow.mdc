@@ -1,0 +1,277 @@
+---
+Description: Lightweight Jira workflow automation - detects trigger phrases and calls scripts
+Globs: []
+---
+
+# Jira Workflow Automation
+
+This rule provides simple trigger detection for Jira workflow scripts. All logic lives in `scripts/jira/*.js`.
+
+## ⚠️ IMPORTANT: User-Driven Workflow
+
+**ALL workflow actions require EXPLICIT user triggers.**
+
+- After completing ANY action (create, scope, start, review, complete), **STOP and WAIT** for user's next instruction
+- Do NOT automatically move to the next workflow step
+- Do NOT suggest or start scoping after creating a ticket unless user asks
+- Only act when user explicitly uses trigger phrases listed below
+
+**The workflow is:**
+```
+User says "create ticket" → Create ticket → WAIT for user
+User says "scope CRM-X" → Start scoping conversation → WAIT for user
+User says "move to scoped" → Save to Jira → WAIT for user
+User says "start CRM-X" → Create branch → WAIT for user
+User says "ready for review" → Deploy preview → WAIT for user
+User says "move to done" → Deploy production → WAIT for user
+```
+
+---
+
+## 1. Quick Add Ticket
+
+**Triggers:**
+- "add to todo"
+- "create a jira ticket"
+- "add this to jira"
+- "make a ticket for this"
+
+**Action:**
+1. Extract title and description from conversation context
+2. Run: `node scripts/jira/create-ticket.js "{title}" "{description}"`
+3. Display output to user
+4. **STOP - Wait for user's next instruction**
+
+**Example:**
+```
+User: "The minimap isn't showing circles correctly. Add to todo list."
+
+AI: 
+- Extracts title: "Fix minimap circle rendering"
+- Extracts description: "Circles not displaying correctly in minimap. Likely coordinate conversion issue."
+- Runs script
+- Shows: "✅ Created CRM-42 | Labels: canvas, frontend | 🔗 [link]"
+- WAITS for user (does NOT start scoping)
+```
+
+---
+
+## 2. Start Work on Ticket
+
+**Triggers:**
+- "start [TICKET-KEY]"
+- "move [TICKET-KEY] to in progress"
+- "begin work on [TICKET-KEY]"
+
+**Action:**
+Run: `node scripts/jira/start-ticket.js {TICKET-KEY}`
+
+**What it does:**
+- Creates git branch from main
+- Moves Jira ticket to "In Progress"
+- Sets terminal title
+- Displays task recap (approach, files, complexity, estimate)
+- Asks "Ready to start implementation?"
+
+**Example:**
+```
+User: "start CRM-19"
+
+AI: Runs `node scripts/jira/start-ticket.js CRM-19`
+
+Output shows:
+✅ CRM-19 ready for implementation
+🌿 Branch: CRM-19-keyboard-shortcuts
+
+📋 Task Recap
+**Add keyboard shortcuts**
+
+📝 Approach: Add keyboard shortcuts with platform detection
+📁 Files: CanvasToolbar.jsx, designSystem.js
+⚡ Complexity: Low
+⏱️  Estimate: 2-3 hours
+
+Ready to start implementation? 🚀
+```
+
+---
+
+## 3. Ready for Review
+
+**Triggers:**
+- "ready for review"
+- "move to review"
+- "move [TICKET-KEY] to review"
+- "deploy for review"
+
+**Action:**
+1. Extract ticket key (from mention or current branch)
+2. Run: `node scripts/jira/review-ticket.js {TICKET-KEY}`
+
+**What it does:**
+- Verifies current branch matches ticket key
+- Auto-commits any uncommitted changes
+- Builds project
+- Deploys to Firebase preview channel
+- Pushes branch
+- Moves to "In Review" in Jira
+- Adds preview URL + smart testing instructions to ticket
+
+**Example:**
+```
+User: "ready for review"
+
+AI: 
+- Detects current branch is CRM-19-keyboard-shortcuts
+- Runs `node scripts/jira/review-ticket.js CRM-19`
+- Shows preview URL and Jira link
+```
+
+---
+
+## 4. Complete & Deploy to Production
+
+**Triggers:**
+- "move to done"
+- "production ready"
+- "deploy to production"
+- "complete [TICKET-KEY]"
+
+**Action:**
+Run: `node scripts/jira/complete-ticket.js {TICKET-KEY}`
+
+Or if no ticket specified, script auto-detects from current branch.
+
+**What it does:**
+- Deletes Firebase preview channel
+- Squash merges to main (all commits → 1 clean commit)
+- Deploys to production
+- Moves Jira to "Done"
+- Cleans up feature branch
+
+**Example:**
+```
+User: "production ready"
+
+AI: Runs `node scripts/jira/complete-ticket.js`
+Shows completion summary with production URL
+```
+
+---
+
+## 5a. Scope Ticket - START CONVERSATION
+
+**Triggers:**
+- "scope [TICKET-KEY]"
+- "let's scope [TICKET-KEY]"
+- "plan [TICKET-KEY]"
+
+**IMPORTANT:** Do NOT call any scripts yet! This is a conversation phase.
+
+**Action:**
+Use `jira-scoping-conversation.mdc` to have an interactive discussion with the user. Propose a complete implementation plan upfront and iterate based on user feedback.
+
+**Discuss:**
+- Implementation approach
+- Files to modify
+- Complexity estimate
+- Time estimate
+- Risks and concerns
+- Testing approach
+- Acceptance criteria
+
+**Example:**
+```
+User: "scope CRM-19"
+
+AI: [Reads ticket, proposes complete plan]
+"## Scoping CRM-19: Add keyboard shortcuts
+
+### Implementation Plan
+**Approach:** Add keyboard shortcuts with platform detection...
+**Files to Modify:**
+- CanvasToolbar.jsx
+- designSystem.js
+**Complexity:** Low
+**Estimate:** 2-3 hours
+...
+
+Does this plan match your thinking?"
+
+User: [Provides feedback, we iterate]
+```
+
+---
+
+## 5b. Scope Ticket - SAVE TO JIRA
+
+**Triggers:**
+- "move to scoped"
+- "update the ticket"
+- "save the plan to jira"
+
+**IMPORTANT:** Only run this AFTER completing the scoping conversation (5a).
+
+**Action:**
+1. Extract details from the completed scoping conversation
+2. Run: `node scripts/jira/scope-ticket.js {TICKET-KEY} --approach="..." --files="file1.js,file2.js" --complexity={Low|Medium|High} --estimate="X hours" --risks="..." --testing="..."`
+3. Display confirmation
+
+**Example:**
+```
+User: [After discussing implementation]
+"Move to scoped"
+
+AI:
+- Gathers from conversation: approach="Add keyboard shortcuts with platform detection"
+- Gathers: files="CanvasToolbar.jsx,designSystem.js"
+- Gathers: complexity=Low, estimate="2-3 hours"
+- Runs script with all arguments
+- Shows: "✅ CRM-19 moved to SCOPED with implementation plan"
+```
+
+---
+
+## Guidelines
+
+### Extracting Context
+- **Title**: 3-5 words, verb-first ("Fix X", "Add Y", "Implement Z")
+- **Description**: 2-3 sentences from conversation
+- **Ticket Key**: Look for "CRM-XX" pattern or extract from current git branch
+
+### Script Permissions
+All scripts require network access for Jira API calls. Request `network` permission when running scripts.
+
+### Error Handling
+If script fails:
+1. Show the error output to user
+2. Suggest running script manually for debugging
+3. Don't retry automatically
+
+### When User Mentions Ticket Without Command
+If user just says "CRM-42" or talks about a ticket without using a trigger phrase:
+- **Do NOT automatically run any scripts**
+- **Do NOT suggest actions unless asked**
+- If clarification is needed, ask: "What would you like to do with CRM-42?"
+- Otherwise, just acknowledge and wait for explicit instruction
+
+### After Completing Any Action
+- Display the results
+- **STOP and WAIT** for user's next instruction
+- Do NOT suggest or perform the next workflow step
+- Do NOT continue the conversation about next steps unless user asks
+
+---
+
+## Related Files
+
+- `scripts/jira/create-ticket.js` - Quick ticket creation
+- `scripts/jira/scope-ticket.js` - Add implementation plan
+- `scripts/jira/start-ticket.js` - Start work + git branch
+- `scripts/jira/review-ticket.js` - Deploy preview + move to review
+- `scripts/jira/complete-ticket.js` - Production deploy + close ticket
+- `.cursor/rules/jira-scoping-conversation.mdc` - Scoping conversation guidance
+
+---
+
+**Remember:** Scripts handle all logic. This rule only detects triggers and calls scripts with appropriate arguments.
