@@ -175,7 +175,7 @@ Shows completion summary with production URL
 **IMPORTANT:** Do NOT call any scripts yet! This is a conversation phase.
 
 **Action:**
-Use `jira-scoping-conversation.mdc` to have an interactive discussion with the user. Propose a complete implementation plan upfront and iterate based on user feedback.
+Use `~/bin/jira-workflow/jira-scoping-conversation.mdc` (global scoping guide) to have an interactive discussion with the user. Propose a complete implementation plan upfront and iterate based on user feedback.
 
 **Discuss:**
 - Implementation approach
@@ -277,7 +277,7 @@ If user just says "CRM-42" or talks about a ticket without using a trigger phras
 - `launch-agent` - Full automation (iTerm + Cursor)
 - `jira-review` - Deploy preview + move to review
 - `jira-complete` - Production deploy + close ticket
-- `.cursor/rules/jira-scoping-conversation.mdc` - Scoping conversation guidance
+- `~/bin/jira-workflow/jira-scoping-conversation.mdc` - Scoping conversation guidance (global)
 
 All commands are global (`~/bin/jira-workflow/`) and work from any git repository with a `.env` file.
 
