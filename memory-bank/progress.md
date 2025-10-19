@@ -160,6 +160,27 @@
 - [x] Structured output templates for findings
 - [x] Background agent architecture designed
 - [x] Claude 3.5 Haiku selected as analysis model
+- [x] Cursor rules optimized (82% context reduction)
+- [x] On-demand memory bank system
+
+### ✅ Jira Workflow Integration
+- [x] Jira API integration with Atlassian REST API
+- [x] Complete ticket lifecycle automation (TO DO → SCOPED → In Progress → In Review → Done)
+- [x] Quick ticket creation (`jira-quick-add.mdc`)
+- [x] PRD-style scoping conversations (`jira-scoping-conversation.mdc`)
+- [x] Finalize scoping workflow (`jira-move-to-scoped.mdc`)
+- [x] Start work automation with branch creation (`jira-move-to-in-progress.mdc`)
+- [x] **Firebase preview channels for per-ticket testing** (`jira-move-to-in-review.mdc`)
+- [x] **Production deployment with preview cleanup** (`jira-move-to-done.mdc`)
+- [x] Atlassian Document Format for descriptions
+- [x] Auto-labeling by codebase area (UI, AI, services, etc.)
+- [x] Branch naming convention (`CRM-19-description`)
+- [x] Jira comment integration with URLs and context
+- [x] Status transition validation
+- [x] Ticket assignment automation
+- [x] Migrated `TODO.md` to Jira (deleted legacy file)
+- [x] Package.json scripts for Jira operations
+- [x] Environment configuration for Jira credentials
 
 ## What's Left (Pending/Future)
 

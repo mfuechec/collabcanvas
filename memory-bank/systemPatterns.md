@@ -517,6 +517,219 @@ async function operationWithErrorHandling() {
 }
 ```
 
+### 9. Jira Workflow Integration & Firebase Preview Channels
+
+**Pattern**: Cursor-integrated ticket lifecycle with per-ticket testing environments
+
+**Workflow Automation**:
+```
+TO DO → SCOPED → In Progress → In Review → Done
+  ↓       ↓           ↓            ↓         ↓
+Quick   Plan     Create        Deploy    Merge &
+Add             Branch        Preview    Deploy
+```
+
+**Ticket Lifecycle Rules** (6 rules):
+
+1. **Quick Add** (`jira-quick-add.mdc`)
+   ```javascript
+   User: "Add keyboard shortcuts to todo list"
+   
+   → Creates Jira ticket with:
+     - Title (extracted from message)
+     - Description (context from message)
+     - Area labels (UI, AI, services, testing, etc.)
+     - Priority: Medium (default)
+     - Status: TO DO
+   ```
+
+2. **Scoping Conversation** (`jira-scoping-conversation.mdc`)
+   ```javascript
+   User: "Let's scope CRM-19"
+   
+   → AI generates full implementation plan:
+     - Implementation approach
+     - Files to change
+     - Complexity estimate (hours)
+     - Dependencies and blockers
+     - Risks and edge cases
+     - Testing strategy
+     - Acceptance criteria
+   
+   → User critiques and refines
+   → Plan remains in TO DO until finalized
+   ```
+
+3. **Move to SCOPED** (`jira-move-to-scoped.mdc`)
+   ```javascript
+   User: "Move to scoped"
+   
+   → Updates Jira ticket:
+     - Description ← Full implementation plan
+     - Comment ← "Scoping complete, ready to implement"
+     - Status: TO DO → SCOPED
+     - Confirms all fields (priority, labels, assignee)
+   ```
+
+4. **Move to In Progress** (`jira-move-to-in-progress.mdc`)
+   ```javascript
+   User: "Move CRM-19 to in progress"
+   
+   → Git workflow:
+     git checkout main
+     git pull origin main
+     git checkout -b CRM-19-keyboard-shortcuts
+   
+   → Jira updates:
+     - Status: SCOPED → In Progress
+     - Assignee: Current user
+     - Comment: "Started work on branch: CRM-19-keyboard-shortcuts"
+   
+   → Shows condensed implementation plan recap
+   ```
+
+5. **Move to In Review** (`jira-move-to-in-review.mdc`)
+   ```javascript
+   User: "Ready for review"
+   
+   → Verification:
+     - Check for uncommitted changes (commit if needed)
+     - Build project (npm run build)
+     - Fail fast if build errors
+   
+   → Firebase Preview Channel:
+     firebase hosting:channel:deploy crm-19 --expires 999d
+     → https://collabcanvas-5b9fb--crm-19.web.app
+   
+   → Git workflow:
+     git push origin CRM-19-keyboard-shortcuts
+   
+   → Jira updates:
+     - Status: In Progress → In Review
+     - Comment with:
+       • Preview URL (clickable link)
+       • Branch name
+       • Note about production data
+   ```
+
+6. **Move to Done** (`jira-move-to-done.mdc`)
+   ```javascript
+   User: "Production ready"
+   
+   → Verification:
+     - Ticket must be in "In Review" status
+     - Extract ticket key from branch name
+   
+   → Cleanup preview:
+     firebase hosting:channel:delete crm-19 --force
+   
+   → Git workflow:
+     git checkout main
+     git pull origin main
+     git merge CRM-19-keyboard-shortcuts --no-ff -m "Merge CRM-19: [Title]
+     
+     - [Key changes]
+     
+     Closes CRM-19"
+     git push origin main
+   
+   → Production deployment:
+     npm run build
+     firebase deploy --only hosting
+   
+   → Jira updates:
+     - Status: In Review → Done
+     - Comment: "✅ Deployed to Production"
+       • Production URL
+       • Merged to main
+       • Preview channel deleted
+   
+   → Branch cleanup:
+     git branch -d CRM-19-keyboard-shortcuts
+     git push origin --delete CRM-19-keyboard-shortcuts
+   ```
+
+**Firebase Preview Channels Architecture**:
+
+```
+Preview Channel Structure:
+Main:      https://collabcanvas-5b9fb.web.app
+CRM-19:    https://collabcanvas-5b9fb--crm-19.web.app
+CRM-20:    https://collabcanvas-5b9fb--crm-20.web.app
+```
+
+**Channel Properties**:
+- **Isolated URLs**: Each ticket gets unique subdomain
+- **Production data**: Uses same Firebase project (Firestore, RTDB, Auth)
+- **Long-lived**: 999-day expiration (manual cleanup on Done)
+- **Multiple simultaneous**: Can test CRM-19, CRM-20, CRM-21 at same time
+- **Shareable**: Send URLs to stakeholders for feedback
+- **No conflicts**: Beta and production remain stable
+
+**Use Cases**:
+- ✅ Review UI changes before production
+- ✅ Test with real data and auth
+- ✅ Multi-user testing in isolated environment
+- ✅ Stakeholder previews
+- ✅ Parallel feature development
+
+**Cleanup Strategy**:
+- Preview channels deleted automatically when ticket moves to Done
+- Prevents accumulation of stale environments
+- Can check all channels: `firebase hosting:channel:list`
+- Manual cleanup if needed: `firebase hosting:channel:delete [name]`
+
+**Environment Configuration**:
+```env
+# Jira Configuration
+JIRA_HOST=fuechecmark.atlassian.net
+JIRA_EMAIL=user@example.com
+JIRA_API_TOKEN=xxx
+JIRA_PROJECT_KEY=CRM
+JIRA_BOARD_NAME=Collab Canvas
+JIRA_ISSUE_TYPE=Task
+```
+
+**Jira API Integration**:
+- REST API v3 for tickets, comments, transitions
+- Atlassian Document Format for descriptions
+- Status transitions via transition IDs
+- Auto-assignment to current user
+- Comment threading with context
+
+**Area Labels** (Auto-applied):
+- `ui` - Frontend components, styling
+- `ai` - AI tools, templates, LangChain
+- `services` - Firebase, canvas operations
+- `testing` - E2E tests, test infrastructure
+- `deployment` - Build, deploy, hosting
+- `documentation` - Docs, memory bank
+
+**Branch Naming Convention**:
+```
+Format: [TICKET-KEY]-[brief-description]
+
+Examples:
+CRM-19-keyboard-shortcuts
+CRM-20-fix-minimap-circles  
+CRM-21-ai-caching
+
+Guidelines:
+- Lowercase, hyphen-separated
+- 2-4 words max for description
+- Focus on "what" not "how"
+- Keep under 40 characters total
+```
+
+**Benefits**:
+- ✅ Single source of truth (Jira)
+- ✅ Automated workflow reduces manual steps
+- ✅ Per-ticket testing environments
+- ✅ Consistent branch naming
+- ✅ Proper ticket documentation
+- ✅ Clear status progression
+- ✅ Integrated with Cursor for seamless experience
+
 ## Code Organization Principles
 
 ### DRY (Don't Repeat Yourself)

@@ -18,6 +18,14 @@
   - Realtime Database - Cursors, presence, ephemeral data
   - Authentication - Google OAuth
   - Hosting - Static site deployment
+  - **Preview Channels** - Per-ticket testing environments (`--[ticket-key]` subdomains)
+  
+- **Jira (Atlassian Cloud)**
+  - REST API v3 - Ticket management, comments, transitions
+  - Atlassian Document Format - Rich text descriptions
+  - Integration via `.env` credentials (JIRA_HOST, JIRA_API_TOKEN)
+  - Project: CRM (Collab Canvas)
+  - Workflow: TO DO → SCOPED → In Progress → In Review → Done
 
 ### AI Integration
 - **LangChain 0.3.36** - AI orchestration framework
@@ -77,6 +85,14 @@ VITE_OPENAI_API_KEY=...
 # Optional: LangSmith (for AI debugging)
 VITE_LANGSMITH_API_KEY=...
 VITE_LANGSMITH_PROJECT=...
+
+# Jira Configuration (for ticket management workflow)
+JIRA_HOST=fuechecmark.atlassian.net
+JIRA_EMAIL=your-email@example.com
+JIRA_API_TOKEN=...
+JIRA_PROJECT_KEY=CRM
+JIRA_BOARD_NAME=Collab Canvas
+JIRA_ISSUE_TYPE=Task
 ```
 
 ### Firebase Configuration
@@ -158,13 +174,31 @@ npm run build
 # Beta deployment (testing channel)
 ./deploy-beta.sh
 
+# Preview channel deployment (per-ticket testing)
+firebase hosting:channel:deploy crm-19 --expires 999d
+# Creates: https://collabcanvas-5b9fb--crm-19.web.app
+
 # Or manually:
 npm run build
 firebase deploy --only hosting              # Production
 firebase hosting:channel:deploy beta        # Beta
 ```
 
-**Current Production URL**: https://collabcanvas-5b9fb.web.app
+**Deployment Environments**:
+- **Production**: https://collabcanvas-5b9fb.web.app (main branch)
+- **Beta**: https://collabcanvas-5b9fb--beta-[id].web.app (testing)
+- **Preview Channels**: https://collabcanvas-5b9fb--[ticket-key].web.app (per-ticket)
+
+**Preview Channel Management**:
+```bash
+# List all preview channels
+firebase hosting:channel:list
+
+# Delete preview channel
+firebase hosting:channel:delete crm-19 --force
+
+# Preview channels are auto-deleted when tickets move to Done
+```
 
 ## Project Structure
 

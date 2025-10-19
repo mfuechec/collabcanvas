@@ -1,9 +1,181 @@
 # Active Context
 
 ## Current Focus
-**Status**: AI schema validation and context detection fixes COMPLETE! Fixed "Failed to parse AI response" and "No document to update" errors. Deployed to production successfully.
+**Status**: Jira workflow integration COMPLETE! Full ticket management system integrated with Firebase preview channels for per-ticket testing environments. Cursor rules optimized to reduce context bloat by 82%.
 
 ## Recent Changes (Latest Session)
+
+### 🎫 Jira Workflow Integration & Rule Optimization ✅
+
+**Goal**: Replace `TODO.md` with comprehensive Jira workflow integrated into Cursor, complete with Firebase preview channels for isolated testing environments.
+
+**Achievement**: Successfully built end-to-end Jira workflow with 6 rule files covering the complete ticket lifecycle!
+
+**Jira Workflow Created** (6 rules, ~2000 lines total):
+
+1. **`jira-quick-add.mdc`** - Quick ticket creation
+   - Trigger: "add to todo list"
+   - Creates ticket with title, description, area labels
+   - Uses Atlassian Document Format
+   - No scoping needed - just capture ideas fast
+   
+2. **`jira-scoping-conversation.mdc`** - Detailed planning
+   - Trigger: "let's scope [ticket]"
+   - AI proposes full implementation plan
+   - User critiques and refines
+   - PRD-style approach (plan → critique → iterate)
+   
+3. **`jira-move-to-scoped.mdc`** - Finalize planning
+   - Trigger: "move to scoped"
+   - Updates ticket description with full implementation plan
+   - Adds scoping comment to Jira
+   - Changes status: TO DO → SCOPED
+   
+4. **`jira-move-to-in-progress.mdc`** - Start work
+   - Trigger: "move [ticket] to in progress"
+   - Pulls latest main
+   - Creates feature branch (`CRM-19-keyboard-shortcuts`)
+   - Updates Jira status: SCOPED → In Progress
+   - Assigns ticket to user
+   - Shows condensed implementation plan
+   - ~~Sets terminal tab title (doesn't work in Cursor's sandboxed terminal)~~
+   
+5. **`jira-move-to-in-review.mdc`** - Deploy for review **[NEW FEATURE]**
+   - Trigger: "ready for review", "move to in review"
+   - Verifies all changes committed
+   - Builds project (`npm run build`)
+   - **Deploys to Firebase preview channel** (`https://collabcanvas-5b9fb--crm-19.web.app`)
+   - Pushes branch to GitHub
+   - Updates Jira status: In Progress → In Review
+   - Adds comment with preview URL and branch info
+   - **Key Innovation**: Each ticket gets isolated testing environment!
+   
+6. **`jira-move-to-done.mdc`** - Production deployment **[REPLACES OLD RULE]**
+   - Trigger: "production ready", "move to done"
+   - Verifies ticket is in "In Review"
+   - **Deletes Firebase preview channel** (cleanup)
+   - Merges to main with proper commit message
+   - Deploys to production
+   - Updates Jira status: In Review → Done
+   - Adds completion comment
+   - Cleans up feature branch (local and remote)
+   - **No confirmation needed** - "production ready" is explicit enough
+
+**Firebase Preview Channels Integration**:
+```
+Workflow: TO DO → SCOPED → In Progress → In Review → Done
+                                         ↑            ↑
+                                   Deploy preview   Delete preview
+                                   per-ticket URL   cleanup
+```
+
+**Preview Channel Benefits**:
+- Isolated testing environment per ticket
+- Format: `https://collabcanvas-5b9fb--[ticket-key].web.app`
+- Multiple simultaneous reviews (CRM-19, CRM-20, CRM-21)
+- Uses production database and auth (realistic testing)
+- Shareable URLs for stakeholders
+- 999-day expiration (manual cleanup when done)
+- No conflicts with beta or production
+
+**Cursor Rules Optimization** (82% context reduction):
+
+**Problems Solved**:
+1. Verbose global rule (~200 lines) loaded in every conversation
+2. Obsolete rules (todo-management.mdc, production-ready-workflow.mdc)
+3. Overly broad rule application (DRY rules applied to all files)
+4. Lack of proper Globs scoping
+
+**Actions Taken**:
+- ✅ **Deleted `todo-management.mdc`** - Replaced by Jira workflow
+- ✅ **Deleted `production-ready-workflow.mdc`** - Replaced by `jira-move-to-done.mdc`
+- ✅ **Created `memory-bank-system.mdc`** - On-demand only (trigger: "update memory bank")
+- ✅ **Condensed `general-dry-rules.mdc`** - 334 lines → 95 lines (72% reduction)
+- ✅ **Condensed `ai-tools-maintenance.mdc`** - 331 lines → 128 lines (61% reduction)
+- ✅ **Properly scoped `dry-enforcement.mdc`** - Added Globs: `scripts/dry-agent.js, scripts/analyzers/*.js`
+- ✅ **Properly scoped `production-ready-workflow.mdc`** - Added Globs before deletion
+- ✅ **User updated global rules** - Replaced verbose memory bank with lightweight universal preferences
+
+**Context Savings**:
+- Old total: ~1100 lines loaded per conversation
+- New total: ~200 lines loaded (on-demand rules excluded)
+- **Reduction: ~900 lines (82%)**
+
+**Files Modified**:
+- `.env.example` - Added Jira configuration
+- `package.json` - Added Jira workflow scripts
+- `.cursor/rules/jira-*.mdc` - Created 6 new workflow rules
+- `.cursor/rules/memory-bank-system.mdc` - On-demand memory bank
+- `.cursor/rules/general-dry-rules.mdc` - Condensed
+- `.cursor/rules/ai-tools-maintenance.mdc` - Condensed
+- `.cursor/rules/dry-enforcement.mdc` - Properly scoped
+
+**Files Deleted**:
+- `TODO.md` - Migrated to Jira, no longer needed
+- `.cursor/rules/todo-management.mdc` - Obsolete
+- `.cursor/rules/production-ready-workflow.mdc` - Replaced by `jira-move-to-done.mdc`
+- `AGENT-1-TASKS.md`, `AGENT-2-TASKS.md`, etc. - Consolidated into Jira
+
+**Jira Environment**:
+```bash
+JIRA_HOST=fuechecmark.atlassian.net
+JIRA_PROJECT_KEY=CRM
+JIRA_BOARD_NAME=Collab Canvas
+JIRA_ISSUE_TYPE=Task
+```
+
+**Workflow Statuses**:
+```
+TO DO → SCOPED → In Progress → In Review → Done
+```
+
+**Example Ticket Flow**:
+```bash
+# Quick capture
+User: "Add keyboard shortcuts hints to the todo list"
+AI: Creates CRM-19 with title, description, UI label
+
+# Scoping
+User: "Let's scope CRM-19"
+AI: Proposes full plan (files, approach, complexity, risks)
+User: Critiques and refines
+User: "Move to scoped"
+AI: Updates Jira with full plan, changes status
+
+# Start work
+User: "Move CRM-19 to in progress"
+AI: Creates branch, updates Jira, shows recap
+
+# Deploy for review
+User: "Ready for review"
+AI: Builds, deploys to https://collabcanvas-5b9fb--crm-19.web.app
+    Pushes branch, updates Jira
+
+# Production deployment
+User: "Production ready"
+AI: Deletes preview channel, merges to main, deploys production
+    Updates Jira to Done, cleans up branch
+```
+
+**Impact**:
+- ✅ Eliminated TODO.md file (single source of truth in Jira)
+- ✅ Complete ticket lifecycle automation
+- ✅ Firebase preview channels for isolated testing
+- ✅ Proper Jira workflow integration
+- ✅ 82% reduction in Cursor context bloat
+- ✅ On-demand memory bank system
+- ✅ Cleaner, more maintainable rules
+- ✅ Faster AI responses (less context to process)
+
+**Status**: ✅ Complete! All Jira workflow rules created, tested, and committed to CRM-19 branch. Preview channels working, context optimization complete.
+
+**Current Branch**: `CRM-19-keyboard-shortcuts` (with Jira workflow rules)
+
+**Next**: Complete CRM-19 implementation, test full workflow from In Progress → In Review → Done
+
+---
+
+## Previous Session Changes
 
 ### 🔧 AI Schema Validation & Context Detection Fixes ✅
 
